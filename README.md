@@ -190,32 +190,48 @@ no bank integrations.
 ## Repository structure
 
 ```
-/backend            Spring Boot application (Gradle)
-/frontend           Nuxt application
-/docs               Flow definitions, personas, design notes, decision log
-docker-compose.yml  Postgres for local dev
+/backend            Spring Boot 4 / Java 25 API (Gradle wrapper included)
+/frontend           Nuxt 4 SPA (Vue 3, Nuxt UI, Pinia)
+/docs               decision log, demo personas
+docker-compose.yml  optional Postgres (backend runs on H2 without it)
+.env.example        copy to .env for the Anthropic API key
 ```
 
 The frontend dev-proxies `/api` to `localhost:8080`. `ANTHROPIC_API_KEY` lives in a
-gitignored `.env` and is read server-side only.
+gitignored `.env` and is read server-side only. See `backend/README.md` and
+`frontend/README.md` for details.
 
 ---
 
 ## Getting started
 
-> Scaffolding is not in place yet. This section will be filled in as `/backend` and
-> `/frontend` are created.
-
 ```bash
-# Database
-docker compose up -d
-
-# Backend  (http://localhost:8080)
+# 1. Backend — http://localhost:8080  (runs on in-memory H2, no DB setup needed)
 cd backend && ./gradlew bootRun
 
-# Frontend (http://localhost:3000)
-cd frontend && npm install && npm run dev
+# 2. Frontend — http://localhost:3000  (proxies /api to the backend)
+cd frontend && npm install --legacy-peer-deps && npm run dev
 ```
+
+Open http://localhost:3000 and start a journey.
+
+**No API key yet?** The app runs anyway: the agent falls back to a deterministic stub
+(canned explanations, rule-based validation, a templated read-back). `GET
+/api/agent/status` shows `stub` or `claude`. When the mentor provides the key:
+
+```bash
+cd backend && ANTHROPIC_API_KEY=sk-ant-... ./gradlew bootRun
+```
+
+`npm install` needs `--legacy-peer-deps` — npm 10.9.x crashes on Nuxt UI's optional-peer
+set otherwise.
+
+### What works today
+
+The full journey runs end to end on mock data: the adaptive flow (co-applicant,
+self-employed and fixed-rate branches), inline explanations, rule-based validation with
+plain-language messages, the streaming assist chat, and the final screen with the
+read-back, standardized loan profile, mock multi-bank offers and document checklist.
 
 ---
 

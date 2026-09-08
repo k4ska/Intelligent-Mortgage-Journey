@@ -1,0 +1,18 @@
+# Optional: a Postgres instance if you outgrow the in-memory H2 database.
+# The backend runs on H2 by default and needs nothing here to start.
+# To use Postgres: `docker compose up -d` then set SPRING_PROFILES_ACTIVE=postgres
+# (add an application-postgres.yml with the datasource URL below).
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: mortgage
+      POSTGRES_USER: mortgage
+      POSTGRES_PASSWORD: mortgage
+    ports:
+      - "5432:5432"
+    volumes:
+      - mortgage_pgdata:/var/lib/postgresql/data
+
+volumes:
+  mortgage_pgdata:

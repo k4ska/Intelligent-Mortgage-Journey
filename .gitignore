@@ -1,0 +1,23 @@
+# Secrets
+.env
+*.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
+# Backend (Gradle)
+backend/.gradle/
+backend/build/
+backend/bin/
+
+# Frontend (Nuxt)
+frontend/node_modules/
+frontend/.nuxt/
+frontend/.output/
+frontend/dist/
+frontend/.data/
+node_modules/

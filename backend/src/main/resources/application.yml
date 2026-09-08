@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: mortgage-journey
+
+  datasource:
+    url: jdbc:h2:mem:mortgage;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    properties:
+      hibernate.format_sql: true
+
+  h2:
+    console:
+      enabled: true          # http://localhost:8080/h2-console (dev convenience)
+
+  ai:
+    anthropic:
+      # Set ANTHROPIC_API_KEY in the environment (or spring.ai.anthropic.api-key here).
+      # When empty, the app falls back to the deterministic stub agent - it still runs.
+      api-key: ${ANTHROPIC_API_KEY:}
+      chat:
+        options:
+          model: claude-sonnet-5
+          temperature: 0.3
+
+app:
+  cors:
+    allowed-origins: http://localhost:3000
+
+logging:
+  level:
+    org.springframework.ai: INFO

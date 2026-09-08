@@ -1,0 +1,262 @@
+{
+  "version": "2026-09-08",
+  "steps": [
+    {
+      "id": "welcome",
+      "title": "Let's map out your mortgage",
+      "subtitle": "A few questions, plain-language help at every step, and a summary you can take to any lender. Nothing here is a real application.",
+      "fields": [],
+      "next": [{ "default": "purpose" }]
+    },
+    {
+      "id": "purpose",
+      "title": "What are you looking to do?",
+      "subtitle": null,
+      "fields": [
+        {
+          "key": "loanPurpose",
+          "type": "RADIO",
+          "label": "Purpose of the loan",
+          "helpKey": null,
+          "placeholder": null,
+          "options": [
+            { "value": "PURCHASE", "label": "Buy a home" },
+            { "value": "REFINANCE", "label": "Refinance a mortgage I already have" }
+          ],
+          "validation": { "required": true, "min": null, "max": null, "pattern": null }
+        }
+      ],
+      "next": [{ "default": "property" }]
+    },
+    {
+      "id": "property",
+      "title": "About the property",
+      "subtitle": "We use this to estimate the value and your loan-to-value ratio.",
+      "fields": [
+        {
+          "key": "propertyAddress",
+          "type": "TEXT",
+          "label": "Property address",
+          "helpKey": null,
+          "placeholder": "Street, city",
+          "options": null,
+          "validation": { "required": true, "min": null, "max": null, "pattern": null }
+        },
+        {
+          "key": "propertyType",
+          "type": "SELECT",
+          "label": "Property type",
+          "helpKey": null,
+          "placeholder": null,
+          "options": [
+            { "value": "APARTMENT", "label": "Apartment" },
+            { "value": "HOUSE", "label": "House" },
+            { "value": "TERRACED", "label": "Terraced / row house" }
+          ],
+          "validation": { "required": true, "min": null, "max": null, "pattern": null }
+        },
+        {
+          "key": "purchasePrice",
+          "type": "MONEY",
+          "label": "Purchase price (or current value)",
+          "helpKey": null,
+          "placeholder": "250000",
+          "options": null,
+          "validation": { "required": true, "min": 1, "max": null, "pattern": null }
+        }
+      ],
+      "next": [{ "default": "applicants" }]
+    },
+    {
+      "id": "applicants",
+      "title": "Who is applying?",
+      "subtitle": null,
+      "fields": [
+        {
+          "key": "hasCoApplicant",
+          "type": "BOOLEAN",
+          "label": "Is there a second applicant?",
+          "helpKey": null,
+          "placeholder": null,
+          "options": null,
+          "validation": { "required": true, "min": null, "max": null, "pattern": null }
+        }
+      ],
+      "next": [
+        { "if": { "field": "hasCoApplicant", "op": "eq", "value": true }, "goto": "co-applicant" },
+        { "default": "income" }
+      ]
+    },
+    {
+      "id": "co-applicant",
+      "title": "The second applicant",
+      "subtitle": "Their income counts too, and so do their existing debts.",
+      "fields": [
+        {
+          "key": "coApplicantName",
+          "type": "TEXT",
+          "label": "Name",
+          "helpKey": null,
+          "placeholder": null,
+          "options": null,
+          "validation": { "required": true, "min": null, "max": null, "pattern": null }
+        },
+        {
+          "key": "coApplicantMonthlyIncome",
+          "type": "MONEY",
+          "label": "Their monthly gross income",
+          "helpKey": "proof-of-income",
+          "placeholder": "3000",
+          "options": null,
+          "validation": { "required": true, "min": 0, "max": null, "pattern": null }
+        }
+      ],
+      "next": [{ "default": "income" }]
+    },
+    {
+      "id": "income",
+      "title": "Your income and commitments",
+      "subtitle": null,
+      "fields": [
+        {
+          "key": "employmentType",
+          "type": "RADIO",
+          "label": "Employment",
+          "helpKey": "employment-type",
+          "placeholder": null,
+          "options": [
+            { "value": "EMPLOYED", "label": "Employed" },
+            { "value": "SELF_EMPLOYED", "label": "Self-employed / business owner" }
+          ],
+          "validation": { "required": true, "min": null, "max": null, "pattern": null }
+        },
+        {
+          "key": "monthlyGrossIncome",
+          "type": "MONEY",
+          "label": "Your monthly gross income",
+          "helpKey": "proof-of-income",
+          "placeholder": "4000",
+          "options": null,
+          "validation": { "required": true, "min": 1, "max": null, "pattern": null }
+        },
+        {
+          "key": "monthlyDebtPayments",
+          "type": "MONEY",
+          "label": "Existing monthly debt payments",
+          "helpKey": "debt-to-income",
+          "placeholder": "300",
+          "options": null,
+          "validation": { "required": true, "min": 0, "max": null, "pattern": null }
+        }
+      ],
+      "next": [
+        { "if": { "field": "employmentType", "op": "eq", "value": "SELF_EMPLOYED" }, "goto": "self-employed" },
+        { "default": "loan" }
+      ]
+    },
+    {
+      "id": "self-employed",
+      "title": "Your business",
+      "subtitle": "Lenders look at a longer history for self-employed applicants.",
+      "fields": [
+        {
+          "key": "yearsTrading",
+          "type": "NUMBER",
+          "label": "Years trading",
+          "helpKey": null,
+          "placeholder": "3",
+          "options": null,
+          "validation": { "required": true, "min": 0, "max": null, "pattern": null }
+        },
+        {
+          "key": "lastYearNetProfit",
+          "type": "MONEY",
+          "label": "Net profit last year",
+          "helpKey": null,
+          "placeholder": "48000",
+          "options": null,
+          "validation": { "required": true, "min": 0, "max": null, "pattern": null }
+        }
+      ],
+      "next": [{ "default": "loan" }]
+    },
+    {
+      "id": "loan",
+      "title": "The loan you want",
+      "subtitle": "Change these freely - the assistant will tell you how each choice affects things.",
+      "fields": [
+        {
+          "key": "downPayment",
+          "type": "MONEY",
+          "label": "Down payment",
+          "helpKey": "down-payment",
+          "placeholder": "25000",
+          "options": null,
+          "validation": { "required": true, "min": 0, "max": null, "pattern": null }
+        },
+        {
+          "key": "loanAmount",
+          "type": "MONEY",
+          "label": "Loan amount",
+          "helpKey": "loan-to-value",
+          "placeholder": "225000",
+          "options": null,
+          "validation": { "required": true, "min": 1, "max": null, "pattern": null }
+        },
+        {
+          "key": "termYears",
+          "type": "NUMBER",
+          "label": "Loan term (years)",
+          "helpKey": "loan-term",
+          "placeholder": "25",
+          "options": null,
+          "validation": { "required": true, "min": 5, "max": 40, "pattern": null }
+        },
+        {
+          "key": "rateType",
+          "type": "RADIO",
+          "label": "Rate type",
+          "helpKey": "rate-type",
+          "placeholder": null,
+          "options": [
+            { "value": "VARIABLE", "label": "Variable" },
+            { "value": "FIXED", "label": "Fixed" }
+          ],
+          "validation": { "required": true, "min": null, "max": null, "pattern": null }
+        }
+      ],
+      "next": [
+        { "if": { "field": "rateType", "op": "eq", "value": "FIXED" }, "goto": "fixed-details" },
+        { "default": "review" }
+      ]
+    },
+    {
+      "id": "fixed-details",
+      "title": "Your fixed period",
+      "subtitle": null,
+      "fields": [
+        {
+          "key": "fixedYears",
+          "type": "SELECT",
+          "label": "Fix the rate for",
+          "helpKey": "rate-type",
+          "placeholder": null,
+          "options": [
+            { "value": "2", "label": "2 years" },
+            { "value": "5", "label": "5 years" },
+            { "value": "10", "label": "10 years" }
+          ],
+          "validation": { "required": true, "min": null, "max": null, "pattern": null }
+        }
+      ],
+      "next": [{ "default": "review" }]
+    },
+    {
+      "id": "review",
+      "title": "Your loan profile",
+      "subtitle": "Here is everything in plain language, with the assistant's read-back and the standardized profile you can take to a lender.",
+      "fields": [],
+      "next": []
+    }
+  ]
+}
