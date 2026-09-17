@@ -10,6 +10,12 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // Banking register reads calmer in light mode by default; still toggleable.
+  colorMode: {
+    preference: 'light',
+    fallback: 'light',
+  },
+
   runtimeConfig: {
     public: {
       // Where the Spring Boot API lives. In dev the Nitro proxy below forwards
