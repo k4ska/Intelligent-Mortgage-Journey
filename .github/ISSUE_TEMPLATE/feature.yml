@@ -1,0 +1,35 @@
+name: Feature / task
+description: A piece of work to build (frontend, backend, or agent)
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: What should exist when this is done? Be concrete enough that "done" is obvious.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What user problem or project goal does this serve? Link to docs/decisions.md or docs/agent-architecture.md if it follows from a settled decision.
+    validations:
+      required: false
+  - type: checkboxes
+    id: area
+    attributes:
+      label: Area
+      options:
+        - label: Frontend
+        - label: Backend
+        - label: Agent
+        - label: Docs
+        - label: Infra
+  - type: textarea
+    id: notes
+    attributes:
+      label: Implementation notes / open questions
+      description: Anything the assignee should know before starting - relevant files, prior art, decisions still open.
+    validations:
+      required: false

@@ -1,0 +1,24 @@
+name: Research / decision needed
+description: A question that needs investigating (or a team decision) before code should be written
+labels: ["type:research"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What do we need to find out or decide?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it blocks or affects the build
+    validations:
+      required: false
+  - type: textarea
+    id: findings
+    attributes:
+      label: Findings
+      description: Fill in as you go. When resolved, add a dated entry to docs/decisions.md and close this issue linking to it.
+    validations:
+      required: false
