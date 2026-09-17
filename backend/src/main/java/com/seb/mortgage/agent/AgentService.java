@@ -12,7 +12,8 @@ import java.util.UUID;
  * <ul>
  *   <li>{@code StubAgentService} - deterministic canned responses, active by default so
  *       the app works with no API key.</li>
- *   <li>{@code ClaudeAgentService} - real Claude calls via Spring AI, active when
+ *   <li>{@code AgentOrchestrator} - routes to specialist agents (one per task) and gates
+ *       their output through an independent verifier, active when
  *       {@code spring.ai.anthropic.api-key} is set.</li>
  * </ul>
  */

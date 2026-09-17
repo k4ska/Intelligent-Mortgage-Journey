@@ -35,13 +35,13 @@ public class StubAgentService implements AgentService {
 	public ExplainResponse explain(String topicOrFieldKey, UUID applicationId) {
 		Explanations.Entry entry = Explanations.lookup(topicOrFieldKey);
 		if (entry != null) {
-			return new ExplainResponse(entry.text(), entry.related());
+			return new ExplainResponse(entry.text(), entry.related(), null);
 		}
 		return new ExplainResponse(
 				"That's a good question. In a mortgage context, \"" + topicOrFieldKey + "\" affects how a "
 						+ "lender views your application - ask your mentor to connect the Claude API key and "
 						+ "the assistant will explain this properly using your own numbers.",
-				List.of());
+				List.of(), null);
 	}
 
 	@Override
@@ -75,7 +75,7 @@ public class StubAgentService implements AgentService {
 		ValidationStatus overall = issues.stream().anyMatch(i -> i.severity() == ValidationStatus.BLOCKER)
 				? ValidationStatus.BLOCKER
 				: issues.isEmpty() ? ValidationStatus.OK : ValidationStatus.WARNING;
-		return new ValidateResponse(overall, issues);
+		return new ValidateResponse(overall, issues, null);
 	}
 
 	@Override
@@ -91,7 +91,7 @@ public class StubAgentService implements AgentService {
 				+ "That is a loan-to-value of %.1f%% and an estimated payment of %,.0f per month (%,.0f if rates rose 3 points)."
 						.formatted(f.ltv(), f.estimatedMonthlyPayment(), f.stressedMonthlyPayment());
 
-		return new ReviewResponse(summary, new ArrayList<>(p.riskIndicators()));
+		return new ReviewResponse(summary, new ArrayList<>(p.riskIndicators()), null);
 	}
 
 	@Override

@@ -19,7 +19,15 @@ public final class AgentDtos {
 
 	public record ExplainRequest(String applicationId, String topic, String fieldKey) {}
 
-	public record ExplainResponse(String explanation, List<String> relatedTopics) {}
+	/**
+	 * @param followUpQuestion set (non-null) when the agent couldn't do this job well with
+	 *                         what it was given and wants to ask the applicant something
+	 *                         before it can answer better; null otherwise. The frontend
+	 *                         shows it as a small inline prompt; the applicant's reply is
+	 *                         sent back as extra context on a normal follow-up call to the
+	 *                         same endpoint, not as an open-ended chat.
+	 */
+	public record ExplainResponse(String explanation, List<String> relatedTopics, String followUpQuestion) {}
 
 	public record ValidateRequest(String applicationId, String stepId) {}
 
@@ -27,11 +35,11 @@ public final class AgentDtos {
 
 	public record ValidationIssue(String fieldKey, ValidationStatus severity, String message) {}
 
-	public record ValidateResponse(ValidationStatus status, List<ValidationIssue> issues) {}
+	public record ValidateResponse(ValidationStatus status, List<ValidationIssue> issues, String followUpQuestion) {}
 
 	public record ReviewRequest(String applicationId) {}
 
-	public record ReviewResponse(String summary, List<String> concerns) {}
+	public record ReviewResponse(String summary, List<String> concerns, String followUpQuestion) {}
 
 	public record ChatRequest(String applicationId, String message) {}
 }

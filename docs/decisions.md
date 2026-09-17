@@ -3,6 +3,29 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-09-17 — Multi-agent backend with an independent verifier
+
+- **Agent backend**: replaced the single `ClaudeAgentService` (one `ChatClient`, four
+  methods) with a multi-agent design. `AgentOrchestrator` routes each request to a
+  specialist with its own narrowly-scoped `ChatClient` and system prompt -
+  `ExplainAgent`, `ValidateAgent`, `ReviewAgent`, `ChatAgent` - one per agent task, no
+  autonomous tool-calling loop (unchanged from the 09-08 decision).
+- **Verification**: `VerifierAgent` is a separate agent, built on its own `ChatClient`
+  and system prompt (not shared with any specialist), that checks a specialist's draft
+  before the orchestrator returns it to the client - no fabricated numbers outside the
+  applicant profile, no product/lender recommendation, no advice, tone stays calm and
+  plain-language. If it rejects a draft it rewrites it into a safe fallback rather than
+  blocking the response; if the verifier call itself fails, the orchestrator fails open
+  and returns the specialist's draft unverified rather than breaking the journey.
+- **Chat is not verified**: `/api/agent/chat` streams token-by-token, so there is no
+  complete draft to check before the first tokens reach the user. Explain/validate/review
+  are synchronous and structured, so those three go through the verifier; chat relies on
+  `ChatAgent`'s own system prompt only. Revisit if the demo surfaces bad chat answers.
+- **Frontend structure** (not yet built): landing page becomes a hub with a few entry
+  options (e.g. "What is a loan?", "Top 10 mistakes when applying for a loan", "Start the
+  journey") rather than a single start button; the journey page gets a persistent
+  step-roadmap sidebar so the user always knows where they are in the flow.
+
 ## 2026-09-08 — Foundations laid
 
 - **Backend**: Spring Boot 4.1 on Java 25, Gradle. Spring AI 2.0 for the Claude
