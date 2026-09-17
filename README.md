@@ -75,7 +75,7 @@ flowchart LR
     subgraph BE["Spring Boot backend"]
         FLOW["Flow service<br/>serves flow definition,<br/>computes next step"]
         APP["Application service<br/>persistence, assembles<br/>loan profile"]
-        AGENT["Agent service<br/>prompts + tool functions"]
+        ORCH["Agent orchestrator<br/>routes to specialists,<br/>gates output via verifier"]
         MOCK["Mock data services<br/>valuation, rates,<br/>documents, banks"]
     end
 
@@ -83,9 +83,8 @@ flowchart LR
     CLAUDE["Claude API"]
 
     FE -- "REST + SSE" --> BE
-    AGENT -- "Spring AI" --> CLAUDE
+    ORCH -- "Spring AI" --> CLAUDE
     APP --> DB
-    AGENT --> MOCK
     FLOW --> APP
 ```
 
@@ -103,30 +102,36 @@ removes a class of problems.
   next step. This is where the adaptive flow lives.
 - **Application service** — CRUD on the in-progress application, persistence, and
   assembly of the standardized loan profile.
-- **Agent service** — wraps Claude via Spring AI; owns all prompts and the tool/function
-  definitions.
+- **Agent package** — a multi-agent backend, not one do-everything agent. Full detail
+  (system prompts, grounding, how verification works, how to add a new agent) lives in
+  **[`docs/agent-architecture.md`](docs/agent-architecture.md)** — read that before
+  touching anything under `backend/.../agent/`. Short version below.
 - **Mock data services** — property valuation, rate table, document checklist, bank
   catalog and fake offer generation.
 
-### The agent is a workflow, not an autonomous loop
+### The agent backend: multiple specialists + an independent verifier
 
-The design is a **scripted flow + LLM assists**, not a self-directing agent. The LLM does
-four things:
+The design is a **scripted flow + narrow LLM specialists**, not a self-directing agent —
+there's no autonomous tool-calling loop. Four specialists each do one job, and an
+`AgentOrchestrator` routes to the right one:
 
-1. **Explain** — plain-language explanation of a term or field, using the user's actual
-   numbers.
-2. **Validate** — turn rule-based validation results into friendly, specific feedback
-   (e.g. "this leaves €140/month after a rate-rise stress test — lenders usually want
-   more").
-3. **Review / read-back** — at the end, summarise the whole application in human terms
-   and flag weak spots.
-4. **Chat** — optional free-form Q&A panel.
+1. **Explain** (`ExplainAgent`) — plain-language explanation of a term or field, grounded
+   on a small hand-written glossary (`Explanations.java`) plus the user's own numbers.
+2. **Validate** (`ValidateAgent`) — flags anything that would weaken the application at
+   the current step (e.g. "this leaves €140/month after a rate-rise stress test — lenders
+   usually want more"), grounded on the applicant's profile.
+3. **Review / read-back** (`ReviewAgent`) — at the end, summarises the whole application
+   in human terms and flags weak spots.
+4. **Chat** (`ChatAgent`) — free-form Q&A about the user's own application, streamed.
 
-For 1, 3 and 4 the agent can call backend **functions** (Spring AI function calling) to
-get real data: `getPropertyEstimate`, `getCurrentRates`, `calculateAffordability` (with
-a rate-rise stress test), `getRequiredDocuments`, `getApplicationSummary`. This is what
-makes the assistant feel agentic without the unpredictability of an autonomous loop in a
-live demo.
+A fifth agent, `VerifierAgent`, is independent of all four — it never talks to the user
+directly, it only checks a specialist's draft (no numbers outside the profile, no product
+recommendations, no advice, calm tone) before the orchestrator lets it reach the client.
+Explain/validate/review go through it; chat doesn't, because it streams token-by-token
+and there's nothing complete to check before the user starts seeing it (see the doc above
+for that tradeoff). Any of the three synchronous agents can also ask the user a **single
+short follow-up question** (`followUpQuestion` on the response) instead of guessing, when
+what it's been given isn't enough to do the job well.
 
 ---
 
@@ -161,11 +166,18 @@ Served by the backend as JSON; the frontend renders it generically.
 ### 2. Agent API
 
 ```
+GET  /api/agent/status                   -> { mode: "stub" | "claude" }
 POST /api/agent/chat      (SSE stream)   { applicationId, message }         -> streamed reply
-POST /api/agent/explain                  { applicationId, topic | fieldKey } -> { explanation }
-POST /api/agent/validate                 { applicationId, stepId }           -> { status, issues[] }
-POST /api/agent/review                   { applicationId }                   -> { summary, concerns[] }
+POST /api/agent/explain                  { applicationId, topic | fieldKey } -> { explanation, relatedTopics[], followUpQuestion }
+POST /api/agent/validate                 { applicationId, stepId }           -> { status, issues[], followUpQuestion }
+POST /api/agent/review                   { applicationId }                   -> { summary, concerns[], followUpQuestion }
 ```
+
+`followUpQuestion` is `null` unless the agent couldn't do its job well with what it was
+given — if set, show it as a small inline prompt and send the reply back as extra context
+on a normal follow-up call, not as a new chat thread. Full contract + the DTOs live in
+`backend/.../agent/AgentDtos.java` and are mirrored in `frontend/app/types/api.ts`; keep
+both in sync when either changes.
 
 ### 3. Loan profile model
 
@@ -190,20 +202,37 @@ no bank integrations.
 ## Repository structure
 
 ```
-/backend            Spring Boot 4 / Java 25 API (Gradle wrapper included)
-/frontend           Nuxt 4 SPA (Vue 3, Nuxt UI, Pinia)
-/docs               decision log, demo personas
-docker-compose.yml  optional Postgres (backend runs on H2 without it)
-.env.example        copy to .env for the Anthropic API key
+/backend                    Spring Boot 4 / Java 25 API (Gradle wrapper included)
+/backend/Dockerfile         multi-stage build -> runnable jar
+/frontend                   Nuxt 4 SPA (Vue 3, Nuxt UI, Pinia)
+/frontend/Dockerfile        multi-stage build -> Nitro node server
+/docs                       decision log, agent architecture reference, demo personas
+docker-compose.yml          backend + frontend services (+ optional Postgres profile)
+.env.example                copy to .env for the Anthropic API key
 ```
 
-The frontend dev-proxies `/api` to `localhost:8080`. `ANTHROPIC_API_KEY` lives in a
-gitignored `.env` and is read server-side only. See `backend/README.md` and
-`frontend/README.md` for details.
+`ANTHROPIC_API_KEY` is read server-side only, either from the environment or a gitignored
+`.env` (`docker compose` also reads a `.env` in this directory automatically). See
+`backend/README.md` and `frontend/README.md` for per-service detail, and
+**[`docs/agent-architecture.md`](docs/agent-architecture.md)** for how the agent backend
+is put together.
 
 ---
 
 ## Getting started
+
+### Option A — Docker (closest to how the mentor/server will run it)
+
+```bash
+cp .env.example .env          # fill in ANTHROPIC_API_KEY, or leave blank for the stub
+docker compose up --build
+```
+
+Frontend: http://localhost:3000 · Backend: http://localhost:8080. Everything (H2, both
+services) runs in containers — nothing else to install. Add `-d` to run detached; `docker
+compose down` to stop.
+
+### Option B — Local dev (hot reload)
 
 ```bash
 # 1. Backend — http://localhost:8080  (runs on in-memory H2, no DB setup needed)
@@ -231,7 +260,28 @@ set otherwise.
 The full journey runs end to end on mock data: the adaptive flow (co-applicant,
 self-employed and fixed-rate branches), inline explanations, rule-based validation with
 plain-language messages, the streaming assist chat, and the final screen with the
-read-back, standardized loan profile, mock multi-bank offers and document checklist.
+read-back, standardized loan profile, mock multi-bank offers and document checklist. The
+agent backend is a multi-agent design (explain/validate/review/chat specialists + an
+independent verifier) — see `docs/agent-architecture.md`. The whole stack also runs via
+`docker compose up --build`. Not yet built: the landing-page hub and the in-journey
+step-roadmap sidebar (see `docs/decisions.md`, 2026-09-17), and the frontend side of the
+follow-up-question mechanism.
+
+### Keeping up to date with the rest of the team
+
+This repo, not any one person's chat history, is the source of truth for design
+decisions. If you're picking this project back up (including asking your own Claude Code
+session to help):
+
+- **`docs/decisions.md`** — dated log of settled decisions, newest first. Read this first.
+- **`docs/agent-architecture.md`** — current-state reference for the agent backend:
+  what each agent does, how grounding and verification work, and the recipe for adding a
+  new agent.
+- **`docs/personas.md`** — the two demo personas the UX is designed around.
+
+When you settle something new as a team, add a dated entry to `docs/decisions.md` (and
+update `docs/agent-architecture.md` if it changes how the agent backend works) in the
+same PR — don't leave it only in a chat transcript someone else can't see.
 
 ---
 
@@ -240,7 +290,7 @@ read-back, standardized loan profile, mock multi-bank offers and document checkl
 | Area              | Owns                                                                                     |
 | ----------------- | --------------------------------------------------------------------------------------- |
 | Frontend          | Flow renderer, assist panel, Pinia state, responsive / mobile, comparison screen        |
-| Agent service     | Spring AI integration, prompt design, tool functions, SSE streaming, explanation content, read-back |
+| Agent service     | Spring AI integration, per-specialist prompt design, the verifier, SSE streaming, explanation content, read-back |
 | Core backend      | Flow engine + config, application / profile services, mock data services, persistence, OpenAPI contract, validation rules |
 
 One person owns the OpenAPI spec so the frontend can generate types from it.
@@ -273,7 +323,9 @@ experiences:
 | -------------------------------------------------- | ---------------------------------------------------------------------- |
 | Nuxt SPA, not SSR                                  | Prototype doesn't need SSR; avoids a class of hydration / server problems |
 | Config-driven flow                                 | Makes the adaptive flow real and demoable without frontend changes      |
-| Agent as scripted workflow + LLM assists          | Predictable in a live demo; still agentic via function calling          |
-| Spring AI over the raw Anthropic Java SDK          | Natural fit for a Spring Boot team; native function calling; portable   |
+| Agent as scripted workflow + narrow LLM specialists | Predictable in a live demo; grounded on a curated glossary + the applicant's own profile, not free model knowledge |
+| Independent verifier agent gates explain/validate/review | Mentor guidance: catch fabricated numbers/advice before they reach the client; chat is exempt because it streams |
+| Spring AI over the raw Anthropic Java SDK          | Natural fit for a Spring Boot team; portable ChatClient abstraction   |
 | Single comparison screen for "multi-bank"          | Satisfies the brief's conceptual ambition without integrations          |
+| Docker Compose for backend + frontend              | Mentor runs the app on their own server once it's containerised, and supplies the API key then |
 | Model choice (`claude-opus-5` vs `claude-sonnet-5` + `claude-haiku-4-5`) | **Open** — student API budget vs. prose polish; cache explanation responses regardless |

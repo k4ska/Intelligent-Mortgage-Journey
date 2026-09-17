@@ -38,10 +38,13 @@ export ANTHROPIC_API_KEY=sk-ant-...
 | `GET /api/applications/{id}/profile` | Standardized loan profile (contract 3) |
 | `GET /api/applications/{id}/offers` | Mock multi-bank offers derived from the profile |
 | `GET /api/agent/status` | `{ mode }` — `stub` or `claude` |
-| `POST /api/agent/explain` | `{ applicationId, topic \| fieldKey }` → plain-language explanation |
-| `POST /api/agent/validate` | `{ applicationId, stepId }` → `{ status, issues[] }` |
-| `POST /api/agent/review` | `{ applicationId }` → `{ summary, concerns[] }` |
+| `POST /api/agent/explain` | `{ applicationId, topic \| fieldKey }` → `{ explanation, relatedTopics[], followUpQuestion }` |
+| `POST /api/agent/validate` | `{ applicationId, stepId }` → `{ status, issues[], followUpQuestion }` |
+| `POST /api/agent/review` | `{ applicationId }` → `{ summary, concerns[], followUpQuestion }` |
 | `POST /api/agent/chat` | `{ applicationId, message }` → `text/event-stream` of tokens |
+
+`followUpQuestion` is `null` unless the agent needs to ask the applicant something before
+it can do the job well — see `../docs/agent-architecture.md`.
 
 ## Package layout
 
@@ -50,10 +53,15 @@ com.seb.mortgage
 ├── flow         flow definition records, JSON loader, next-step logic  (contract 1)
 ├── application  LoanApplication entity, service, controller
 ├── profile      LoanProfile record + assembler                         (contract 3)
-├── agent        AgentService (stub + Claude impls), DTOs, controller    (contract 2)
+├── agent        multi-agent backend: specialists + verifier + orchestrator, DTOs,
+│                controller                                              (contract 2)
 ├── mockdata     property valuation, rates, documents, banks, affordability maths
 └── config       CORS
 ```
+
+See `../docs/agent-architecture.md` for how the `agent` package is put together —
+what each agent does, how grounding/verification work, and the recipe for adding a new
+agent.
 
 The three contracts (`FlowDefinition`, `AgentDtos`, `LoanProfile`) are the interfaces
 between the three developers' areas — change them deliberately.
