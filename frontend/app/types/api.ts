@@ -63,19 +63,27 @@ export interface ValidationIssue {
   message: string
 }
 
+// `followUpQuestion` is set when the agent couldn't do its job well with what it was
+// given and wants to ask the applicant something before it can answer better. Show it as
+// a small inline prompt; send the applicant's reply back as extra context on a normal
+// follow-up call to the same endpoint (not as open-ended chat).
+
 export interface ValidateResponse {
   status: ValidationStatus
   issues: ValidationIssue[]
+  followUpQuestion: string | null
 }
 
 export interface ExplainResponse {
   explanation: string
   relatedTopics: string[]
+  followUpQuestion: string | null
 }
 
 export interface ReviewResponse {
   summary: string
   concerns: string[]
+  followUpQuestion: string | null
 }
 
 export interface AgentStatus {
