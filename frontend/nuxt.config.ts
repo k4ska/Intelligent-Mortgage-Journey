@@ -24,13 +24,19 @@ export default defineNuxtConfig({
     },
   },
 
-  // Dev-only: forward /api to the backend so there are no CORS surprises locally.
   nitro: {
+    // Dev-only: forward /api to the backend so there are no CORS surprises locally.
     devProxy: {
       '/api': {
         target: 'http://localhost:8080/api',
         changeOrigin: true,
       },
+    },
+    // Built server (e.g. running in docker-compose): same idea, server-to-server, so the
+    // browser only ever talks to this app's own origin. Defaults to the "backend" service
+    // name on the compose network; override with API_PROXY_TARGET if that's not it.
+    routeRules: {
+      '/api/**': { proxy: `${process.env.API_PROXY_TARGET ?? 'http://backend:8080'}/api/**` },
     },
   },
 
