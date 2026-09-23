@@ -3,6 +3,31 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-09-23 — Landing hub, standalone calculator, and a bolder visual direction
+
+- **Landing hub built** (closes the 09-17 item below): the single start button is
+  replaced by a hub — a prominent "Start the journey" CTA, plus "What is a loan?" and
+  "Top 10 mistakes when applying" cards that call `ExplainAgent` (not static copy) and
+  open in a modal with clickable related-topic chips. `Explanations.java` gained
+  `what-is-a-loan` and `top-mortgage-mistakes` glossary entries so both read well in stub
+  mode too.
+- **Standalone loan calculator**: a third hub card, backed by a new
+  `POST /api/calculator/estimate` endpoint (pure math, no persistence, no agent call —
+  wraps `AffordabilityCalculator.monthlyPayment()`). Debounced price/down-payment inputs
+  show a live monthly payment, rate, and LTV before any application exists.
+- **Visual direction overturned**: the 16-Sep-decided muted "calm, not-modern-fintech"
+  tone (see the visual-direction note this superseded) read as too pale and boring in
+  practice. Replaced with a bold saturated blue primary ("current"), a violet/gold accent
+  pair, a gradient hero, and card hover/shadow treatment — still built entirely from Nuxt
+  UI theme tokens and scoped component CSS, not a freeform redesign. Treat "bold, not
+  muted" as the working direction unless explicitly revisited again.
+- **No page-level scrolling**: both the landing page and the journey page now fit the
+  viewport without scrolling the outer chrome. The layout shell is a fixed `h-screen`
+  flex column with `overflow-hidden`; only specific content-heavy inner panels (the
+  review step's stacked summary cards, the assistant's chat log) scroll internally when
+  their content doesn't fit. Treat this as the default expectation for future page layout
+  work.
+
 ## 2026-09-17 — Multi-agent backend with an independent verifier
 
 - **Agent backend**: replaced the single `ClaudeAgentService` (one `ChatClient`, four

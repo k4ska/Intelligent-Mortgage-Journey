@@ -29,18 +29,26 @@ app/
 ├── stores/application.ts    Pinia store: flow definition + current application + draft answers
 ├── layouts/default.vue      header / shell
 ├── pages/
-│   ├── index.vue            landing → creates an application, routes to the journey
+│   ├── index.vue            landing hub: start the journey, or ask the agent-backed
+│   │                        "What is a loan?" / "Top 10 mistakes" cards, plus a
+│   │                        standalone loan calculator
 │   └── journey/[id].vue     the journey: progress bar, step, assist panel, final summary
 └── components/
     ├── FlowStep.vue         renders one step's fields + validation + nav
     ├── FieldInput.vue       renders a single field by its type
     ├── AssistPanel.vue      explanations + streaming chat
-    └── ProfileSummary.vue   the review screen: read-back, profile, offers, documents
+    ├── ProfileSummary.vue   the review screen: read-back, profile, offers, documents
+    └── LoanCalculatorCard.vue  price/down-payment → live monthly payment, no application needed
 ```
+
+Both pages, and the shared `layouts/default.vue` shell, are built to fit the viewport
+without page-level scrolling — only specific content-heavy inner panels (the review
+step's summary cards, the assist panel's chat log) scroll internally.
 
 ## How the journey works
 
-1. `index.vue` calls `POST /api/applications` and routes to `/journey/{id}`.
+1. `index.vue` is a hub, not an auto-start: "Start the journey" calls
+   `POST /api/applications` and routes to `/journey/{id}`.
 2. The store loads `GET /api/flow` once and `GET /api/applications/{id}`.
 3. `FlowStep` renders `store.currentStep` from the flow definition — no step is hard-coded.
 4. "Continue" posts the draft answers to `POST /api/applications/{id}/steps`; the backend

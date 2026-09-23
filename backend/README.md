@@ -42,6 +42,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 | `POST /api/agent/validate` | `{ applicationId, stepId }` → `{ status, issues[], followUpQuestion }` |
 | `POST /api/agent/review` | `{ applicationId }` → `{ summary, concerns[], followUpQuestion }` |
 | `POST /api/agent/chat` | `{ applicationId, message }` → `text/event-stream` of tokens |
+| `POST /api/calculator/estimate` | `{ propertyPrice, downPayment, annualRatePct?, termYears? }` → `{ loanAmount, monthlyPayment, ltv, annualRatePct, termYears }` — pure math, no persistence, usable before an application exists |
 
 `followUpQuestion` is `null` unless the agent needs to ask the applicant something before
 it can do the job well — see `../docs/agent-architecture.md`.

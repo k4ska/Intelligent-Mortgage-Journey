@@ -40,8 +40,8 @@ conceptually be shared across multiple banks.
 
 Adaptive multi-step application flow · agent assist layer (explain / validate / read-back
 / chat) · smart pre-fill and suggestions · plain-language validation · standardized loan
-profile · a mock multi-bank comparison screen · responsive web + mobile · usability
-testing · final demo.
+profile · a mock multi-bank comparison screen · standalone loan calculator · responsive
+web + mobile · usability testing · final demo.
 
 ### Out of scope
 
@@ -54,11 +54,72 @@ mobile apps · production-grade persistence and auth.
 
 | Layer      | Choice                                                                 |
 | ---------- | --------------------------------------------------------------------- |
-| Frontend   | Vue 3 + Nuxt (run as an SPA, `ssr: false`), Pinia for state          |
+| Frontend   | Vue 3 + Nuxt (run as an SPA, `ssr: false`), Nuxt UI, Pinia for state  |
 | Backend    | Java + Spring Boot, REST + Server-Sent Events                        |
 | LLM        | Claude via [Spring AI](https://docs.spring.io/spring-ai/reference/) `ChatClient` (API key stays server-side) |
-| Database   | Postgres via docker-compose (H2 acceptable for local dev)            |
+| Database   | In-memory H2 by default; Postgres available via a `docker-compose` profile |
 | Data       | Mock services: property valuation, interest rates, document checklist, bank catalog |
+
+---
+
+## Getting started
+
+### Option A — Docker (closest to how the mentor/server will run it)
+
+```bash
+cp .env.example .env          # fill in ANTHROPIC_API_KEY, or leave blank for the stub
+docker compose up --build
+```
+
+Frontend: http://localhost:3000 · Backend: http://localhost:8080. Everything (H2, both
+services) runs in containers — nothing else to install. Add `-d` to run detached; `docker
+compose down` to stop. Changed code needs a rebuild: `docker compose up -d --build`.
+
+### Option B — Local dev (hot reload)
+
+```bash
+# 1. Backend — http://localhost:8080  (runs on in-memory H2, no DB setup needed)
+cd backend && ./gradlew bootRun
+
+# 2. Frontend — http://localhost:3000  (proxies /api to the backend)
+cd frontend && npm install --legacy-peer-deps && npm run dev
+```
+
+Open http://localhost:3000.
+
+**No API key yet?** The app runs anyway: the agent falls back to a deterministic stub
+(canned explanations, rule-based validation, a templated read-back). `GET
+/api/agent/status` shows `stub` or `claude`. When the mentor provides the key, set
+`ANTHROPIC_API_KEY` in `.env` (Docker) or the environment (local dev) — no code change
+either way.
+
+`npm install` needs `--legacy-peer-deps` — npm 10.9.x crashes on Nuxt UI's optional-peer
+set otherwise.
+
+See `backend/README.md` and `frontend/README.md` for per-service detail (API surface,
+package/folder layout).
+
+---
+
+## Where things are documented
+
+This README covers the pitch and how to run the thing. Everything else — *why* the
+project is built the way it is, and how the pieces actually work — lives in `docs/`,
+which is the source of truth over any one person's chat history:
+
+- **[`docs/decisions.md`](docs/decisions.md)** — dated log of settled decisions, newest
+  first. Read this first when picking the project back up.
+- **[`docs/agent-architecture.md`](docs/agent-architecture.md)** — the current-state
+  reference for the agent backend: what each of the five agents does, how grounding and
+  verification work, why chat is exempt from verification, and the recipe for adding a
+  new agent.
+- **[`docs/personas.md`](docs/personas.md)** — the two demo personas the UX and final
+  demo are built around.
+
+When the team settles something new, add a dated entry to `docs/decisions.md` (and update
+`docs/agent-architecture.md` if it changes how the agent backend works) in the same PR —
+don't leave it only in a chat transcript someone else can't see. Current build status and
+open work live as GitHub issues, not as a status paragraph here.
 
 ---
 
@@ -88,61 +149,25 @@ flowchart LR
     FLOW --> APP
 ```
 
-### Frontend
-
-Renders the guided flow **from a config the backend serves** rather than from hardcoded
-screens, so the flow can adapt to the user's answers and be tweaked without a frontend
-change. Holds the in-progress application in a Pinia store, shows the agent assist panel,
-and talks only to the Spring API. Runs as an SPA — SSR is not needed for a prototype and
-removes a class of problems.
-
-### Backend modules
-
-- **Flow service** — serves the flow definition; given the answers so far, computes the
-  next step. This is where the adaptive flow lives.
-- **Application service** — CRUD on the in-progress application, persistence, and
-  assembly of the standardized loan profile.
-- **Agent package** — a multi-agent backend, not one do-everything agent. Full detail
-  (system prompts, grounding, how verification works, how to add a new agent) lives in
-  **[`docs/agent-architecture.md`](docs/agent-architecture.md)** — read that before
-  touching anything under `backend/.../agent/`. Short version below.
-- **Mock data services** — property valuation, rate table, document checklist, bank
-  catalog and fake offer generation.
-
-### The agent backend: multiple specialists + an independent verifier
-
-The design is a **scripted flow + narrow LLM specialists**, not a self-directing agent —
-there's no autonomous tool-calling loop. Four specialists each do one job, and an
-`AgentOrchestrator` routes to the right one:
-
-1. **Explain** (`ExplainAgent`) — plain-language explanation of a term or field, grounded
-   on a small hand-written glossary (`Explanations.java`) plus the user's own numbers.
-2. **Validate** (`ValidateAgent`) — flags anything that would weaken the application at
-   the current step (e.g. "this leaves €140/month after a rate-rise stress test — lenders
-   usually want more"), grounded on the applicant's profile.
-3. **Review / read-back** (`ReviewAgent`) — at the end, summarises the whole application
-   in human terms and flags weak spots.
-4. **Chat** (`ChatAgent`) — free-form Q&A about the user's own application, streamed.
-
-A fifth agent, `VerifierAgent`, is independent of all four — it never talks to the user
-directly, it only checks a specialist's draft (no numbers outside the profile, no product
-recommendations, no advice, calm tone) before the orchestrator lets it reach the client.
-Explain/validate/review go through it; chat doesn't, because it streams token-by-token
-and there's nothing complete to check before the user starts seeing it (see the doc above
-for that tradeoff). Any of the three synchronous agents can also ask the user a **single
-short follow-up question** (`followUpQuestion` on the response) instead of guessing, when
-what it's been given isn't enough to do the job well.
+The agent backend is a **scripted flow + narrow LLM specialists**, not a self-directing
+agent — explain / validate / review / chat each get their own single-job specialist, and
+an independent verifier gates the three synchronous ones before their output reaches the
+client. Full detail lives in **[`docs/agent-architecture.md`](docs/agent-architecture.md)**
+— read that before touching anything under `backend/.../agent/`.
 
 ---
 
 ## The three contracts
 
-These are the interfaces between the three developers' areas and should be agreed and
-frozen early (weeks 1–2) so work can proceed in parallel.
+These are the interfaces between the three developers' areas, frozen early so work can
+proceed in parallel. Full DTOs live in the source files referenced below — keep
+`backend/.../agent/AgentDtos.java` and `frontend/app/types/api.ts` in sync when either
+changes.
 
 ### 1. Flow definition schema
 
-Served by the backend as JSON; the frontend renders it generically.
+Served by the backend as JSON (`FlowDefinition.java`); the frontend renders it
+generically.
 
 ```jsonc
 {
@@ -175,9 +200,7 @@ POST /api/agent/review                   { applicationId }                   -> 
 
 `followUpQuestion` is `null` unless the agent couldn't do its job well with what it was
 given — if set, show it as a small inline prompt and send the reply back as extra context
-on a normal follow-up call, not as a new chat thread. Full contract + the DTOs live in
-`backend/.../agent/AgentDtos.java` and are mirrored in `frontend/app/types/api.ts`; keep
-both in sync when either changes.
+on a normal follow-up call, not as a new chat thread.
 
 ### 3. Loan profile model
 
@@ -195,7 +218,10 @@ The standardized output; feeds the mock multi-bank comparison screen.
 ```
 
 The multi-bank ambition is kept to a **single comparison screen** fed by this profile —
-no bank integrations.
+no bank integrations. A fourth, standalone `POST /api/calculator/estimate` endpoint
+(price/down-payment/rate/term → monthly payment) sits outside these three contracts on
+purpose — it's pure math with no persistence or agent involvement, used by the landing
+page before an application exists.
 
 ---
 
@@ -212,76 +238,7 @@ docker-compose.yml          backend + frontend services (+ optional Postgres pro
 ```
 
 `ANTHROPIC_API_KEY` is read server-side only, either from the environment or a gitignored
-`.env` (`docker compose` also reads a `.env` in this directory automatically). See
-`backend/README.md` and `frontend/README.md` for per-service detail, and
-**[`docs/agent-architecture.md`](docs/agent-architecture.md)** for how the agent backend
-is put together.
-
----
-
-## Getting started
-
-### Option A — Docker (closest to how the mentor/server will run it)
-
-```bash
-cp .env.example .env          # fill in ANTHROPIC_API_KEY, or leave blank for the stub
-docker compose up --build
-```
-
-Frontend: http://localhost:3000 · Backend: http://localhost:8080. Everything (H2, both
-services) runs in containers — nothing else to install. Add `-d` to run detached; `docker
-compose down` to stop.
-
-### Option B — Local dev (hot reload)
-
-```bash
-# 1. Backend — http://localhost:8080  (runs on in-memory H2, no DB setup needed)
-cd backend && ./gradlew bootRun
-
-# 2. Frontend — http://localhost:3000  (proxies /api to the backend)
-cd frontend && npm install --legacy-peer-deps && npm run dev
-```
-
-Open http://localhost:3000 and start a journey.
-
-**No API key yet?** The app runs anyway: the agent falls back to a deterministic stub
-(canned explanations, rule-based validation, a templated read-back). `GET
-/api/agent/status` shows `stub` or `claude`. When the mentor provides the key:
-
-```bash
-cd backend && ANTHROPIC_API_KEY=sk-ant-... ./gradlew bootRun
-```
-
-`npm install` needs `--legacy-peer-deps` — npm 10.9.x crashes on Nuxt UI's optional-peer
-set otherwise.
-
-### What works today
-
-The full journey runs end to end on mock data: the adaptive flow (co-applicant,
-self-employed and fixed-rate branches), inline explanations, rule-based validation with
-plain-language messages, the streaming assist chat, and the final screen with the
-read-back, standardized loan profile, mock multi-bank offers and document checklist. The
-agent backend is a multi-agent design (explain/validate/review/chat specialists + an
-independent verifier) — see `docs/agent-architecture.md`. The whole stack also runs via
-`docker compose up --build`. Not yet built: the landing-page hub and the in-journey
-step-roadmap sidebar (see `docs/decisions.md`, 2026-09-17), and the frontend side of the
-follow-up-question mechanism.
-
-### Keeping up to date with the rest of the team
-
-This repo, not any one person's chat history, is the source of truth for design
-decisions. If you're picking this project back up (including asking your own Claude Code
-session to help):
-
-- **`docs/decisions.md`** — dated log of settled decisions, newest first. Read this first.
-- **`docs/agent-architecture.md`** — current-state reference for the agent backend:
-  what each agent does, how grounding and verification work, and the recipe for adding a
-  new agent.
-- **`docs/personas.md`** — the two demo personas the UX is designed around.
-
-When you settle something new as a team, add a dated entry to `docs/decisions.md` (and
-update `docs/agent-architecture.md` if it changes how the agent backend works) in the
-same PR — don't leave it only in a chat transcript someone else can't see.
+`.env` (`docker compose` also reads a `.env` in this directory automatically).
 
 ---
 
@@ -307,25 +264,5 @@ One person owns the OpenAPI spec so the frontend can generate types from it.
 | 11–13 | Demo scripting (both personas), write-up, buffer                                                     |
 | 14    | Final demo                                                                                          |
 
-### Demo personas
-
-The demo is built around two people walking the **same** flow with very different
-experiences:
-
-- a nervous first-time buyer who needs every term explained,
-- someone refinancing who knows the jargon and wants to move fast.
-
----
-
-## Key decisions
-
-| Decision                                             | Rationale                                                                 |
-| -------------------------------------------------- | ---------------------------------------------------------------------- |
-| Nuxt SPA, not SSR                                  | Prototype doesn't need SSR; avoids a class of hydration / server problems |
-| Config-driven flow                                 | Makes the adaptive flow real and demoable without frontend changes      |
-| Agent as scripted workflow + narrow LLM specialists | Predictable in a live demo; grounded on a curated glossary + the applicant's own profile, not free model knowledge |
-| Independent verifier agent gates explain/validate/review | Mentor guidance: catch fabricated numbers/advice before they reach the client; chat is exempt because it streams |
-| Spring AI over the raw Anthropic Java SDK          | Natural fit for a Spring Boot team; portable ChatClient abstraction   |
-| Single comparison screen for "multi-bank"          | Satisfies the brief's conceptual ambition without integrations          |
-| Docker Compose for backend + frontend              | Mentor runs the app on their own server once it's containerised, and supplies the API key then |
-| Model choice (`claude-opus-5` vs `claude-sonnet-5` + `claude-haiku-4-5`) | **Open** — student API budget vs. prose polish; cache explanation responses regardless |
+See **[`docs/personas.md`](docs/personas.md)** for the two people the final demo is built
+around, and GitHub's issues/milestones for what's currently in progress.
