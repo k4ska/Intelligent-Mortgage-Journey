@@ -63,8 +63,28 @@ public final class Explanations {
 			Map.entry("proof-of-income", new Entry(
 					"Proof of income is the evidence a lender uses to confirm what you earn: recent payslips "
 							+ "and bank statements if employed, or tax returns and business accounts if self-employed.",
-					List.of("employment-type")))
-	);
+					List.of("employment-type"))),
+			Map.entry("what-is-a-loan", new Entry(
+					"A mortgage loan lets you buy a property now by borrowing most of its price from a lender, "
+							+ "then repaying it - plus interest - in monthly instalments over many years, commonly "
+							+ "20 to 30. You put down a portion yourself up front (the down payment); the property "
+							+ "itself is the lender's security until the loan is paid off. Two things chiefly set "
+							+ "your price: the loan-to-value and the interest rate you're offered.",
+					List.of("loan-to-value", "interest-rate", "down-payment"))),
+			Map.entry("top-mortgage-mistakes", new Entry(
+					"""
+					1. Shopping for a home before knowing what you can actually afford.
+					2. Ignoring what happens if interest rates rise - lenders stress-test for this, so should you.
+					3. Underestimating debt-to-income; existing debt quietly eats into what you can borrow.
+					4. Making a big purchase or opening new credit right before applying.
+					5. Only checking one lender's rate instead of comparing a few.
+					6. Choosing the lowest monthly payment without checking total interest over the term.
+					7. Skipping the fine print on fixed vs. variable rate terms.
+					8. Not keeping a buffer for closing costs and moving expenses.
+					9. Assuming pre-approval is a guaranteed loan.
+					10. Leaving proof-of-income documents until the last minute.""",
+					List.of("stress-test", "debt-to-income", "interest-rate")))
+		);
 
 	public static Entry lookup(String key) {
 		if (key == null) {
