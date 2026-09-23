@@ -24,13 +24,13 @@ async function onNext() {
 </script>
 
 <template>
-  <UContainer class="max-w-6xl">
+  <UContainer class="flex h-full max-w-6xl flex-col overflow-hidden py-4">
     <div v-if="store.error" class="mx-auto max-w-md">
       <UAlert color="error" :title="store.error" />
     </div>
 
     <template v-else>
-      <div class="mb-6">
+      <div class="mb-4 shrink-0">
         <div class="flex items-center justify-between text-xs text-[var(--ui-text-muted)]">
           <span>Step {{ store.stepIndex + 1 }} of {{ store.totalSteps }}</span>
           <span>{{ progress }}%</span>
@@ -43,8 +43,8 @@ async function onNext() {
         </div>
       </div>
 
-      <div class="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div>
+      <div class="grid min-h-0 flex-1 gap-6 lg:grid-cols-[1fr_360px]">
+        <div class="min-h-0 overflow-y-auto pr-1">
           <ProfileSummary v-if="store.isComplete" :application-id="id" />
 
           <FlowStep
@@ -61,7 +61,7 @@ async function onNext() {
           />
         </div>
 
-        <div class="lg:sticky lg:top-6 lg:h-[calc(100vh-6rem)]">
+        <div class="min-h-0">
           <AssistPanel ref="assist" :application-id="id" />
         </div>
       </div>

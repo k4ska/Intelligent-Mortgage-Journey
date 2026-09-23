@@ -3,23 +3,28 @@
 @import "@nuxt/ui";
 
 :root {
-  /* "Harbor" — a muted, institutional blue for a calm/trustworthy register,
-     in place of Nuxt UI's default teal. Nuxt UI's color plugin resolves
-     custom primary/neutral names via `var(--color-<name>-<shade>, ...)`,
-     so these just need to exist as plain custom properties. */
-  --color-harbor-50: #f3f7f8;
-  --color-harbor-100: #e3ebee;
-  --color-harbor-200: #c7d8de;
-  --color-harbor-300: #a1bcc5;
-  --color-harbor-400: #73a2ac;
-  --color-harbor-500: #4f8393;
-  --color-harbor-600: #3a6b7a;
-  --color-harbor-700: #305765;
-  --color-harbor-800: #2a4753;
-  --color-harbor-900: #253c46;
-  --color-harbor-950: #16242b;
+  /* "Current" — a bold, saturated blue in place of Nuxt UI's default teal and the
+     project's earlier muted "harbor" tone. Nuxt UI's color plugin resolves custom
+     primary/neutral names via `var(--color-<name>-<shade>, ...)`, so these just need
+     to exist as plain custom properties. */
+  --color-current-50: #eff6ff;
+  --color-current-100: #dbeafe;
+  --color-current-200: #bfdbfe;
+  --color-current-300: #8fc3fd;
+  --color-current-400: #559cfb;
+  --color-current-500: #2f74f5;
+  --color-current-600: #1d56db;
+  --color-current-700: #1a44b3;
+  --color-current-800: #1a3a8f;
+  --color-current-900: #1a3272;
+  --color-current-950: #121e47;
 
-  --ui-radius: 0.5rem;
+  /* Decorative accents used outside the Nuxt UI color system - hero gradients,
+     highlight badges. Not wired to component theming, so free to be more vivid. */
+  --accent-violet: #8b5cf6;
+  --accent-gold: #f5a524;
+
+  --ui-radius: 0.75rem;
 }
 
 body {
@@ -31,4 +36,35 @@ h1, h2, h3 {
   font-family: 'Source Serif 4', ui-serif, Georgia, serif;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+/* Shared landing-hub card look, used by the hub's own buttons (pages/index.vue) and by
+   LoanCalculatorCard.vue - kept global (not scoped) so both can use it. */
+.topic-card {
+  display: block;
+  width: 100%;
+  border-radius: var(--ui-radius, 0.75rem);
+  padding: 1.1rem 1.25rem;
+  text-align: left;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  box-shadow: 0 6px 18px -12px rgba(15, 23, 42, 0.15);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.topic-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-current-300);
+  box-shadow: 0 12px 24px -12px rgba(26, 58, 143, 0.25);
+}
+
+.topic-icon {
+  display: inline-flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.65rem;
+  background: var(--color-current-100);
+  color: var(--color-current-700);
 }

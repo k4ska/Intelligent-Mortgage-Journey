@@ -2,6 +2,8 @@ import type {
   AgentStatus,
   ApplicationView,
   BankOffer,
+  CalculatorEstimateRequest,
+  CalculatorEstimateResponse,
   ExplainResponse,
   FlowDefinition,
   LoanProfile,
@@ -40,6 +42,12 @@ export function useApi() {
 
     getOffers: (id: string) =>
       req<BankOffer[]>(`/applications/${id}/offers`),
+
+    estimate: (request: CalculatorEstimateRequest) =>
+      req<CalculatorEstimateResponse>('/calculator/estimate', {
+        method: 'POST',
+        body: request,
+      }),
 
     explain: (applicationId: string | null, fieldKey: string) =>
       req<ExplainResponse>('/agent/explain', {

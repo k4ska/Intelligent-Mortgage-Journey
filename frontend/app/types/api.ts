@@ -132,3 +132,20 @@ export interface BankOffer {
   estimatedMonthlyPayment: number
   conditions: string[]
 }
+
+// ---- Standalone calculator ----
+
+export interface CalculatorEstimateRequest {
+  propertyPrice: number | null
+  downPayment: number | null
+  annualRatePct?: number | null
+  termYears?: number | null
+}
+
+export interface CalculatorEstimateResponse {
+  loanAmount: number
+  monthlyPayment: number
+  ltv: number
+  annualRatePct: number
+  termYears: number
+}
