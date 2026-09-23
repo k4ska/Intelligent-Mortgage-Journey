@@ -123,40 +123,6 @@ open work live as GitHub issues, not as a status paragraph here.
 
 ---
 
-## Architecture
-
-```mermaid
-flowchart LR
-    subgraph FE["Nuxt frontend (SPA)"]
-        FR["Flow renderer<br/>(renders steps from config)"]
-        AP["Agent assist panel"]
-        ST["Pinia store<br/>(in-progress application)"]
-    end
-
-    subgraph BE["Spring Boot backend"]
-        FLOW["Flow service<br/>serves flow definition,<br/>computes next step"]
-        APP["Application service<br/>persistence, assembles<br/>loan profile"]
-        ORCH["Agent orchestrator<br/>routes to specialists,<br/>gates output via verifier"]
-        MOCK["Mock data services<br/>valuation, rates,<br/>documents, banks"]
-    end
-
-    DB[("Postgres / H2")]
-    CLAUDE["Claude API"]
-
-    FE -- "REST + SSE" --> BE
-    ORCH -- "Spring AI" --> CLAUDE
-    APP --> DB
-    FLOW --> APP
-```
-
-The agent backend is a **scripted flow + narrow LLM specialists**, not a self-directing
-agent — explain / validate / review / chat each get their own single-job specialist, and
-an independent verifier gates the three synchronous ones before their output reaches the
-client. Full detail lives in **[`docs/agent-architecture.md`](docs/agent-architecture.md)**
-— read that before touching anything under `backend/.../agent/`.
-
----
-
 ## The three contracts
 
 These are the interfaces between the three developers' areas, frozen early so work can
