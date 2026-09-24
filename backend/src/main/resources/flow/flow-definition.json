@@ -17,7 +17,7 @@
           "key": "loanPurpose",
           "type": "RADIO",
           "label": "Purpose of the loan",
-          "helpKey": null,
+          "helpKey": "loan-purpose",
           "placeholder": null,
           "options": [
             { "value": "PURCHASE", "label": "Buy a home" },
@@ -37,7 +37,7 @@
           "key": "propertyAddress",
           "type": "TEXT",
           "label": "Property address",
-          "helpKey": null,
+          "helpKey": "property-address",
           "placeholder": "Street, city",
           "options": null,
           "validation": { "required": true, "min": null, "max": null, "pattern": null }
@@ -46,7 +46,7 @@
           "key": "propertyType",
           "type": "SELECT",
           "label": "Property type",
-          "helpKey": null,
+          "helpKey": "property-type",
           "placeholder": null,
           "options": [
             { "value": "APARTMENT", "label": "Apartment" },
@@ -59,7 +59,7 @@
           "key": "purchasePrice",
           "type": "MONEY",
           "label": "Purchase price (or current value)",
-          "helpKey": null,
+          "helpKey": "property-value",
           "placeholder": "250000",
           "options": null,
           "validation": { "required": true, "min": 1, "max": null, "pattern": null }
@@ -76,7 +76,7 @@
           "key": "hasCoApplicant",
           "type": "BOOLEAN",
           "label": "Is there a second applicant?",
-          "helpKey": null,
+          "helpKey": "co-applicant",
           "placeholder": null,
           "options": null,
           "validation": { "required": true, "min": null, "max": null, "pattern": null }
@@ -96,7 +96,7 @@
           "key": "coApplicantName",
           "type": "TEXT",
           "label": "Name",
-          "helpKey": null,
+          "helpKey": "co-applicant-name",
           "placeholder": null,
           "options": null,
           "validation": { "required": true, "min": null, "max": null, "pattern": null }
@@ -105,7 +105,7 @@
           "key": "coApplicantMonthlyIncome",
           "type": "MONEY",
           "label": "Their monthly gross income",
-          "helpKey": "proof-of-income",
+          "helpKey": "gross-income",
           "placeholder": "3000",
           "options": null,
           "validation": { "required": true, "min": 0, "max": null, "pattern": null }
@@ -134,7 +134,7 @@
           "key": "monthlyGrossIncome",
           "type": "MONEY",
           "label": "Your monthly gross income",
-          "helpKey": "proof-of-income",
+          "helpKey": "gross-income",
           "placeholder": "4000",
           "options": null,
           "validation": { "required": true, "min": 1, "max": null, "pattern": null }
@@ -143,7 +143,7 @@
           "key": "monthlyDebtPayments",
           "type": "MONEY",
           "label": "Existing monthly debt payments",
-          "helpKey": "debt-to-income",
+          "helpKey": "debt-payments",
           "placeholder": "300",
           "options": null,
           "validation": { "required": true, "min": 0, "max": null, "pattern": null }
@@ -163,7 +163,7 @@
           "key": "yearsTrading",
           "type": "NUMBER",
           "label": "Years trading",
-          "helpKey": null,
+          "helpKey": "years-trading",
           "placeholder": "3",
           "options": null,
           "validation": { "required": true, "min": 0, "max": null, "pattern": null }
@@ -172,7 +172,7 @@
           "key": "lastYearNetProfit",
           "type": "MONEY",
           "label": "Net profit last year",
-          "helpKey": null,
+          "helpKey": "net-profit",
           "placeholder": "48000",
           "options": null,
           "validation": { "required": true, "min": 0, "max": null, "pattern": null }
@@ -198,7 +198,7 @@
           "key": "loanAmount",
           "type": "MONEY",
           "label": "Loan amount",
-          "helpKey": "loan-to-value",
+          "helpKey": "loan-amount",
           "placeholder": "225000",
           "options": null,
           "validation": { "required": true, "min": 1, "max": null, "pattern": null }
@@ -239,7 +239,7 @@
           "key": "fixedYears",
           "type": "SELECT",
           "label": "Fix the rate for",
-          "helpKey": "rate-type",
+          "helpKey": "fixed-period",
           "placeholder": null,
           "options": [
             { "value": "2", "label": "2 years" },

@@ -1,5 +1,6 @@
 package com.seb.mortgage.flow;
 
+import com.seb.mortgage.agent.Explanations;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.DefaultResourceLoader;
 import tools.jackson.databind.ObjectMapper;
@@ -18,6 +19,33 @@ class FlowServiceTest {
 		FlowDefinition def = flowService.definition();
 		assertThat(def.steps()).isNotEmpty();
 		assertThat(flowService.firstStep().id()).isEqualTo("welcome");
+	}
+
+	@Test
+	void everyFlowFieldHasGlossaryCoverage() {
+		for (FlowDefinition.Step step : flowService.definition().steps()) {
+			for (FlowDefinition.Field field : step.fields()) {
+				assertThat(field.helpKey())
+						.as("field '%s' in step '%s' should have a helpKey", field.key(), step.id())
+						.isNotBlank();
+
+				assertThat(Explanations.lookup(field.helpKey()))
+						.as("helpKey '%s' for field '%s' in step '%s' should exist in Explanations",
+								field.helpKey(), field.key(), step.id())
+						.isNotNull();
+			}
+		}
+	}
+
+	@Test
+	void everyRelatedGlossaryTopicExists() {
+		Explanations.BY_KEY.forEach((key, entry) -> {
+			for (String relatedKey : entry.related()) {
+				assertThat(Explanations.lookup(relatedKey))
+						.as("glossary entry '%s' references missing related topic '%s'", key, relatedKey)
+						.isNotNull();
+			}
+		});
 	}
 
 	@Test
