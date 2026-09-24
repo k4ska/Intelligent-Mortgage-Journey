@@ -16,6 +16,55 @@ public final class Explanations {
 	public record Entry(String text, List<String> related) {}
 
 	public static final Map<String, Entry> BY_KEY = Map.ofEntries(
+			Map.entry("loan-purpose", new Entry(
+					"The loan purpose tells the lender whether you are buying a property or refinancing a mortgage you already have. "
+							+ "The process and documents can differ between those two cases because a purchase involves a new property transaction, "
+							+ "while a refinance replaces or changes existing mortgage borrowing.",
+					List.of("what-is-a-loan"))),
+			Map.entry("property-address", new Entry(
+					"The property address identifies the home connected to the mortgage. Lenders use it to match the application to the correct property "
+							+ "and, later in the process, to support valuation and property checks.",
+					List.of("property-type", "property-value"))),
+			Map.entry("property-type", new Entry(
+					"Property type describes what kind of home you are financing, such as an apartment, house, or terraced home. "
+							+ "Lenders may use the property type when assessing the property and the mortgage because different types can have different valuation or lending considerations.",
+					List.of("property-address", "property-value"))),
+			Map.entry("property-value", new Entry(
+					"The purchase price is what you expect to pay for the property; for a refinance, use its current value instead. "
+							+ "The lender compares this value with the amount you want to borrow to calculate your loan-to-value ratio.",
+					List.of("loan-to-value", "down-payment", "loan-amount"))),
+			Map.entry("co-applicant", new Entry(
+					"A co-applicant is a second person applying for the mortgage with you. Their income can increase the household income considered by the lender, "
+							+ "but their existing debts and other commitments are considered as well.",
+					List.of("gross-income", "debt-payments"))),
+			Map.entry("co-applicant-name", new Entry(
+					"Enter the name of the second person applying for the mortgage with you. "
+							+ "Their financial information will be considered together with yours when the joint application is assessed.",
+					List.of("co-applicant"))),
+			Map.entry("gross-income", new Entry(
+					"Monthly gross income is the amount earned each month before income tax and other deductions are taken out. "
+							+ "Lenders use income as part of the affordability assessment and normally ask for documents that prove it.",
+					List.of("proof-of-income", "debt-to-income"))),
+			Map.entry("debt-payments", new Entry(
+					"Existing monthly debt payments are the regular payments you already make on borrowing such as personal loans, car finance, or credit cards. "
+							+ "They reduce the income available for a new mortgage and are used when assessing debt-to-income and affordability.",
+					List.of("debt-to-income", "stress-test"))),
+			Map.entry("years-trading", new Entry(
+					"Years trading means how long your business or self-employed activity has been operating. "
+							+ "A longer trading history gives a lender more evidence to judge whether the income is stable and sustainable.",
+					List.of("employment-type", "proof-of-income", "net-profit"))),
+			Map.entry("net-profit", new Entry(
+					"Net profit is what the business earned after its expenses were deducted from its revenue. "
+							+ "For self-employed applicants, lenders may review recent profit figures together with tax returns or accounts to assess sustainable income.",
+					List.of("years-trading", "proof-of-income"))),
+			Map.entry("loan-amount", new Entry(
+					"The loan amount is the amount you want to borrow from the lender. It is normally the part of the property price that is not covered by your down payment, "
+							+ "and together with the property value it determines your loan-to-value ratio.",
+					List.of("down-payment", "loan-to-value", "property-value"))),
+			Map.entry("fixed-period", new Entry(
+					"The fixed period is how long an agreed fixed interest rate stays unchanged, for example 2, 5, or 10 years. "
+							+ "During that period your rate is protected from market rate changes; after it ends, the loan moves to the rate arrangement defined by your mortgage terms.",
+					List.of("rate-type", "interest-rate"))),
 			Map.entry("loan-to-value", new Entry(
 					"Loan-to-value (LTV) is the size of your loan compared with the value of the property, "
 							+ "as a percentage. Borrow 180,000 on a 200,000 home and your LTV is 90%. "
@@ -36,7 +85,7 @@ public final class Explanations {
 					"Fixed means your rate - and your monthly payment - is locked for a set number of years. "
 							+ "Variable means it tracks a reference rate and can change. Fixed costs a little "
 							+ "more now for predictability; variable is cheaper now but exposes you to rate rises.",
-					List.of("interest-rate", "stress-test"))),
+					List.of("interest-rate", "stress-test", "fixed-period"))),
 			Map.entry("stress-test", new Entry(
 					"A stress test checks whether you could still afford the payments if interest rates rose. "
 							+ "Lenders re-run your budget at a higher rate (here, +3 percentage points) and want "
@@ -45,7 +94,7 @@ public final class Explanations {
 			Map.entry("debt-to-income", new Entry(
 					"Debt-to-income (DTI) compares your monthly debt payments - including the new mortgage - "
 							+ "with your monthly income. Most lenders get uncomfortable above roughly 40%.",
-					List.of("stress-test"))),
+					List.of("stress-test", "debt-payments", "gross-income"))),
 			Map.entry("amortization", new Entry(
 					"Amortization is how the loan is paid down over time. With each monthly payment part goes "
 							+ "to interest and part reduces the balance; early on most of it is interest, later "
@@ -63,7 +112,7 @@ public final class Explanations {
 			Map.entry("proof-of-income", new Entry(
 					"Proof of income is the evidence a lender uses to confirm what you earn: recent payslips "
 							+ "and bank statements if employed, or tax returns and business accounts if self-employed.",
-					List.of("employment-type"))),
+					List.of("employment-type", "gross-income"))),
 			Map.entry("what-is-a-loan", new Entry(
 					"A mortgage loan lets you buy a property now by borrowing most of its price from a lender, "
 							+ "then repaying it - plus interest - in monthly instalments over many years, commonly "
