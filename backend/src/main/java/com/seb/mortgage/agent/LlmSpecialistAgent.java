@@ -18,6 +18,10 @@ abstract class LlmSpecialistAgent {
 	protected final ChatClient chatClient;
 
 	protected LlmSpecialistAgent(ChatClient.Builder chatClientBuilder, String systemPrompt) {
-		this.chatClient = chatClientBuilder.defaultSystem(systemPrompt).build();
+		this.chatClient = chatClientBuilder
+				.defaultSystem(systemPrompt)
+				// Names the agent in the token-usage log (see TokenUsageAdvisor).
+				.defaultAdvisors(a -> a.param(TokenUsageAdvisor.AGENT, getClass().getSimpleName()))
+				.build();
 	}
 }

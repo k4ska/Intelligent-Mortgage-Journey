@@ -17,6 +17,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
+      APP_DAILY_TOKEN_BUDGET: ${APP_DAILY_TOKEN_BUDGET:-4500000}
 
   frontend:
     build: ./frontend

@@ -3,6 +3,23 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-09-24 — Token usage tracking and a daily token budget
+
+- **Why**: the OpenAI key has a 5M tokens/day limit on `gpt-5-mini` (resets at midnight
+  Estonian time), and the team can't see the key owner's dashboard.
+- **How**: a Spring AI advisor (`TokenUsageAdvisor`) is added to every `ChatClient` via a
+  `ChatClientBuilderCustomizer`, so all agents are covered without touching them; each
+  agent names itself once in `LlmSpecialistAgent`. Every call logs a `[tokens]` line and
+  adds to `TokenUsageTracker`'s per-day, per-agent totals, exposed at
+  `GET /api/agent/usage`. Streamed chat replies report usage via OpenAI's
+  `stream-options.include-usage`.
+- **Budget**: `APP_DAILY_TOKEN_BUDGET` (default 4.5M, ~10% headroom) with a day boundary
+  at midnight `Europe/Tallinn`. Warn at 80%; once spent, the advisor refuses calls and
+  `AgentOrchestrator` answers from `StubAgentService` until midnight, so the demo keeps
+  working.
+- **Limitation**: totals are in-memory and reset on backend restart. The provider's
+  dashboard stays the source of truth; persisting the count is a possible follow-up.
+
 ## 2026-09-24 — OpenAI as a switchable alternative to Claude
 
 - **Why**: the mentor asked whether an OpenAI key works. The agents only use Spring AI's

@@ -46,8 +46,17 @@ spring:
         options:
           # No temperature here: GPT-5-family models only accept the default.
           model: ${OPENAI_MODEL:gpt-5-mini}
+          # Ask OpenAI to report token usage on streamed (chat) replies too.
+          stream-options:
+            include-usage: true
 
 app:
+  token-budget:
+    # Daily LLM token budget. Once spent, the agents answer with the stub until midnight.
+    # Default leaves ~10% headroom under the 5M/day gpt-5-mini limit, since the in-memory
+    # count resets when the backend restarts.
+    daily-limit: ${APP_DAILY_TOKEN_BUDGET:4500000}
+    zone: ${APP_TOKEN_BUDGET_ZONE:Europe/Tallinn}
   cors:
     allowed-origins: http://localhost:3000
 

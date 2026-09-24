@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -28,13 +29,16 @@ class AgentProviderSelectionTest {
 		void usesClaude() {
 			assertThat(agentService.mode()).isEqualTo("claude");
 			assertThat(chatModel).isInstanceOf(AnthropicChatModel.class);
+			assertThat(chatModel.getDefaultOptions().getModel()).isEqualTo("claude-sonnet-5");
+			assertThat(chatModel.getDefaultOptions().getTemperature()).isEqualTo(0.3);
 		}
 	}
 
 	@Nested
 	@SpringBootTest(properties = {
 			"spring.ai.model.chat=openai",
-			"spring.ai.openai.api-key=sk-dummy" })
+			"spring.ai.openai.api-key=sk-dummy",
+			"OPENAI_MODEL=gpt-test-model" })
 	class OpenAiWhenSelected {
 
 		@Autowired AgentService agentService;
@@ -44,6 +48,10 @@ class AgentProviderSelectionTest {
 		void usesOpenAi() {
 			assertThat(agentService.mode()).isEqualTo("openai");
 			assertThat(chatModel).isInstanceOf(OpenAiChatModel.class);
+			assertThat(chatModel.getDefaultOptions().getModel()).isEqualTo("gpt-test-model");
+			// Needed so streamed chat replies report token usage (see TokenUsageAdvisor).
+			assertThat(((OpenAiChatOptions) chatModel.getDefaultOptions()).getStreamOptions().includeUsage())
+					.isTrue();
 		}
 	}
 

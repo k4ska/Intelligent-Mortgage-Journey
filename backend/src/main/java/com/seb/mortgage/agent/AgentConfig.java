@@ -2,6 +2,7 @@ package com.seb.mortgage.agent;
 
 import com.seb.mortgage.application.ApplicationService;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.ChatClientBuilderCustomizer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -23,6 +24,12 @@ import tools.jackson.databind.ObjectMapper;
  */
 @Configuration
 public class AgentConfig {
+
+	/** Adds token counting and the daily budget check to every ChatClient we build. */
+	@Bean
+	ChatClientBuilderCustomizer tokenUsageCustomizer(TokenUsageTracker tracker) {
+		return builder -> builder.defaultAdvisors(new TokenUsageAdvisor(tracker));
+	}
 
 	@Bean
 	@Conditional(LlmConfiguredCondition.class)
@@ -63,7 +70,8 @@ public class AgentConfig {
 		// Reported to the frontend as "claude" or "openai" so the UI names the right assistant.
 		String mode = provider.trim().equalsIgnoreCase("openai") ? "openai" : "claude";
 		return new AgentOrchestrator(explainAgent, validateAgent, reviewAgent, chatAgent,
-				verifierAgent, applicationService, objectMapper, mode);
+				verifierAgent, applicationService, objectMapper, mode,
+				new StubAgentService(applicationService));
 	}
 
 	@Bean
