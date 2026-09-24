@@ -28,7 +28,7 @@ public class RateService {
 		return RATES.stream()
 				.filter(r -> r.rateType().equalsIgnoreCase(rateType == null ? "VARIABLE" : rateType))
 				.filter(r -> fixedYears == null || r.fixedYears() == fixedYears)
-				.mapToDouble(Rate::annualRatePct)
+				.mapToDouble(rate -> rate.annualRatePct())
 				.findFirst()
 				.orElse(4.35);
 	}

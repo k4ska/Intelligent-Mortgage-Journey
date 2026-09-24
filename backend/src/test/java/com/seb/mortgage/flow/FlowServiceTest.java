@@ -65,13 +65,15 @@ class FlowServiceTest {
 	@Test
 	void selfEmployedBranchIsTaken() {
 		var next = flowService.nextStep("income", Map.of("employmentType", "SELF_EMPLOYED"));
-		assertThat(next).map(FlowDefinition.Step::id).contains("self-employed");
+		assertThat(next).isPresent();
+		assertThat(next.orElseThrow().id()).isEqualTo("self-employed");
 	}
 
 	@Test
 	void fixedRateBranchIsTaken() {
 		var next = flowService.nextStep("loan", Map.of("rateType", "FIXED"));
-		assertThat(next).map(FlowDefinition.Step::id).contains("fixed-details");
+		assertThat(next).isPresent();
+		assertThat(next.orElseThrow().id()).isEqualTo("fixed-details");
 	}
 
 	@Test

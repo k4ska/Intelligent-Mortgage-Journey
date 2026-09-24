@@ -90,7 +90,7 @@ public class AgentOrchestrator implements AgentService {
 		}
 
 		String combined = draft.issues().stream()
-				.map(ValidationIssue::message)
+				.map(issue -> issue == null ? "" : issue.message())
 				.collect(Collectors.joining("\n"));
 		VerifierAgent.Verdict verdict = verifier.verify(
 				"Application validation issues raised for step \"" + stepId + "\"", combined, profileJson);
@@ -132,9 +132,12 @@ public class AgentOrchestrator implements AgentService {
 	}
 
 	private String profileJson(UUID applicationId) {
+		if (applicationId == null) {
+			return "{}";
+		}
 		try {
 			return objectMapper.writeValueAsString(applicationService.profile(applicationId));
-		} catch (Exception e) {
+		} catch (tools.jackson.core.JacksonException e) {
 			return "{}";
 		}
 	}

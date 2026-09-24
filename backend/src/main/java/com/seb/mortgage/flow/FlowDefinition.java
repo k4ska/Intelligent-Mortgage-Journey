@@ -1,9 +1,9 @@
 package com.seb.mortgage.flow;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.List;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Contract 1 of 3 (see README): the flow definition served to the frontend as JSON.
@@ -62,7 +62,6 @@ public record FlowDefinition(
 	/** {@code op} is one of: eq, ne, gt, gte, lt, lte, in. */
 	public record Condition(String field, String op, Object value) {
 
-		@SuppressWarnings("unchecked")
 		public boolean matches(Map<String, Object> answers) {
 			Object actual = answers.get(field);
 			return switch (op) {
@@ -91,6 +90,7 @@ public record FlowDefinition(
 		}
 
 		private static double toDouble(Object o) {
+			if (o == null) throw new IllegalArgumentException("Cannot convert null to a number");
 			if (o instanceof Number n) return n.doubleValue();
 			return Double.parseDouble(o.toString());
 		}
