@@ -20,14 +20,32 @@ spring:
       enabled: true          # http://localhost:8080/h2-console (dev convenience)
 
   ai:
+    model:
+      # Which LLM provider backs the agents: anthropic (default) or openai.
+      # Set AI_PROVIDER in the environment to switch - no code change needed.
+      chat: ${AI_PROVIDER:anthropic}
+      # We only use chat; keep the OpenAI starter from wiring its other models.
+      embedding: none
+      image: none
+      audio.speech: none
+      audio.transcription: none
+      moderation: none
     anthropic:
       # Set ANTHROPIC_API_KEY in the environment (or spring.ai.anthropic.api-key here).
-      # When empty, the app falls back to the deterministic stub agent - it still runs.
+      # When the selected provider has no key, the app falls back to the deterministic
+      # stub agent - it still runs.
       api-key: ${ANTHROPIC_API_KEY:}
       chat:
         options:
           model: claude-sonnet-5
           temperature: 0.3
+    openai:
+      # Used when AI_PROVIDER=openai. Set OPENAI_API_KEY in the environment.
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          # No temperature here: GPT-5-family models only accept the default.
+          model: ${OPENAI_MODEL:gpt-5-mini}
 
 app:
   cors:

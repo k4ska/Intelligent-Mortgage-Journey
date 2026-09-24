@@ -7,7 +7,7 @@ to date as the implementation changes. All code referenced lives under
 
 ## What "agent" means in this codebase
 
-Each agent is deliberately small: **one LLM call (Claude, via Spring AI's `ChatClient`),
+Each agent is deliberately small: **one LLM call (Claude by default, or OpenAI, via Spring AI's `ChatClient`),
 wrapped in a narrow system prompt that defines one job, fed only the context it needs for
 that job.** There is no autonomous tool-calling loop, no agent that decides on its own to
 call other agents or external tools in an open-ended way. The "agentic" behaviour is the
@@ -123,10 +123,9 @@ Adding a sixth specialist is meant to be mechanical:
 1. **New class** in `com.seb.mortgage.agent`, extending `LlmSpecialistAgent`: define a
    `SYSTEM` prompt (one job, stated narrowly) and a constructor that calls
    `super(chatClientBuilder, SYSTEM)`. Add whatever method(s) it needs.
-2. **New `@Bean`** in `AgentConfig`, guarded by the same two conditions every other agent
-   bean uses (`@ConditionalOnProperty(prefix = "spring.ai.anthropic", name = "api-key")`
-   and `@ConditionalOnBean(ChatClient.Builder.class)`), so it only gets built when a real
-   API key is configured.
+2. **New `@Bean`** in `AgentConfig`, guarded by the same condition every other agent
+   bean uses (`@Conditional(LlmConfiguredCondition.class)`), so it only gets built when
+   the selected provider (Anthropic or OpenAI) has an API key configured.
 3. **Wire it in**: call it from `AgentOrchestrator` (through `VerifierAgent` if its output
    is client-facing prose), and if it's a new client-facing capability, add its
    request/response shapes to `AgentDtos` and a route in `AgentController`. If it's stub-

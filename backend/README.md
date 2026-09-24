@@ -1,6 +1,6 @@
 # Backend — Intelligent Mortgage Journey
 
-Spring Boot 4 (Java 25) REST API. In-memory H2, Claude via Spring AI.
+Spring Boot 4 (Java 25) REST API. In-memory H2, Claude (or OpenAI) via Spring AI.
 
 ## Run
 
@@ -18,7 +18,16 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ./gradlew bootRun
 ```
 
-`GET /api/agent/status` reports `{"mode":"stub"}` or `{"mode":"claude"}`.
+To use OpenAI instead:
+
+```bash
+export AI_PROVIDER=openai
+export OPENAI_API_KEY=sk-...
+export OPENAI_MODEL=gpt-5-mini   # optional, this is the default
+./gradlew bootRun
+```
+
+`GET /api/agent/status` reports `{"mode":"stub"}`, `{"mode":"claude"}` or `{"mode":"openai"}`.
 
 ## Test
 
@@ -37,7 +46,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 | `POST /api/applications/{id}/steps` | `{ stepId, answers }` → merges answers, advances the flow |
 | `GET /api/applications/{id}/profile` | Standardized loan profile (contract 3) |
 | `GET /api/applications/{id}/offers` | Mock multi-bank offers derived from the profile |
-| `GET /api/agent/status` | `{ mode }` — `stub` or `claude` |
+| `GET /api/agent/status` | `{ mode }` — `stub`, `claude` or `openai` |
 | `POST /api/agent/explain` | `{ applicationId, topic \| fieldKey }` → `{ explanation, relatedTopics[], followUpQuestion }` |
 | `POST /api/agent/validate` | `{ applicationId, stepId }` → `{ status, issues[], followUpQuestion }` |
 | `POST /api/agent/review` | `{ applicationId }` → `{ summary, concerns[], followUpQuestion }` |

@@ -13,8 +13,8 @@ import java.util.UUID;
  *   <li>{@code StubAgentService} - deterministic canned responses, active by default so
  *       the app works with no API key.</li>
  *   <li>{@code AgentOrchestrator} - routes to specialist agents (one per task) and gates
- *       their output through an independent verifier, active when
- *       {@code spring.ai.anthropic.api-key} is set.</li>
+ *       their output through an independent verifier, active when the selected LLM
+ *       provider has an API key (see {@code LlmConfiguredCondition}).</li>
  * </ul>
  */
 public interface AgentService {

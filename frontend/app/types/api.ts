@@ -86,8 +86,11 @@ export interface ReviewResponse {
   followUpQuestion: string | null
 }
 
+/** Which assistant backs the agent: the stub, or a real LLM provider. */
+export type AgentMode = 'stub' | 'claude' | 'openai'
+
 export interface AgentStatus {
-  mode: 'stub' | 'claude'
+  mode: AgentMode
 }
 
 // ---- Contract 3: loan profile ----

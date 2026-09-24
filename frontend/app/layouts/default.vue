@@ -17,10 +17,10 @@ const store = useApplicationStore()
         <div class="flex items-center gap-3">
           <UBadge
             v-if="store.flow"
-            :color="store.agentMode === 'claude' ? 'primary' : 'neutral'"
+            :color="store.agentLive ? 'primary' : 'neutral'"
             variant="subtle"
           >
-            Assistant: {{ store.agentMode === 'claude' ? 'Claude' : 'demo stub' }}
+            Assistant: {{ store.assistantName }}
           </UBadge>
           <UColorModeButton />
         </div>

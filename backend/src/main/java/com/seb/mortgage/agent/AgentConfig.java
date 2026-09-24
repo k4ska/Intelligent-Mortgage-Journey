@@ -2,16 +2,17 @@ package com.seb.mortgage.agent;
 
 import com.seb.mortgage.application.ApplicationService;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Wires the multi-agent backend. If an Anthropic API key is configured, Spring AI
- * auto-configures {@link ChatClient.Builder} and we build one specialist per agent task
+ * Wires the multi-agent backend. If the selected LLM provider (Anthropic or OpenAI, see
+ * {@link LlmConfiguredCondition}) has an API key, Spring AI auto-configures
+ * {@link ChatClient.Builder} for it and we build one specialist per agent task
  * (explain / validate / review / chat) plus an independent verifier, and route them
  * through {@link AgentOrchestrator}. Otherwise the deterministic stub is used so the app
  * always starts.
@@ -24,48 +25,45 @@ import tools.jackson.databind.ObjectMapper;
 public class AgentConfig {
 
 	@Bean
-	@ConditionalOnProperty(prefix = "spring.ai.anthropic", name = "api-key")
-	@ConditionalOnBean(ChatClient.Builder.class)
+	@Conditional(LlmConfiguredCondition.class)
 	ExplainAgent explainAgent(ChatClient.Builder chatClientBuilder) {
 		return new ExplainAgent(chatClientBuilder);
 	}
 
 	@Bean
-	@ConditionalOnProperty(prefix = "spring.ai.anthropic", name = "api-key")
-	@ConditionalOnBean(ChatClient.Builder.class)
+	@Conditional(LlmConfiguredCondition.class)
 	ValidateAgent validateAgent(ChatClient.Builder chatClientBuilder) {
 		return new ValidateAgent(chatClientBuilder);
 	}
 
 	@Bean
-	@ConditionalOnProperty(prefix = "spring.ai.anthropic", name = "api-key")
-	@ConditionalOnBean(ChatClient.Builder.class)
+	@Conditional(LlmConfiguredCondition.class)
 	ReviewAgent reviewAgent(ChatClient.Builder chatClientBuilder) {
 		return new ReviewAgent(chatClientBuilder);
 	}
 
 	@Bean
-	@ConditionalOnProperty(prefix = "spring.ai.anthropic", name = "api-key")
-	@ConditionalOnBean(ChatClient.Builder.class)
+	@Conditional(LlmConfiguredCondition.class)
 	ChatAgent chatAgent(ChatClient.Builder chatClientBuilder) {
 		return new ChatAgent(chatClientBuilder);
 	}
 
 	@Bean
-	@ConditionalOnProperty(prefix = "spring.ai.anthropic", name = "api-key")
-	@ConditionalOnBean(ChatClient.Builder.class)
+	@Conditional(LlmConfiguredCondition.class)
 	VerifierAgent verifierAgent(ChatClient.Builder chatClientBuilder) {
 		return new VerifierAgent(chatClientBuilder);
 	}
 
 	@Bean
-	@ConditionalOnProperty(prefix = "spring.ai.anthropic", name = "api-key")
-	@ConditionalOnBean(ChatClient.Builder.class)
+	@Conditional(LlmConfiguredCondition.class)
 	AgentService agentOrchestrator(ExplainAgent explainAgent, ValidateAgent validateAgent,
 			ReviewAgent reviewAgent, ChatAgent chatAgent, VerifierAgent verifierAgent,
-			ApplicationService applicationService, ObjectMapper objectMapper) {
+			ApplicationService applicationService, ObjectMapper objectMapper,
+			@Value("${spring.ai.model.chat:anthropic}") String provider) {
+		// Reported to the frontend as "claude" or "openai" so the UI names the right assistant.
+		String mode = provider.trim().equalsIgnoreCase("openai") ? "openai" : "claude";
 		return new AgentOrchestrator(explainAgent, validateAgent, reviewAgent, chatAgent,
-				verifierAgent, applicationService, objectMapper);
+				verifierAgent, applicationService, objectMapper, mode);
 	}
 
 	@Bean

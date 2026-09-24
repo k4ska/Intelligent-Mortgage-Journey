@@ -31,10 +31,11 @@ public class AgentOrchestrator implements AgentService {
 	private final VerifierAgent verifier;
 	private final ApplicationService applicationService;
 	private final ObjectMapper objectMapper;
+	private final String mode;
 
 	public AgentOrchestrator(ExplainAgent explainAgent, ValidateAgent validateAgent,
 			ReviewAgent reviewAgent, ChatAgent chatAgent, VerifierAgent verifier,
-			ApplicationService applicationService, ObjectMapper objectMapper) {
+			ApplicationService applicationService, ObjectMapper objectMapper, String mode) {
 		this.explainAgent = explainAgent;
 		this.validateAgent = validateAgent;
 		this.reviewAgent = reviewAgent;
@@ -42,11 +43,12 @@ public class AgentOrchestrator implements AgentService {
 		this.verifier = verifier;
 		this.applicationService = applicationService;
 		this.objectMapper = objectMapper;
+		this.mode = mode;
 	}
 
 	@Override
 	public String mode() {
-		return "claude";
+		return mode;
 	}
 
 	@Override
