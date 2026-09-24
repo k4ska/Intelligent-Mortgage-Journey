@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import type {
+  AgentMode,
   ApplicationView,
   FlowDefinition,
   Step,
@@ -13,7 +14,7 @@ import type {
 export const useApplicationStore = defineStore('application', {
   state: () => ({
     flow: null as FlowDefinition | null,
-    agentMode: 'stub' as 'stub' | 'claude',
+    agentMode: 'stub' as AgentMode,
     application: null as ApplicationView | null,
     /** Draft answers for the step on screen, before they are submitted. */
     draft: {} as Record<string, unknown>,
@@ -36,6 +37,14 @@ export const useApplicationStore = defineStore('application', {
     },
     isComplete(state): boolean {
       return state.application?.complete ?? false
+    },
+    /** True when a real LLM (Claude or OpenAI) backs the agent, not the stub. */
+    agentLive(state): boolean {
+      return state.agentMode !== 'stub'
+    },
+    /** Display name of whoever answers: 'Claude', 'OpenAI' or 'demo stub'. */
+    assistantName(state): string {
+      return { claude: 'Claude', openai: 'OpenAI', stub: 'demo stub' }[state.agentMode]
     },
   },
 

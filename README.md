@@ -56,7 +56,7 @@ mobile apps · production-grade persistence and auth.
 | ---------- | --------------------------------------------------------------------- |
 | Frontend   | Vue 3 + Nuxt (run as an SPA, `ssr: false`), Nuxt UI, Pinia for state  |
 | Backend    | Java + Spring Boot, REST + Server-Sent Events                        |
-| LLM        | Claude via [Spring AI](https://docs.spring.io/spring-ai/reference/) `ChatClient` (API key stays server-side) |
+| LLM        | Claude (default) or OpenAI via [Spring AI](https://docs.spring.io/spring-ai/reference/) `ChatClient` (API key stays server-side) |
 | Database   | In-memory H2 by default; Postgres available via a `docker-compose` profile |
 | Data       | Mock services: property valuation, interest rates, document checklist, bank catalog |
 
@@ -67,7 +67,7 @@ mobile apps · production-grade persistence and auth.
 ### Option A — Docker (closest to how the mentor/server will run it)
 
 ```bash
-cp .env.example .env          # fill in ANTHROPIC_API_KEY, or leave blank for the stub
+cp .env.example .env          # fill in ANTHROPIC_API_KEY (or OpenAI, see below), or leave blank for the stub
 docker compose up --build
 ```
 
@@ -89,9 +89,13 @@ Open http://localhost:3000.
 
 **No API key yet?** The app runs anyway: the agent falls back to a deterministic stub
 (canned explanations, rule-based validation, a templated read-back). `GET
-/api/agent/status` shows `stub` or `claude`. When the mentor provides the key, set
+/api/agent/status` shows `stub`, `claude` or `openai`. When the mentor provides the key, set
 `ANTHROPIC_API_KEY` in `.env` (Docker) or the environment (local dev) — no code change
 either way.
+
+**Using OpenAI instead of Claude:** set `AI_PROVIDER=openai` and `OPENAI_API_KEY=sk-...`
+(optionally `OPENAI_MODEL`, default `gpt-5-mini`). Only the selected provider's key is
+used; if it's missing, the app falls back to the stub.
 
 `npm install` needs `--legacy-peer-deps` — npm 10.9.x crashes on Nuxt UI's optional-peer
 set otherwise.
@@ -157,7 +161,7 @@ generically.
 ### 2. Agent API
 
 ```
-GET  /api/agent/status                   -> { mode: "stub" | "claude" }
+GET  /api/agent/status                   -> { mode: "stub" | "claude" | "openai" }
 POST /api/agent/chat      (SSE stream)   { applicationId, message }         -> streamed reply
 POST /api/agent/explain                  { applicationId, topic | fieldKey } -> { explanation, relatedTopics[], followUpQuestion }
 POST /api/agent/validate                 { applicationId, stepId }           -> { status, issues[], followUpQuestion }
@@ -200,10 +204,10 @@ page before an application exists.
 /frontend/Dockerfile        multi-stage build -> Nitro node server
 /docs                       decision log, agent architecture reference, demo personas
 docker-compose.yml          backend + frontend services (+ optional Postgres profile)
-.env.example                copy to .env for the Anthropic API key
+.env.example                copy to .env for the LLM provider and API key
 ```
 
-`ANTHROPIC_API_KEY` is read server-side only, either from the environment or a gitignored
+`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` are read server-side only, either from the environment or a gitignored
 `.env` (`docker compose` also reads a `.env` in this directory automatically).
 
 ---

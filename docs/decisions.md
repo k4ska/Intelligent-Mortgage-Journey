@@ -3,6 +3,26 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-09-24 — OpenAI as a switchable alternative to Claude
+
+- **Why**: the mentor asked whether an OpenAI key works. The agents only use Spring AI's
+  provider-neutral `ChatClient`, so no agent code had to change.
+- **How it's selected**: both Spring AI starters are on the classpath.
+  `AI_PROVIDER` (-> `spring.ai.model.chat`, default `anthropic`) picks which one gets
+  auto-configured; set `AI_PROVIDER=openai` plus `OPENAI_API_KEY` (optionally
+  `OPENAI_MODEL`, default `gpt-5-mini`). No key for the selected provider -> stub, as
+  before. `/api/agent/status` now reports `stub`, `claude` or `openai`, and the UI badge
+  names the right assistant.
+- **Gating bug fixed on the way**: the agent beans were guarded by
+  `@ConditionalOnBean(ChatClient.Builder.class)`, which is evaluated before Spring AI's
+  auto-configuration runs, so the real agents never activated even with a key set.
+  Replaced with `LlmConfiguredCondition`, which checks the selected provider's
+  `spring.ai.<provider>.api-key` property instead. Covered by
+  `AgentProviderSelectionTest`.
+- **Caveat**: the system prompts were written against Claude. Expect some drift in tone
+  and in how strictly the JSON-shaped outputs are followed on OpenAI models; Claude
+  stays the default for the demo.
+
 ## 2026-09-23 — Landing hub, standalone calculator, and a bolder visual direction
 
 - **Landing hub built** (closes the 09-17 item below): the single start button is

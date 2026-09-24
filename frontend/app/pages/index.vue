@@ -95,10 +95,10 @@ async function openRelated(key: string) {
             </span>
             <span class="hero-chip">
               <UIcon
-                :name="store.agentMode === 'claude' ? 'i-lucide-bot' : 'i-lucide-test-tube-2'"
-                :class="store.agentMode === 'claude' ? 'text-emerald-400' : 'text-white/60'"
+                :name="store.agentLive ? 'i-lucide-bot' : 'i-lucide-test-tube-2'"
+                :class="store.agentLive ? 'text-emerald-400' : 'text-white/60'"
               />
-              Assistant: {{ store.agentMode === 'claude' ? 'Claude' : 'demo stub' }}
+              Assistant: {{ store.assistantName }}
             </span>
           </div>
         </div>
@@ -179,7 +179,7 @@ async function openRelated(key: string) {
                 {{ activeTopic?.title }}
               </h2>
               <p class="text-xs text-[var(--ui-text-dimmed)]">
-                Answered by the {{ store.agentMode === 'claude' ? 'Claude' : 'demo stub' }} assistant
+                Answered by the {{ store.assistantName }} assistant
               </p>
             </div>
           </div>

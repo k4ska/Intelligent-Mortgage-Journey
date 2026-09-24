@@ -34,9 +34,11 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	runtimeOnly 'com.h2database:h2'
 
-	// Claude via Spring AI. Auto-configuration only activates when
-	// spring.ai.anthropic.api-key is set, so the app runs fine without a key.
+	// LLM providers via Spring AI. Both are on the classpath; spring.ai.model.chat
+	// (driven by AI_PROVIDER) picks which one is auto-configured. With no API key for
+	// the chosen provider, the app falls back to the stub agent.
 	implementation 'org.springframework.ai:spring-ai-starter-model-anthropic'
+	implementation 'org.springframework.ai:spring-ai-starter-model-openai'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

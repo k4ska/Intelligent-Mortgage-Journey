@@ -97,7 +97,7 @@ public class StubAgentService implements AgentService {
 	@Override
 	public Flux<String> chat(UUID applicationId, String message) {
 		String reply = "You asked: \"" + message + "\". The stub assistant can only give canned answers "
-				+ "right now. Once the Anthropic API key is configured, the assistant will answer using "
+				+ "right now. Once an Anthropic or OpenAI API key is configured, the assistant will answer using "
 				+ "your application details and the mortgage explanation library.";
 		String[] words = reply.split(" ");
 		return Flux.fromArray(words)
