@@ -97,6 +97,12 @@ either way.
 (optionally `OPENAI_MODEL`, default `gpt-5-mini`). Only the selected provider's key is
 used; if it's missing, the app falls back to the stub.
 
+**Token usage:** every LLM call logs a `[tokens]` line in the backend's console (agent,
+model, input/output tokens, today's running total). `GET /api/agent/usage` returns today's
+totals per agent. There's a daily budget (`APP_DAILY_TOKEN_BUDGET`, default 4,500,000,
+resetting at midnight Europe/Tallinn): the log warns at 80%, and once it's spent the agents
+answer with the stub until midnight. The count is in-memory, so a backend restart resets it.
+
 `npm install` needs `--legacy-peer-deps` — npm 10.9.x crashes on Nuxt UI's optional-peer
 set otherwise.
 
@@ -162,6 +168,7 @@ generically.
 
 ```
 GET  /api/agent/status                   -> { mode: "stub" | "claude" | "openai" }
+GET  /api/agent/usage                    -> today's token usage vs. the daily budget, per agent
 POST /api/agent/chat      (SSE stream)   { applicationId, message }         -> streamed reply
 POST /api/agent/explain                  { applicationId, topic | fieldKey } -> { explanation, relatedTopics[], followUpQuestion }
 POST /api/agent/validate                 { applicationId, stepId }           -> { status, issues[], followUpQuestion }

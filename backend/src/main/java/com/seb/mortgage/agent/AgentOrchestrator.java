@@ -32,10 +32,13 @@ public class AgentOrchestrator implements AgentService {
 	private final ApplicationService applicationService;
 	private final ObjectMapper objectMapper;
 	private final String mode;
+	/** Answers instead of the LLM once today's token budget is spent. */
+	private final StubAgentService budgetFallback;
 
 	public AgentOrchestrator(ExplainAgent explainAgent, ValidateAgent validateAgent,
 			ReviewAgent reviewAgent, ChatAgent chatAgent, VerifierAgent verifier,
-			ApplicationService applicationService, ObjectMapper objectMapper, String mode) {
+			ApplicationService applicationService, ObjectMapper objectMapper, String mode,
+			StubAgentService budgetFallback) {
 		this.explainAgent = explainAgent;
 		this.validateAgent = validateAgent;
 		this.reviewAgent = reviewAgent;
@@ -44,6 +47,7 @@ public class AgentOrchestrator implements AgentService {
 		this.applicationService = applicationService;
 		this.objectMapper = objectMapper;
 		this.mode = mode;
+		this.budgetFallback = budgetFallback;
 	}
 
 	@Override
@@ -53,6 +57,14 @@ public class AgentOrchestrator implements AgentService {
 
 	@Override
 	public ExplainResponse explain(String topicOrFieldKey, UUID applicationId) {
+		try {
+			return explainWithLlm(topicOrFieldKey, applicationId);
+		} catch (TokenBudgetExceededException e) {
+			return budgetFallback.explain(topicOrFieldKey, applicationId);
+		}
+	}
+
+	private ExplainResponse explainWithLlm(String topicOrFieldKey, UUID applicationId) {
 		String profileJson = profileJson(applicationId);
 		ExplainResponse draft = explainAgent.explain(topicOrFieldKey, profileJson);
 		VerifierAgent.Verdict verdict = verifier.verify(
@@ -63,6 +75,14 @@ public class AgentOrchestrator implements AgentService {
 
 	@Override
 	public ValidateResponse validate(UUID applicationId, String stepId) {
+		try {
+			return validateWithLlm(applicationId, stepId);
+		} catch (TokenBudgetExceededException e) {
+			return budgetFallback.validate(applicationId, stepId);
+		}
+	}
+
+	private ValidateResponse validateWithLlm(UUID applicationId, String stepId) {
 		String profileJson = profileJson(applicationId);
 		ValidateResponse draft = validateAgent.validate(stepId, profileJson);
 		if (draft.issues().isEmpty()) {
@@ -84,6 +104,14 @@ public class AgentOrchestrator implements AgentService {
 
 	@Override
 	public ReviewResponse review(UUID applicationId) {
+		try {
+			return reviewWithLlm(applicationId);
+		} catch (TokenBudgetExceededException e) {
+			return budgetFallback.review(applicationId);
+		}
+	}
+
+	private ReviewResponse reviewWithLlm(UUID applicationId) {
 		String profileJson = profileJson(applicationId);
 		ReviewResponse draft = reviewAgent.review(profileJson);
 
@@ -98,7 +126,9 @@ public class AgentOrchestrator implements AgentService {
 
 	@Override
 	public Flux<String> chat(UUID applicationId, String message) {
-		return chatAgent.chat(message, profileJson(applicationId));
+		return chatAgent.chat(message, profileJson(applicationId))
+				.onErrorResume(TokenBudgetExceededException.class,
+						e -> budgetFallback.chat(applicationId, message));
 	}
 
 	private String profileJson(UUID applicationId) {

@@ -29,6 +29,12 @@ export OPENAI_MODEL=gpt-5-mini   # optional, this is the default
 
 `GET /api/agent/status` reports `{"mode":"stub"}`, `{"mode":"claude"}` or `{"mode":"openai"}`.
 
+**Token usage:** every LLM call logs a `[tokens]` line in the backend's console (agent,
+model, input/output tokens, today's running total). `GET /api/agent/usage` returns today's
+totals per agent. There's a daily budget (`APP_DAILY_TOKEN_BUDGET`, default 4,500,000,
+resetting at midnight Europe/Tallinn): the log warns at 80%, and once it's spent the agents
+answer with the stub until midnight. The count is in-memory, so a backend restart resets it.
+
 ## Test
 
 ```bash
@@ -47,6 +53,7 @@ export OPENAI_MODEL=gpt-5-mini   # optional, this is the default
 | `GET /api/applications/{id}/profile` | Standardized loan profile (contract 3) |
 | `GET /api/applications/{id}/offers` | Mock multi-bank offers derived from the profile |
 | `GET /api/agent/status` | `{ mode }` — `stub`, `claude` or `openai` |
+| `GET /api/agent/usage` | Today's LLM token usage vs. the daily budget, per agent |
 | `POST /api/agent/explain` | `{ applicationId, topic \| fieldKey }` → `{ explanation, relatedTopics[], followUpQuestion }` |
 | `POST /api/agent/validate` | `{ applicationId, stepId }` → `{ status, issues[], followUpQuestion }` |
 | `POST /api/agent/review` | `{ applicationId }` → `{ summary, concerns[], followUpQuestion }` |

@@ -22,9 +22,17 @@ import java.util.UUID;
 public class AgentController {
 
 	private final AgentService agentService;
+	private final TokenUsageTracker tokenUsage;
 
-	public AgentController(AgentService agentService) {
+	public AgentController(AgentService agentService, TokenUsageTracker tokenUsage) {
 		this.agentService = agentService;
+		this.tokenUsage = tokenUsage;
+	}
+
+	/** Today's LLM token usage against the daily budget, per agent. In-memory only. */
+	@GetMapping("/usage")
+	public TokenUsageTracker.UsageSnapshot usage() {
+		return tokenUsage.snapshot();
 	}
 
 	/** Tells the frontend whether the real agent or the stub is active. */
