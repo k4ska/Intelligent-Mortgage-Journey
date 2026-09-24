@@ -1,5 +1,6 @@
 package com.seb.mortgage.agent;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.anthropic.AnthropicChatModel;
@@ -8,8 +9,6 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Checks that AI_PROVIDER (spring.ai.model.chat) plus the matching API key picks the
@@ -20,11 +19,13 @@ class AgentProviderSelectionTest {
 
 	@Nested
 	@SpringBootTest(properties = "spring.ai.anthropic.api-key=sk-ant-dummy")
+        @SuppressWarnings("unused")
 	class AnthropicByDefault {
 
 		@Autowired AgentService agentService;
 		@Autowired ChatModel chatModel;
 
+		@SuppressWarnings("removal")
 		@Test
 		void usesClaude() {
 			assertThat(agentService.mode()).isEqualTo("claude");
@@ -39,11 +40,13 @@ class AgentProviderSelectionTest {
 			"spring.ai.model.chat=openai",
 			"spring.ai.openai.api-key=sk-dummy",
 			"OPENAI_MODEL=gpt-test-model" })
+        @SuppressWarnings("unused")
 	class OpenAiWhenSelected {
 
 		@Autowired AgentService agentService;
 		@Autowired ChatModel chatModel;
 
+		@SuppressWarnings("removal")
 		@Test
 		void usesOpenAi() {
 			assertThat(agentService.mode()).isEqualTo("openai");
@@ -59,6 +62,7 @@ class AgentProviderSelectionTest {
 	@SpringBootTest(properties = {
 			"spring.ai.model.chat=openai",
 			"spring.ai.anthropic.api-key=sk-ant-dummy" })
+        @SuppressWarnings("unused")
 	class OpenAiSelectedWithoutItsKey {
 
 		@Autowired AgentService agentService;

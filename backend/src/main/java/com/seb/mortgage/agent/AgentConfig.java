@@ -23,6 +23,7 @@ import tools.jackson.databind.ObjectMapper;
  * independent of the others.
  */
 @Configuration
+@SuppressWarnings("unused")
 public class AgentConfig {
 
 	/** Adds token counting and the daily budget check to every ChatClient we build. */

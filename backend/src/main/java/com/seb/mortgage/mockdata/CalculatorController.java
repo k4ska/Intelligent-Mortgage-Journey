@@ -28,8 +28,10 @@ public class CalculatorController {
 		double price = nonNegative(request.propertyPrice());
 		double downPayment = nonNegative(request.downPayment());
 		double loanAmount = Math.max(price - downPayment, 0);
-		double annualRatePct = request.annualRatePct() != null ? request.annualRatePct() : rateService.rateFor(null, null);
-		int termYears = request.termYears() != null ? request.termYears() : 25;
+		Double requestedRate = request.annualRatePct();
+		Integer requestedTerm = request.termYears();
+		double annualRatePct = requestedRate == null ? rateService.rateFor(null, null) : requestedRate;
+		int termYears = requestedTerm == null ? 25 : requestedTerm;
 
 		double monthlyPayment = calculator.monthlyPayment(loanAmount, annualRatePct, termYears);
 		double ltv = calculator.loanToValue(loanAmount, price);

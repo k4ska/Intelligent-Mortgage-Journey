@@ -1,5 +1,9 @@
 package com.seb.mortgage.agent;
 
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
@@ -12,13 +16,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+
 import reactor.core.publisher.Flux;
-
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Runs the real agents against a fake ChatModel that reports 100 input + 20 output tokens
@@ -27,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = {
 		"spring.ai.anthropic.api-key=sk-ant-dummy",
 		"app.token-budget.daily-limit=240" })
+@Import(TokenUsageIntegrationTest.FakeModelConfig.class)
 class TokenUsageIntegrationTest {
 
 	@TestConfiguration
@@ -34,6 +36,7 @@ class TokenUsageIntegrationTest {
 
 		@Bean
 		@Primary
+                @SuppressWarnings("unused")
 		FakeChatModel fakeChatModel() {
 			return new FakeChatModel();
 		}
