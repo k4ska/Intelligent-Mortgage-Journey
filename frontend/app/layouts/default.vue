@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const store = useApplicationStore()
+const route = useRoute()
 </script>
 
 <template>
@@ -22,6 +23,19 @@ const store = useApplicationStore()
           >
             Assistant: {{ store.assistantName }}
           </UBadge>
+          <UButton
+            v-if="route.path.startsWith('/journey') && !store.assistantOpen"
+            class="assistant-header-button"
+            color="primary"
+            variant="soft"
+            size="sm"
+            icon="i-lucide-panel-right-open"
+            title="Open assistant panel"
+            aria-label="Open assistant panel"
+            @click="store.assistantOpen = true"
+          >
+            Assistant
+          </UButton>
           <UColorModeButton />
         </div>
       </UContainer>
@@ -36,3 +50,10 @@ const store = useApplicationStore()
     </footer>
   </div>
 </template>
+
+<style scoped>
+.assistant-header-button {
+  border: 1px solid color-mix(in srgb, var(--ui-primary) 28%, transparent);
+  box-shadow: 0 4px 12px -8px color-mix(in srgb, var(--ui-primary) 70%, transparent);
+}
+</style>

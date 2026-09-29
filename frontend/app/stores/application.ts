@@ -21,6 +21,7 @@ export const useApplicationStore = defineStore('application', {
     validation: null as ValidateResponse | null,
     loading: false,
     error: null as string | null,
+    assistantOpen: true,
   }),
 
   getters: {
