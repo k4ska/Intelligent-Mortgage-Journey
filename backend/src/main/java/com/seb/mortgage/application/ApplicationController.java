@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -37,18 +38,24 @@ public class ApplicationController {
 		LoanApplication created = applicationService.create();
 		return ResponseEntity
 				.created(URI.create("/api/applications/" + created.getId()))
-				.body(ApplicationView.of(created));
+				.body(view(created));
 	}
 
 	@GetMapping("/{id}")
 	public ApplicationView get(@PathVariable UUID id) {
-		return ApplicationView.of(applicationService.get(id));
+		return view(applicationService.get(id));
 	}
 
 	@PostMapping("/{id}/steps")
 	public ApplicationView submitStep(@PathVariable UUID id, @RequestBody SubmitStepRequest request) {
-		return ApplicationView.of(
-				applicationService.submitStep(id, request.stepId(), request.answers()));
+		boolean advance = request.advance() == null || request.advance();
+		return view(applicationService.submitStep(id, request.stepId(), request.answers(), advance));
+	}
+
+	/** Jump to a step the user has already reached, e.g. back to fix an earlier answer. */
+	@PutMapping("/{id}/current-step")
+	public ApplicationView goToStep(@PathVariable UUID id, @RequestBody GoToStepRequest request) {
+		return view(applicationService.goToStep(id, request.stepId()));
 	}
 
 	@GetMapping("/{id}/profile")
@@ -62,7 +69,14 @@ public class ApplicationController {
 		return bankCatalogService.generateOffers(applicationService.profile(id));
 	}
 
-	public record SubmitStepRequest(@NotBlank String stepId, Map<String, Object> answers) {}
+	/** {@code advance} defaults to true; false saves the answers without moving on. */
+	public record SubmitStepRequest(@NotBlank String stepId, Map<String, Object> answers, Boolean advance) {}
+
+	public record GoToStepRequest(@NotBlank String stepId) {}
+
+	private ApplicationView view(LoanApplication application) {
+		return ApplicationView.of(application, applicationService.journey(application));
+	}
 
 	public record ApplicationView(
 			UUID id,
@@ -70,12 +84,24 @@ public class ApplicationController {
 			boolean complete,
 			Map<String, Object> answers,
 			Instant createdAt,
-			Instant updatedAt
+			Instant updatedAt,
+			/** Step ids on the route through the flow for the current answers, first to last. */
+			List<String> path,
+			List<String> completedSteps,
+			/** Steps the user may jump to. */
+			List<String> unlockedSteps
 	) {
-		static ApplicationView of(LoanApplication a) {
+		static ApplicationView of(LoanApplication a, ApplicationService.Journey journey) {
 			return new ApplicationView(a.getId(), a.getCurrentStepId(), a.isComplete(),
-					a.getAnswers(), a.getCreatedAt(), a.getUpdatedAt());
+					a.getAnswers(), a.getCreatedAt(), a.getUpdatedAt(),
+					journey.path(), journey.completedSteps(), journey.unlockedSteps());
 		}
+	}
+
+	@ResponseStatus(HttpStatus.CONFLICT)
+	@org.springframework.web.bind.annotation.ExceptionHandler(IllegalStateException.class)
+	public Map<String, String> handleLocked(IllegalStateException e) {
+		return Map.of("error", e.getMessage());
 	}
 
 	@ResponseStatus(HttpStatus.NOT_FOUND)

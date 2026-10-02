@@ -9,6 +9,7 @@ defineProps<{
   /** The agent is checking this step's answers. */
   validating: boolean
   isLast: boolean
+  canGoBack: boolean
 }>()
 
 const emit = defineEmits<{
@@ -16,6 +17,7 @@ const emit = defineEmits<{
   explain: [helpKey: string]
   validate: []
   next: []
+  back: []
 }>()
 
 const severityColor = (s: string) =>
@@ -72,19 +74,30 @@ const severityColor = (s: string) =>
     </div>
 
     <template #footer>
-      <div class="flex items-center justify-between gap-3">
-        <UButton
-          v-if="step.fields.length"
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-sparkles"
-          :loading="validating"
-          :disabled="busy"
-          @click="emit('validate')"
-        >
-          Check this step
-        </UButton>
-        <span v-else />
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <UButton
+            v-if="canGoBack"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-arrow-left"
+            :disabled="busy"
+            @click="emit('back')"
+          >
+            Back
+          </UButton>
+          <UButton
+            v-if="step.fields.length"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-sparkles"
+            :loading="validating"
+            :disabled="busy"
+            @click="emit('validate')"
+          >
+            Check this step
+          </UButton>
+        </div>
 
         <UButton
           :trailing-icon="isLast ? 'i-lucide-check' : 'i-lucide-arrow-right'"

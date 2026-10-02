@@ -12,8 +12,11 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -39,6 +42,11 @@ public class LoanApplication {
 	@Convert(converter = JsonMapConverter.class)
 	@Column(columnDefinition = "CLOB")
 	private Map<String, Object> answers = new LinkedHashMap<>();
+
+	/** Steps the user has continued past (submitted with advance), in no particular order. */
+	@Convert(converter = StringSetConverter.class)
+	@Column(nullable = false, length = 1000)
+	private Set<String> completedSteps = new LinkedHashSet<>();
 
 	@Column(nullable = false, updatable = false)
 	private Instant createdAt;
@@ -69,6 +77,24 @@ public class LoanApplication {
 		if (incoming != null) {
 			this.answers.putAll(incoming);
 		}
+	}
+
+	/** Drops answers for the given keys, e.g. fields of a branch that is no longer on the path. */
+	public void removeAnswers(Collection<String> keys) {
+		keys.forEach(this.answers::remove);
+	}
+
+	public Set<String> getCompletedSteps() {
+		return completedSteps;
+	}
+
+	public void markCompleted(String stepId) {
+		this.completedSteps.add(stepId);
+	}
+
+	/** Forgets completion for any step not in {@code stepIds}. */
+	public void retainCompleted(Collection<String> stepIds) {
+		this.completedSteps.retainAll(stepIds);
 	}
 
 	public UUID getId() {

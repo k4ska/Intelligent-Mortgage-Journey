@@ -12,11 +12,13 @@ await useAsyncData(`journey-${id.value}`, async () => {
   return true
 })
 
-const progress = computed(() =>
-  store.totalSteps ? Math.round(((store.stepIndex + 1) / store.totalSteps) * 100) : 0,
-)
+const progress = computed(() => store.progress)
 
-const journeySteps = computed(() => store.flow?.steps ?? [])
+function stepStatus(stepId: string) {
+  if (stepId === store.application?.currentStepId && !store.showSummary) return 'In progress'
+  if (store.isStepCompleted(stepId)) return 'Complete'
+  return store.isStepUnlocked(stepId) ? 'Up next' : 'Locked'
+}
 
 function onExplain(helpKey: string) {
   assist.value?.explain(helpKey)
@@ -73,25 +75,27 @@ onBeforeUnmount(stopAssistantResize)
 
           <nav class="mt-7 hidden md:block" aria-label="Application progress">
             <ol class="space-y-1">
-              <li v-for="(step, index) in journeySteps" :key="step.id">
-                <div
+              <li v-for="(step, index) in store.pathSteps" :key="step.id">
+                <button
+                  type="button"
                   class="step-nav-item"
                   :class="{
-                    'step-nav-item-active': index === store.stepIndex && !store.isComplete,
-                    'step-nav-item-complete': index < store.stepIndex || store.isComplete,
+                    'step-nav-item-active': step.id === store.application?.currentStepId,
+                    'step-nav-item-complete': store.isStepCompleted(step.id),
                   }"
+                  :disabled="!store.isStepUnlocked(step.id) || store.loading || store.validating"
+                  :aria-current="step.id === store.application?.currentStepId ? 'step' : undefined"
+                  @click="store.goToStep(step.id)"
                 >
                   <span class="step-marker">
-                    <UIcon v-if="index < store.stepIndex || store.isComplete" name="i-lucide-check" class="text-sm" />
+                    <UIcon v-if="store.isStepCompleted(step.id)" name="i-lucide-check" class="text-sm" />
                     <span v-else>{{ index + 1 }}</span>
                   </span>
                   <span class="min-w-0">
                     <span class="block truncate text-sm font-medium">{{ step.title }}</span>
-                    <span class="mt-0.5 block text-xs text-dimmed">
-                      {{ index < store.stepIndex || store.isComplete ? 'Complete' : index === store.stepIndex ? 'In progress' : 'Up next' }}
-                    </span>
+                    <span class="mt-0.5 block text-xs text-dimmed">{{ stepStatus(step.id) }}</span>
                   </span>
-                </div>
+                </button>
               </li>
             </ol>
           </nav>
@@ -120,7 +124,20 @@ onBeforeUnmount(stopAssistantResize)
                 <UIcon name="i-lucide-shield-check" class="hidden text-2xl text-emerald-600 sm:block" />
               </div>
 
-              <ProfileSummary v-if="store.isComplete" :application-id="id" />
+              <template v-if="store.showSummary">
+                <UButton
+                  v-if="store.previousStepId"
+                  class="mb-4"
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide-arrow-left"
+                  :disabled="store.loading"
+                  @click="store.goBack"
+                >
+                  Back to edit my answers
+                </UButton>
+                <ProfileSummary :application-id="id" />
+              </template>
 
               <FlowStep
                 v-else-if="store.currentStep"
@@ -129,11 +146,13 @@ onBeforeUnmount(stopAssistantResize)
                 :validation="store.validation"
                 :busy="store.loading || store.validating"
                 :validating="store.validating"
-                :is-last="store.stepIndex === store.totalSteps - 2"
+                :is-last="store.isLastStep"
+                :can-go-back="!!store.previousStepId"
                 @set-field="store.setField"
                 @explain="onExplain"
                 @validate="store.runValidation"
                 @next="onNext"
+                @back="store.goBack"
               />
             </div>
 
@@ -237,11 +256,29 @@ onBeforeUnmount(stopAssistantResize)
 
 .step-nav-item {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: 0.75rem;
   border-radius: 0.75rem;
   padding: 0.7rem 0.65rem;
   color: var(--ui-text-muted);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.step-nav-item:not(:disabled):not(.step-nav-item-active):hover {
+  background: var(--ui-bg-elevated);
+}
+
+.step-nav-item:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+.step-nav-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .step-nav-item-active {

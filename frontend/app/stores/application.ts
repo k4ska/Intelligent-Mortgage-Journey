@@ -31,15 +31,48 @@ export const useApplicationStore = defineStore('application', {
       if (!state.flow || !state.application) return null
       return state.flow.steps.find(s => s.id === state.application!.currentStepId) ?? null
     },
+    /** The steps this user goes through, given their answers (branches they skip are left out). */
+    pathSteps(state): Step[] {
+      if (!state.flow || !state.application) return []
+      const steps = state.flow.steps
+      return state.application.path
+        .map(id => steps.find(s => s.id === id))
+        .filter((s): s is Step => !!s)
+    },
     stepIndex(state): number {
-      if (!state.flow || !state.application) return 0
-      return state.flow.steps.findIndex(s => s.id === state.application!.currentStepId)
+      return state.application?.path.indexOf(state.application.currentStepId) ?? 0
     },
     totalSteps(state): number {
-      return state.flow?.steps.length ?? 0
+      return state.application?.path.length ?? 0
     },
+    /** Share of the path the user has completed, 0-100. */
+    progress(state): number {
+      const app = state.application
+      return app?.path.length ? Math.round((app.completedSteps.length / app.path.length) * 100) : 0
+    },
+    previousStepId(state): string | null {
+      const app = state.application
+      if (!app) return null
+      const index = app.path.indexOf(app.currentStepId)
+      return index > 0 ? app.path[index - 1] ?? null : null
+    },
+    isLastStep(state): boolean {
+      const path = state.application?.path ?? []
+      return path.length > 0 && path[path.length - 1] === state.application?.currentStepId
+    },
+    /** Every step on the path is done. */
     isComplete(state): boolean {
       return state.application?.complete ?? false
+    },
+    /** Show the final summary: everything done and the user is on the last step. */
+    showSummary(): boolean {
+      return this.isComplete && this.isLastStep
+    },
+    isStepCompleted(state) {
+      return (stepId: string) => state.application?.completedSteps.includes(stepId) ?? false
+    },
+    isStepUnlocked(state) {
+      return (stepId: string) => state.application?.unlockedSteps.includes(stepId) ?? false
     },
     /** True when a real LLM (Claude or OpenAI) backs the agent, not the stub. */
     agentLive(state): boolean {
@@ -100,6 +133,31 @@ export const useApplicationStore = defineStore('application', {
       this.draft[key] = value
     },
 
+    /**
+     * Open another step the user has already reached. The answers on screen are saved
+     * first so nothing typed is lost. If saving them changes the route (e.g. a new
+     * co-applicant step appears) and the target is no longer open, the user stays put.
+     */
+    async goToStep(stepId: string) {
+      const api = useApi()
+      if (!this.application || stepId === this.application.currentStepId) return
+      this.loading = true
+      try {
+        if (this.currentStep?.fields.length && !this.showSummary) {
+          this.application = await api.submitStep(this.application.id, this.currentStep.id, this.draft, false)
+        }
+        if (!this.application.unlockedSteps.includes(stepId)) return
+        this.application = await api.goToStep(this.application.id, stepId)
+        this.resetDraftFromAnswers()
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async goBack() {
+      if (this.previousStepId) await this.goToStep(this.previousStepId)
+    },
+
     async runValidation() {
       const api = useApi()
       if (!this.application || !this.currentStep) return
@@ -123,14 +181,8 @@ export const useApplicationStore = defineStore('application', {
       const stepId = this.currentStep.id
       this.loading = true
       try {
-        const updated = await api.submitStep(this.application.id, stepId, this.draft)
-        if (advance) {
-          this.application = updated
-          this.resetDraftFromAnswers()
-        } else {
-          // keep the user on the same step; just refresh stored answers
-          this.application = { ...updated, currentStepId: stepId }
-        }
+        this.application = await api.submitStep(this.application.id, stepId, this.draft, advance)
+        if (advance) this.resetDraftFromAnswers()
       } finally {
         this.loading = false
       }
