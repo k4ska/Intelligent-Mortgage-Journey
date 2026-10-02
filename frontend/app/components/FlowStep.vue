@@ -82,7 +82,7 @@ const severityColor = (s: string) =>
           :disabled="busy"
           @click="emit('validate')"
         >
-          Check my answers
+          Check this step
         </UButton>
         <span v-else />
 

@@ -87,9 +87,16 @@ it knows). Two grounding sources exist today:
 - **`Explanations.java`** - a hand-written glossary (`Map<String, Entry>`) of mortgage
   terms, each with plain-language text and related-topic keys. `ExplainAgent` includes
   the matching entry as "reference wording to stay consistent with" whenever one exists.
-- **The applicant's `LoanProfile`**, serialised to JSON - the one source of truth for any
-  number an agent states. `ValidateAgent`, `ReviewAgent` and `ChatAgent` are grounded on
-  this alone; `VerifierAgent` checks every draft's numbers against it.
+- **The applicant's `ProfileFacts`**, serialised to JSON - the one source of truth for any
+  number an agent states. It is *not* the full `LoanProfile`: that one fills missing
+  answers with defaults (a 250 000 price, 4 000/month income, ...) so the summary and
+  offers always have something to show, and agents used to comment on those as if the
+  user had entered them (#20). `ProfileFacts` holds only the real `answers`, a
+  `notAnsweredYet` list, and the derived `figures` (LTV, payment, DTI, stress test, ...)
+  whose inputs are all real, each with the answer keys it is `basedOn`. `ValidateAgent`
+  gets it narrowed to the current step (`StepFacts`): that step's answers and blanks, and
+  only the figures that step feeds into. `VerifierAgent` checks every draft's numbers
+  against the same facts.
 
 **Open follow-up from the mentor conversation, not yet implemented:** tightening
 `ExplainAgent` so a topic with no glossary entry returns a fixed "not in our glossary yet"

@@ -14,27 +14,28 @@ public class ChatAgent extends LlmSpecialistAgent {
 
 	private static final String SYSTEM = """
 			You are a calm, plain-language mortgage guide inside an application journey.
-			You answer the applicant's questions using their own profile, you never give
+			You answer the applicant's questions using their own application, you never give
 			regulated financial advice and you never tell the user which product to choose.
-			Keep answers short and concrete, use the user's own numbers when they are
-			provided, and prefer everyday words over jargon. If you are unsure, say so.
+			Keep answers short and concrete, use the user's own numbers when they appear in
+			the facts you are given, and prefer everyday words over jargon. Never invent or
+			assume a figure for anything in notAnsweredYet. If you are unsure, say so.
 			""";
 
 	public ChatAgent(ChatClient.Builder chatClientBuilder) {
 		super(chatClientBuilder, SYSTEM);
 	}
 
-	public Flux<String> chat(String message, String profileJson) {
+	public Flux<String> chat(String message, String factsJson) {
 		return chatClient.prompt()
 				.user(u -> u.text("""
 						The user is part-way through a mortgage application. Answer their question
-						using their profile below. Educational, not advisory.
+						using what they have told us so far. Educational, not advisory.
 
-						Profile (JSON): {profile}
+						Facts (JSON): {facts}
 
 						Question: {question}
 						""")
-						.param("profile", profileJson)
+						.param("facts", factsJson)
 						.param("question", message))
 				.stream()
 				.content();

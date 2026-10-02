@@ -15,7 +15,8 @@ public class VerifierAgent extends LlmSpecialistAgent {
 			never talk to the applicant directly; you only review another agent's draft reply
 			before it is allowed to reach them. Approve a draft only if all of these hold:
 			- It states no numbers that are not present in, or directly computable from, the
-			  applicant profile you are given.
+			  applicant facts you are given. Anything listed in notAnsweredYet has no value
+			  yet, so a draft that states one for it fails this check.
 			- It never recommends a specific lender or product, or tells the user what to
 			  choose.
 			- It never gives regulated financial, legal or tax advice.
@@ -45,23 +46,23 @@ public class VerifierAgent extends LlmSpecialistAgent {
 	 * @param taskDescription what the draft was written for, so the verifier can judge it
 	 *                        against the right expectations
 	 * @param draftOutput     the specialist's candidate reply text
-	 * @param profileJson     the applicant profile the draft should be grounded in
+	 * @param factsJson       the applicant facts the draft should be grounded in
 	 */
-	public Verdict verify(String taskDescription, String draftOutput, String profileJson) {
+	public Verdict verify(String taskDescription, String draftOutput, String factsJson) {
 		Check check;
 		try {
 			check = chatClient.prompt()
 					.user(u -> u.text("""
 							Task the draft was written for: {task}
 
-							Applicant profile (JSON, source of truth for any numbers):
-							{profile}
+							Applicant facts (JSON, source of truth for any numbers):
+							{facts}
 
 							Draft reply to check:
 							{draft}
 							""")
 							.param("task", taskDescription)
-							.param("profile", profileJson)
+							.param("facts", factsJson)
 							.param("draft", draftOutput))
 					.call()
 					.entity(Check.class);

@@ -4,9 +4,11 @@ import com.seb.mortgage.flow.FlowDefinition;
 import com.seb.mortgage.flow.FlowService;
 import com.seb.mortgage.profile.LoanProfile;
 import com.seb.mortgage.profile.LoanProfileAssembler;
+import com.seb.mortgage.profile.ProfileFacts;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -60,5 +62,21 @@ public class ApplicationService {
 	@Transactional(readOnly = true)
 	public LoanProfile profile(UUID id) {
 		return profileAssembler.assemble(get(id));
+	}
+
+	/** What the agents may know: real answers only, no defaults. See {@link ProfileFacts}. */
+	@Transactional(readOnly = true)
+	public ProfileFacts facts(UUID id) {
+		return profileAssembler.facts(get(id));
+	}
+
+	/** {@link #facts} narrowed to one step, for checking that step's answers. */
+	@Transactional(readOnly = true)
+	public ProfileFacts.StepFacts stepFacts(UUID id, String stepId) {
+		Optional<FlowDefinition.Step> step = flowService.step(stepId);
+		List<String> keys = step.map(s -> s.fields().stream().map(FlowDefinition.Field::key).toList())
+				.orElse(List.of());
+		String title = step.map(FlowDefinition.Step::title).orElse(stepId);
+		return facts(id).forStep(stepId, title, keys);
 	}
 }
