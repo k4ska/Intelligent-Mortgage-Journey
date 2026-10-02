@@ -8,15 +8,33 @@ import com.seb.mortgage.mockdata.RateService;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * Turns the free-form answers on a {@link LoanApplication} into the standardized
  * {@link LoanProfile}, filling gaps with mock-data services and derived financials.
+ *
+ * <p>Missing answers are filled with defaults so the profile is always complete. Agents
+ * get {@link #facts} instead, which leaves those defaults out.
  */
 @Service
 public class LoanProfileAssembler {
+
+	/** Answers that {@link #assemble} replaces with a default when they are missing. */
+	static final List<String> DEFAULTED_KEYS = List.of(
+			"loanPurpose", "propertyAddress", "propertyType", "purchasePrice", "employmentType",
+			"monthlyGrossIncome", "monthlyDebtPayments", "downPayment", "loanAmount", "termYears",
+			"rateType");
+
+	private static final List<String> LOAN_INPUTS = List.of("purchasePrice", "downPayment", "loanAmount");
+	private static final List<String> PAYMENT_INPUTS = List.of(
+			"purchasePrice", "downPayment", "loanAmount", "termYears", "rateType", "fixedYears");
+	private static final List<String> AFFORDABILITY_INPUTS = Stream.concat(PAYMENT_INPUTS.stream(),
+			Stream.of("monthlyGrossIncome", "monthlyDebtPayments")).toList();
 
 	private final AffordabilityCalculator calculator;
 	private final PropertyValuationService valuationService;
@@ -84,30 +102,92 @@ public class LoanProfileAssembler {
 				documentChecklistService.requiredDocuments(a));
 	}
 
+	/**
+	 * The application as the agents may see it: only the answers the user really gave, and
+	 * only the derived figures whose inputs are all real. See {@link ProfileFacts}.
+	 */
+	public ProfileFacts facts(LoanApplication application) {
+		Map<String, Object> entered = new LinkedHashMap<>();
+		application.getAnswers().forEach((key, value) -> {
+			if (value != null && !value.toString().isBlank()) {
+				entered.put(key, value);
+			}
+		});
+		List<String> notAnsweredYet = DEFAULTED_KEYS.stream().filter(k -> !entered.containsKey(k)).toList();
+
+		LoanProfile p = assemble(application);
+		LoanProfile.Financials f = p.financials();
+		double purchasePrice = p.property().purchasePrice();
+		double estimatedValue = p.property().estimatedValue();
+
+		boolean hasPrice = entered.containsKey("purchasePrice");
+		boolean hasLoan = entered.containsKey("loanAmount") || (hasPrice && entered.containsKey("downPayment"));
+		boolean hasPayment = hasLoan && entered.containsKey("termYears") && entered.containsKey("rateType");
+		boolean hasAffordability = hasPayment && entered.containsKey("monthlyGrossIncome")
+				&& entered.containsKey("monthlyDebtPayments");
+
+		List<ProfileFacts.Figure> figures = new ArrayList<>();
+		if (hasPrice) {
+			figures.add(new ProfileFacts.Figure("estimatedPropertyValue", estimatedValue,
+					List.of("purchasePrice", "propertyAddress"), valuationRisk(purchasePrice, estimatedValue)));
+		}
+		if (hasLoan && !entered.containsKey("loanAmount")) {
+			figures.add(new ProfileFacts.Figure("loanAmountFromPriceMinusDownPayment",
+					p.loanRequest().amount(), LOAN_INPUTS, null));
+		}
+		if (hasPrice && hasLoan) {
+			figures.add(new ProfileFacts.Figure("loanToValuePercent", f.ltv(), LOAN_INPUTS, ltvRisk(f.ltv())));
+		}
+		if (hasPayment) {
+			figures.add(new ProfileFacts.Figure("estimatedMonthlyPayment", f.estimatedMonthlyPayment(),
+					PAYMENT_INPUTS, null));
+			figures.add(new ProfileFacts.Figure("stressedMonthlyPayment", f.stressedMonthlyPayment(),
+					PAYMENT_INPUTS, null));
+		}
+		if (hasAffordability) {
+			figures.add(new ProfileFacts.Figure("debtToIncomePercent", f.dti(), AFFORDABILITY_INPUTS,
+					dtiRisk(f.dti())));
+			figures.add(new ProfileFacts.Figure("monthlyBufferAfterStress", f.monthlyBufferAfterStress(),
+					AFFORDABILITY_INPUTS, null));
+			figures.add(new ProfileFacts.Figure("stressTestResult", f.stressTestResult(),
+					AFFORDABILITY_INPUTS, stressRisk(f)));
+		}
+		return new ProfileFacts(entered, notAnsweredYet, figures, p.documents());
+	}
+
 	private static List<String> riskIndicators(double ltv, double dti, LoanProfile.Financials f,
 			double purchasePrice, double estimatedValue) {
-		List<String> risks = new ArrayList<>();
-		if (estimatedValue < purchasePrice * 0.97) {
-			risks.add("The automated valuation (" + (long) estimatedValue + ") is below the price you "
-					+ "agreed (" + (long) purchasePrice + ") - a lender may lend against the lower figure");
-		}
-		if (ltv > 90) {
-			risks.add("High loan-to-value (" + ltv + "%) - limited lender choice and a higher rate");
-		}
-		if (dti > 40) {
-			risks.add("Debt-to-income of " + dti + "% is above the level most lenders are comfortable with");
-		}
+		List<String> risks = Stream.of(valuationRisk(purchasePrice, estimatedValue), ltvRisk(ltv),
+				dtiRisk(dti), stressRisk(f)).filter(Objects::nonNull).toList();
+		return risks.isEmpty()
+				? List.of("No major risk indicators from the information provided so far")
+				: risks;
+	}
+
+	private static String valuationRisk(double purchasePrice, double estimatedValue) {
+		return estimatedValue < purchasePrice * 0.97
+				? "The automated valuation (" + (long) estimatedValue + ") is below the price you "
+						+ "agreed (" + (long) purchasePrice + ") - a lender may lend against the lower figure"
+				: null;
+	}
+
+	private static String ltvRisk(double ltv) {
+		return ltv > 90 ? "High loan-to-value (" + ltv + "%) - limited lender choice and a higher rate" : null;
+	}
+
+	private static String dtiRisk(double dti) {
+		return dti > 40 ? "Debt-to-income of " + dti + "% is above the level most lenders are comfortable with" : null;
+	}
+
+	private static String stressRisk(LoanProfile.Financials f) {
 		if ("FAIL".equals(f.stressTestResult())) {
-			risks.add("Fails the rate-rise stress test - monthly costs would exceed income if rates rose "
-					+ (int) AffordabilityCalculator.STRESS_DELTA_PCT + " points");
-		} else if ("TIGHT".equals(f.stressTestResult())) {
-			risks.add("Thin buffer (" + f.monthlyBufferAfterStress()
-					+ "/month) after a rate-rise stress test");
+			return "Fails the rate-rise stress test - monthly costs would exceed income if rates rose "
+					+ (int) AffordabilityCalculator.STRESS_DELTA_PCT + " points";
 		}
-		if (risks.isEmpty()) {
-			risks.add("No major risk indicators from the information provided so far");
+		if ("TIGHT".equals(f.stressTestResult())) {
+			return "Thin buffer (" + f.monthlyBufferAfterStress() + "/month) after a rate-rise stress test";
 		}
-		return risks;
+		return null;
 	}
 
 	private static double num(Object o, double fallback) {

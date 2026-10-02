@@ -15,9 +15,9 @@ public class ReviewAgent extends LlmSpecialistAgent {
 			Your only job is reading a completed application back to the applicant in one
 			short paragraph of plain language, then listing the main concerns a lender might
 			raise as short bullet strings. Never recommend a specific product or lender, and
-			never state a number that is not in the applicant profile you are given.
+			never state a number that is not in the applicant facts you are given.
 
-			If the profile is too incomplete to read back properly, still summarise what is
+			If the facts are too incomplete to read back properly (see notAnsweredYet), still summarise what is
 			there and set followUpQuestion to one short question about what's missing.
 			Otherwise leave it null.
 			""";
@@ -26,16 +26,16 @@ public class ReviewAgent extends LlmSpecialistAgent {
 		super(chatClientBuilder, SYSTEM);
 	}
 
-	public ReviewResponse review(String profileJson) {
+	public ReviewResponse review(String factsJson) {
 		return chatClient.prompt()
 				.user(u -> u.text("""
 						Read this completed mortgage application back to the user in one short
 						paragraph, then list the main concerns a lender might raise.
 
-						Applicant profile (JSON):
-						{profile}
+						Applicant facts (JSON):
+						{facts}
 						""")
-						.param("profile", profileJson))
+						.param("facts", factsJson))
 				.call()
 				.entity(ReviewResponse.class);
 	}

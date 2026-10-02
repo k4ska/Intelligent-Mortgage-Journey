@@ -7,6 +7,7 @@ import com.seb.mortgage.agent.AgentDtos.ValidationIssue;
 import com.seb.mortgage.agent.AgentDtos.ValidationStatus;
 import com.seb.mortgage.application.ApplicationService;
 import com.seb.mortgage.profile.LoanProfile;
+import com.seb.mortgage.profile.ProfileFacts;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
@@ -46,31 +47,31 @@ public class StubAgentService implements AgentService {
 
 	@Override
 	public ValidateResponse validate(UUID applicationId, String stepId) {
-		LoanProfile profile = applicationService.profile(applicationId);
+		// Only figures this step feeds into, and only once their inputs are real answers.
+		ProfileFacts.StepFacts facts = applicationService.stepFacts(applicationId, stepId);
 		List<ValidationIssue> issues = new ArrayList<>();
 
-		LoanProfile.Financials f = profile.financials();
-		if (f != null) {
-			if (f.ltv() > 90) {
-				issues.add(new ValidationIssue("downPayment", ValidationStatus.WARNING,
-						"Your loan-to-value is " + f.ltv() + "%. Above 90% only a few lenders will "
-								+ "consider the application and the rate is higher. A larger down payment helps."));
-			}
-			if ("FAIL".equals(f.stressTestResult())) {
+		facts.figure("loanToValuePercent").map(f -> (Double) f.value()).filter(ltv -> ltv > 90)
+				.ifPresent(ltv -> issues.add(new ValidationIssue("downPayment", ValidationStatus.WARNING,
+						"Your loan-to-value is " + ltv + "%. Above 90% only a few lenders will "
+								+ "consider the application and the rate is higher. A larger down payment helps.")));
+		facts.figure("stressTestResult").map(ProfileFacts.Figure::value).ifPresent(result -> {
+			if ("FAIL".equals(result)) {
 				issues.add(new ValidationIssue("loanAmount", ValidationStatus.BLOCKER,
-						"After a rate-rise stress test the monthly payment (" + f.stressedMonthlyPayment()
+						"After a rate-rise stress test the monthly payment ("
+								+ facts.figure("stressedMonthlyPayment").map(ProfileFacts.Figure::value).orElse("")
 								+ ") is more than the income available. Consider a smaller loan or a longer term."));
-			} else if ("TIGHT".equals(f.stressTestResult())) {
+			} else if ("TIGHT".equals(result)) {
 				issues.add(new ValidationIssue("loanAmount", ValidationStatus.WARNING,
-						"This leaves about " + f.monthlyBufferAfterStress() + " per month after a rate-rise "
-								+ "stress test. Lenders usually want to see a larger cushion."));
+						"This leaves about "
+								+ facts.figure("monthlyBufferAfterStress").map(ProfileFacts.Figure::value).orElse("")
+								+ " per month after a rate-rise stress test. Lenders usually want to see a larger cushion."));
 			}
-			if (f.dti() > 40) {
-				issues.add(new ValidationIssue("monthlyDebtPayments", ValidationStatus.WARNING,
-						"Debt-to-income of " + f.dti() + "% is on the high side; paying down other debt "
-								+ "before applying would strengthen the application."));
-			}
-		}
+		});
+		facts.figure("debtToIncomePercent").map(f -> (Double) f.value()).filter(dti -> dti > 40)
+				.ifPresent(dti -> issues.add(new ValidationIssue("monthlyDebtPayments", ValidationStatus.WARNING,
+						"Debt-to-income of " + dti + "% is on the high side; paying down other debt "
+								+ "before applying would strengthen the application.")));
 
 		ValidationStatus overall = issues.stream().anyMatch(i -> i.severity() == ValidationStatus.BLOCKER)
 				? ValidationStatus.BLOCKER

@@ -21,6 +21,10 @@ import java.util.stream.Collectors;
  * <p>{@code chat} is the exception: it streams token-by-token, so there is nothing
  * complete to verify before the first tokens reach the user. See
  * {@code docs/decisions.md} for that tradeoff.
+ *
+ * <p>Agents never see the full {@code LoanProfile}, which fills missing answers with
+ * defaults. They get {@link com.seb.mortgage.profile.ProfileFacts} instead: only what the
+ * user entered and the figures worked out from it.
  */
 public class AgentOrchestrator implements AgentService {
 
@@ -65,11 +69,11 @@ public class AgentOrchestrator implements AgentService {
 	}
 
 	private ExplainResponse explainWithLlm(String topicOrFieldKey, UUID applicationId) {
-		String profileJson = profileJson(applicationId);
-		ExplainResponse draft = explainAgent.explain(topicOrFieldKey, profileJson);
+		String factsJson = factsJson(applicationId);
+		ExplainResponse draft = explainAgent.explain(topicOrFieldKey, factsJson);
 		VerifierAgent.Verdict verdict = verifier.verify(
 				"Plain-language explanation of \"" + topicOrFieldKey + "\" for the applicant",
-				draft.explanation(), profileJson);
+				draft.explanation(), factsJson);
 		return new ExplainResponse(verdict.output(), draft.relatedTopics(), draft.followUpQuestion());
 	}
 
@@ -83,8 +87,8 @@ public class AgentOrchestrator implements AgentService {
 	}
 
 	private ValidateResponse validateWithLlm(UUID applicationId, String stepId) {
-		String profileJson = profileJson(applicationId);
-		ValidateResponse draft = validateAgent.validate(stepId, profileJson);
+		String stepFactsJson = toJson(applicationService.stepFacts(applicationId, stepId));
+		ValidateResponse draft = validateAgent.validate(stepFactsJson);
 		if (draft.issues().isEmpty()) {
 			return draft;
 		}
@@ -93,7 +97,7 @@ public class AgentOrchestrator implements AgentService {
 				.map(issue -> issue == null ? "" : issue.message())
 				.collect(Collectors.joining("\n"));
 		VerifierAgent.Verdict verdict = verifier.verify(
-				"Application validation issues raised for step \"" + stepId + "\"", combined, profileJson);
+				"Application validation issues raised for step \"" + stepId + "\"", combined, stepFactsJson);
 		if (verdict.approved()) {
 			return draft;
 		}
@@ -112,12 +116,12 @@ public class AgentOrchestrator implements AgentService {
 	}
 
 	private ReviewResponse reviewWithLlm(UUID applicationId) {
-		String profileJson = profileJson(applicationId);
-		ReviewResponse draft = reviewAgent.review(profileJson);
+		String factsJson = factsJson(applicationId);
+		ReviewResponse draft = reviewAgent.review(factsJson);
 
 		String combined = draft.summary() + "\n" + String.join("\n", draft.concerns());
 		VerifierAgent.Verdict verdict = verifier.verify(
-				"Final read-back summary of the completed application", combined, profileJson);
+				"Final read-back summary of the completed application", combined, factsJson);
 		if (verdict.approved()) {
 			return draft;
 		}
@@ -126,17 +130,18 @@ public class AgentOrchestrator implements AgentService {
 
 	@Override
 	public Flux<String> chat(UUID applicationId, String message) {
-		return chatAgent.chat(message, profileJson(applicationId))
+		return chatAgent.chat(message, factsJson(applicationId))
 				.onErrorResume(TokenBudgetExceededException.class,
 						e -> budgetFallback.chat(applicationId, message));
 	}
 
-	private String profileJson(UUID applicationId) {
-		if (applicationId == null) {
-			return "{}";
-		}
+	private String factsJson(UUID applicationId) {
+		return applicationId == null ? "{}" : toJson(applicationService.facts(applicationId));
+	}
+
+	private String toJson(Object value) {
 		try {
-			return objectMapper.writeValueAsString(applicationService.profile(applicationId));
+			return objectMapper.writeValueAsString(value);
 		} catch (tools.jackson.core.JacksonException e) {
 			return "{}";
 		}
