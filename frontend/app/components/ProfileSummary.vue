@@ -17,7 +17,9 @@ const { data: offers } = await useAsyncData<BankOffer[]>(
   `offers-${props.applicationId}`,
   () => api.getOffers(props.applicationId),
 )
-const { data: review } = await useAsyncData<ReviewResponse>(
+// Not awaited: the read-back is the slowest agent call, so the rest of the summary
+// shows straight away and the read-back card fills in when it arrives.
+const { data: review, pending: reviewPending } = useLazyAsyncData<ReviewResponse>(
   `review-${props.applicationId}`,
   () => api.review(props.applicationId),
 )
@@ -49,20 +51,31 @@ async function askAboutReview() {
 
 <template>
   <div class="flex flex-col gap-6">
-    <UCard v-if="review">
+    <UCard v-if="review || reviewPending">
       <template #header>
         <div class="flex items-center gap-2">
           <UIcon name="i-lucide-scroll-text" class="text-primary" />
           <h2 class="font-semibold">The assistant's read-back</h2>
         </div>
       </template>
-      <p class="text-sm leading-relaxed">{{ review.summary }}</p>
-      <ul v-if="review.concerns.length" class="mt-3 space-y-1 text-sm">
-        <li v-for="(c, i) in review.concerns" :key="i" class="flex gap-2">
-          <UIcon name="i-lucide-alert-triangle" class="mt-0.5 shrink-0 text-warning" />
-          <span>{{ c }}</span>
-        </li>
-      </ul>
+      <div v-if="!review" class="space-y-2">
+        <p class="mb-3 flex items-center gap-2 text-sm text-[var(--ui-text-muted)]">
+          <UIcon name="i-lucide-loader-2" class="animate-spin text-[var(--ui-primary)]" />
+          The assistant is reading your application back...
+        </p>
+        <div class="h-3 w-full animate-pulse rounded bg-[var(--ui-bg-elevated)]" />
+        <div class="h-3 w-5/6 animate-pulse rounded bg-[var(--ui-bg-elevated)]" />
+        <div class="h-3 w-2/3 animate-pulse rounded bg-[var(--ui-bg-elevated)]" />
+      </div>
+      <template v-else>
+        <p class="text-sm leading-relaxed">{{ review.summary }}</p>
+        <ul v-if="review.concerns.length" class="mt-3 space-y-1 text-sm">
+          <li v-for="(c, i) in review.concerns" :key="i" class="flex gap-2">
+            <UIcon name="i-lucide-alert-triangle" class="mt-0.5 shrink-0 text-warning" />
+            <span>{{ c }}</span>
+          </li>
+        </ul>
+      </template>
     </UCard>
 
     <UCard>

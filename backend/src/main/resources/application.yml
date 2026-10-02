@@ -51,6 +51,17 @@ spring:
             include-usage: true
 
 app:
+  agent:
+    # How much hidden reasoning each agent does before answering (OpenAI GPT-5 family:
+    # minimal, low, medium, high). Reasoning tokens are generated like visible output, so
+    # they are most of the wait. The read-back keeps more, since quality matters most there.
+    # Ignored when AI_PROVIDER=anthropic. Leave a value empty to use OpenAI's default.
+    reasoning-effort:
+      explain: ${AGENT_REASONING_EXPLAIN:low}
+      validate: ${AGENT_REASONING_VALIDATE:low}
+      review: ${AGENT_REASONING_REVIEW:medium}
+      chat: ${AGENT_REASONING_CHAT:low}
+      verifier: ${AGENT_REASONING_VERIFIER:low}
   token-budget:
     # Daily LLM token budget. Once spent, the agents answer with the stub until midnight.
     # Default leaves ~10% headroom under the 5M/day gpt-5-mini limit, since the in-memory

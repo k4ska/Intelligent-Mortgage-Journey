@@ -147,6 +147,12 @@ matter how many agents exist.
 - The planned glossary-only gate on `ExplainAgent` (see above) would skip the LLM call
   entirely for anything outside the known vocabulary - the cheapest possible response is
   the one that never calls the model.
+- On OpenAI's GPT-5 family, hidden reasoning tokens were most of each reply's output and
+  most of the wait. Each agent's reasoning effort is set separately
+  (`app.agent.reasoning-effort.*`, env `AGENT_REASONING_*`): `low` everywhere except the
+  final read-back (`medium`). Anthropic ignores the setting.
+- The verifier answers with `approved` plus a `rewrite` only when it rejects a draft, so
+  an approved draft (the common case) is not generated a second time.
 - Verification currently costs one extra call per explain/validate/review request. If
   cost becomes a concern, the cheapest lever is a smaller/cheaper model for the verifier
   specifically (it's a narrow classification-and-rewrite task, not open-ended
