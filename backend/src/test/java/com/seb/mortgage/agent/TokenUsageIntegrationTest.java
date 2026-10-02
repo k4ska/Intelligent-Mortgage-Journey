@@ -49,7 +49,7 @@ class TokenUsageIntegrationTest {
 		public ChatResponse call(Prompt prompt) {
 			calls.incrementAndGet();
 			String text = prompt.getContents().contains("Draft reply to check")
-					? "{\"approved\": true, \"output\": \"Checked explanation.\", \"note\": null}"
+					? "{\"approved\": true, \"rewrite\": null}"
 					: "{\"explanation\": \"LTV is the loan divided by the price.\", \"followUpQuestion\": null}";
 			return response(text);
 		}
@@ -73,7 +73,7 @@ class TokenUsageIntegrationTest {
 	@Test
 	void countsTokensPerAgentThenFallsBackToStubWhenBudgetIsSpent() {
 		var first = agentService.explain("ltv", null);
-		assertThat(first.explanation()).isEqualTo("Checked explanation.");
+		assertThat(first.explanation()).isEqualTo("LTV is the loan divided by the price.");
 
 		var usage = tracker.snapshot();
 		assertThat(usage.usedTokens()).isEqualTo(240);
@@ -84,7 +84,7 @@ class TokenUsageIntegrationTest {
 		// Budget spent: answers now come from the stub and the model is not called again.
 		int callsBefore = model.calls.get();
 		var second = agentService.explain("ltv", null);
-		assertThat(second.explanation()).isNotEqualTo("Checked explanation.").isNotBlank();
+		assertThat(second.explanation()).isNotEqualTo("LTV is the loan divided by the price.").isNotBlank();
 		String chat = String.join("", agentService.chat(null, "hi").collectList().block());
 		assertThat(chat).contains("stub assistant");
 		assertThat(model.calls.get()).isEqualTo(callsBefore);

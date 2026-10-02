@@ -6,6 +6,8 @@ defineProps<{
   draft: Record<string, unknown>
   validation: ValidateResponse | null
   busy: boolean
+  /** The agent is checking this step's answers. */
+  validating: boolean
   isLast: boolean
 }>()
 
@@ -43,7 +45,14 @@ const severityColor = (s: string) =>
         Nothing to fill in here - continue when you're ready.
       </p>
 
-      <div v-if="validation && validation.issues.length" class="flex flex-col gap-2">
+      <div
+        v-if="validating"
+        class="flex items-center gap-2 rounded-lg bg-[var(--ui-bg-elevated)] p-3 text-sm text-[var(--ui-text-muted)]"
+      >
+        <UIcon name="i-lucide-loader-2" class="animate-spin text-[var(--ui-primary)]" />
+        The assistant is checking your answers...
+      </div>
+      <div v-else-if="validation && validation.issues.length" class="flex flex-col gap-2">
         <UAlert
           v-for="(issue, i) in validation.issues"
           :key="i"
@@ -69,7 +78,8 @@ const severityColor = (s: string) =>
           color="neutral"
           variant="outline"
           icon="i-lucide-sparkles"
-          :loading="busy"
+          :loading="validating"
+          :disabled="busy"
           @click="emit('validate')"
         >
           Check my answers
@@ -78,7 +88,8 @@ const severityColor = (s: string) =>
 
         <UButton
           :trailing-icon="isLast ? 'i-lucide-check' : 'i-lucide-arrow-right'"
-          :loading="busy"
+          :loading="busy && !validating"
+          :disabled="validating"
           @click="emit('next')"
         >
           {{ isLast ? 'Finish' : 'Continue' }}

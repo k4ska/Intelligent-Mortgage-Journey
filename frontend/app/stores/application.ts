@@ -20,6 +20,8 @@ export const useApplicationStore = defineStore('application', {
     draft: {} as Record<string, unknown>,
     validation: null as ValidateResponse | null,
     loading: false,
+    /** True while the agent is checking the current step's answers. */
+    validating: false,
     error: null as string | null,
     assistantOpen: true,
   }),
@@ -101,9 +103,14 @@ export const useApplicationStore = defineStore('application', {
     async runValidation() {
       const api = useApi()
       if (!this.application || !this.currentStep) return
-      // Persist the draft first so the agent validates against real state.
-      await this.submitDraft({ advance: false })
-      this.validation = await api.validate(this.application.id, this.currentStep.id)
+      this.validating = true
+      try {
+        // Persist the draft first so the agent validates against real state.
+        await this.submitDraft({ advance: false })
+        this.validation = await api.validate(this.application.id, this.currentStep.id)
+      } finally {
+        this.validating = false
+      }
     },
 
     /**
