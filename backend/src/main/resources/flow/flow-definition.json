@@ -60,7 +60,7 @@
           "type": "MONEY",
           "label": "Purchase price (or current value)",
           "helpKey": "property-value",
-          "placeholder": "250000",
+          "placeholder": "250 000",
           "options": null,
           "validation": { "required": true, "min": 1, "max": null, "pattern": null }
         }
@@ -106,7 +106,7 @@
           "type": "MONEY",
           "label": "Their monthly gross income",
           "helpKey": "gross-income",
-          "placeholder": "3000",
+          "placeholder": "3 000",
           "options": null,
           "validation": { "required": true, "min": 0, "max": null, "pattern": null }
         }
@@ -135,7 +135,7 @@
           "type": "MONEY",
           "label": "Your monthly gross income",
           "helpKey": "gross-income",
-          "placeholder": "4000",
+          "placeholder": "4 000",
           "options": null,
           "validation": { "required": true, "min": 1, "max": null, "pattern": null }
         },
@@ -173,7 +173,7 @@
           "type": "MONEY",
           "label": "Net profit last year",
           "helpKey": "net-profit",
-          "placeholder": "48000",
+          "placeholder": "48 000",
           "options": null,
           "validation": { "required": true, "min": 0, "max": null, "pattern": null }
         }
@@ -190,7 +190,7 @@
           "type": "MONEY",
           "label": "Down payment",
           "helpKey": "down-payment",
-          "placeholder": "25000",
+          "placeholder": "25 000",
           "options": null,
           "validation": { "required": true, "min": 0, "max": null, "pattern": null }
         },
@@ -199,7 +199,7 @@
           "type": "MONEY",
           "label": "Loan amount",
           "helpKey": "loan-amount",
-          "placeholder": "225000",
+          "placeholder": "225 000",
           "options": null,
           "validation": { "required": true, "min": 1, "max": null, "pattern": null }
         },

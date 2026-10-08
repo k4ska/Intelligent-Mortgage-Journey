@@ -24,9 +24,6 @@ const { data: review, pending: reviewPending } = useLazyAsyncData<ReviewResponse
   () => api.review(props.applicationId),
 )
 
-const money = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
-
 const stressColor = computed(() => {
   const r = profile.value?.financials.stressTestResult
   return r === 'FAIL' ? 'error' : r === 'TIGHT' ? 'warning' : 'success'
@@ -127,7 +124,7 @@ async function askAboutReview() {
       <dl class="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
         <div>
           <dt class="text-dimmed">Loan amount</dt>
-          <dd class="font-medium">{{ money(profile.loanRequest.amount) }}</dd>
+          <dd class="font-medium">{{ formatMoney(profile.loanRequest.amount) }}</dd>
         </div>
         <div>
           <dt class="text-dimmed">Term</dt>
@@ -147,7 +144,7 @@ async function askAboutReview() {
         </div>
         <div>
           <dt class="text-dimmed">Est. monthly payment</dt>
-          <dd class="font-medium">{{ money(profile.financials.estimatedMonthlyPayment) }}</dd>
+          <dd class="font-medium">{{ formatMoney(profile.financials.estimatedMonthlyPayment) }}</dd>
         </div>
       </dl>
 
@@ -156,8 +153,8 @@ async function askAboutReview() {
           Stress test: {{ profile.financials.stressTestResult }}
         </UBadge>
         <span class="text-xs text-muted">
-          {{ money(profile.financials.stressedMonthlyPayment) }}/mo if rates rose 3 points
-          ({{ money(profile.financials.monthlyBufferAfterStress) }} left over)
+          {{ formatMoney(profile.financials.stressedMonthlyPayment) }}/mo if rates rose 3 points
+          ({{ formatMoney(profile.financials.monthlyBufferAfterStress) }} left over)
         </span>
       </div>
 
@@ -191,7 +188,7 @@ async function askAboutReview() {
             </UBadge>
           </div>
           <p class="mt-1 text-sm">
-            {{ offer.offeredRatePct }}% - {{ money(offer.estimatedMonthlyPayment) }}/mo
+            {{ offer.offeredRatePct }}% - {{ formatMoney(offer.estimatedMonthlyPayment) }}/mo
           </p>
           <ul class="mt-2 space-y-0.5 text-xs text-muted">
             <li v-for="(c, i) in offer.conditions" :key="i">- {{ c }}</li>

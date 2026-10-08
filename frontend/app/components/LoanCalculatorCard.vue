@@ -8,9 +8,6 @@ const downPayment = ref<number | null>(60000)
 const result = ref<CalculatorEstimateResponse | null>(null)
 const loading = ref(false)
 
-const money = (n: number) =>
-  new Intl.NumberFormat(undefined, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
-
 let debounce: ReturnType<typeof setTimeout> | undefined
 
 async function refresh() {
@@ -42,17 +39,15 @@ watch([price, downPayment], () => {
     </p>
 
     <div class="mt-3 grid grid-cols-2 gap-2">
-      <UInput
-        v-model.number="price"
-        type="number"
+      <NumberInput
+        v-model="price"
         size="sm"
         placeholder="Home price"
         leading-icon="i-lucide-euro"
         :aria-label="'Home price'"
       />
-      <UInput
-        v-model.number="downPayment"
-        type="number"
+      <NumberInput
+        v-model="downPayment"
         size="sm"
         placeholder="Down payment"
         leading-icon="i-lucide-euro"
@@ -63,7 +58,7 @@ watch([price, downPayment], () => {
     <div class="mt-3 flex items-baseline gap-1.5">
       <UIcon v-if="loading" name="i-lucide-loader-2" class="animate-spin text-[var(--ui-primary)]" />
       <template v-else-if="result">
-        <span class="text-lg font-semibold text-[var(--ui-primary)]">{{ money(result.monthlyPayment) }}</span>
+        <span class="text-lg font-semibold text-[var(--ui-primary)]">{{ formatMoney(result.monthlyPayment) }}</span>
         <span class="text-sm text-[var(--ui-text-muted)]">/mo</span>
       </template>
     </div>
