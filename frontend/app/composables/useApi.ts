@@ -4,6 +4,7 @@ import type {
   BankOffer,
   CalculatorEstimateRequest,
   CalculatorEstimateResponse,
+  Definition,
   ExplainResponse,
   FlowDefinition,
   LoanProfile,
@@ -55,6 +56,9 @@ export function useApi() {
         method: 'POST',
         body: request,
       }),
+
+    /** Built-in definitions by help key. No LLM involved. */
+    getDefinitions: () => req<Record<string, Definition>>('/explanations'),
 
     explain: (applicationId: string | null, fieldKey: string) =>
       req<ExplainResponse>('/agent/explain', {
