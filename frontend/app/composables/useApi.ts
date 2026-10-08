@@ -31,10 +31,17 @@ export function useApi() {
     getApplication: (id: string) =>
       req<ApplicationView>(`/applications/${id}`),
 
-    submitStep: (id: string, stepId: string, answers: Record<string, unknown>) =>
+    /** advance=false saves the answers but stays on the step. */
+    submitStep: (id: string, stepId: string, answers: Record<string, unknown>, advance = true) =>
       req<ApplicationView>(`/applications/${id}/steps`, {
         method: 'POST',
-        body: { stepId, answers },
+        body: { stepId, answers, advance },
+      }),
+
+    goToStep: (id: string, stepId: string) =>
+      req<ApplicationView>(`/applications/${id}/current-step`, {
+        method: 'PUT',
+        body: { stepId },
       }),
 
     getProfile: (id: string) =>

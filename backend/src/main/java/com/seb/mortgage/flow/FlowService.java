@@ -6,6 +6,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +40,22 @@ public class FlowService {
 
 	public FlowDefinition.Step firstStep() {
 		return definition.steps().get(0);
+	}
+
+	/**
+	 * The route through the flow for these answers, from the first step to the last.
+	 * Branches whose condition isn't met (yet) are left out, so the path changes as the
+	 * user answers branching questions.
+	 */
+	public List<FlowDefinition.Step> path(Map<String, Object> answers) {
+		List<FlowDefinition.Step> path = new ArrayList<>();
+		Optional<FlowDefinition.Step> step = Optional.of(firstStep());
+		// Bounded by the number of steps, in case the definition ever routes in a loop.
+		while (step.isPresent() && path.size() < definition.steps().size() && !path.contains(step.get())) {
+			path.add(step.get());
+			step = nextStep(step.get().id(), answers);
+		}
+		return path;
 	}
 
 	/**

@@ -29,14 +29,14 @@ class StubValidationTest {
 		// A 500k price with the default 25k down payment would be a 95% loan-to-value,
 		// but the user hasn't entered a down payment yet, so there is nothing to flag.
 		applicationService.submitStep(id, "property",
-				Map.of("propertyAddress", "Main St 1", "propertyType", "HOUSE", "purchasePrice", 500_000));
+				Map.of("propertyAddress", "Main St 1", "propertyType", "HOUSE", "purchasePrice", 500_000), true);
 		var property = agentService.validate(id, "property");
 		assertThat(property.status()).isEqualTo(ValidationStatus.OK);
 		assertThat(property.issues()).isEmpty();
 
 		// Once the user really enters that down payment, the same figure is flagged.
 		applicationService.submitStep(id, "loan",
-				Map.of("downPayment", 25_000, "loanAmount", 475_000, "termYears", 25, "rateType", "VARIABLE"));
+				Map.of("downPayment", 25_000, "loanAmount", 475_000, "termYears", 25, "rateType", "VARIABLE"), true);
 		var loan = agentService.validate(id, "loan");
 		assertThat(loan.issues()).anyMatch(i -> i.message().contains("loan-to-value is 95.0%"));
 	}

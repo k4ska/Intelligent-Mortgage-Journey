@@ -51,6 +51,11 @@ export interface ApplicationView {
   answers: Answers
   createdAt: string
   updatedAt: string
+  /** Step ids on the route through the flow for the current answers, first to last. */
+  path: string[]
+  completedSteps: string[]
+  /** Steps the user may jump to: everything up to the first step not done yet. */
+  unlockedSteps: string[]
 }
 
 // ---- Contract 2: agent ----
