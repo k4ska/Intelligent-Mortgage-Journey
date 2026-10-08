@@ -41,10 +41,10 @@ const selectItems = computed(() =>
       :placeholder="field.placeholder ?? ''"
     />
 
-    <UInput
+    <NumberInput
       v-else-if="field.type === 'MONEY' || field.type === 'NUMBER' || field.type === 'PERCENT'"
-      v-model.number="value"
-      type="number"
+      v-model="value"
+      :decimal="field.type === 'PERCENT'"
       :placeholder="field.placeholder ?? ''"
       :leading-icon="field.type === 'MONEY' ? 'i-lucide-euro' : undefined"
       :trailing-icon="field.type === 'PERCENT' ? 'i-lucide-percent' : undefined"
