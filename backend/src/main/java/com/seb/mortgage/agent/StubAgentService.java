@@ -39,10 +39,9 @@ public class StubAgentService implements AgentService {
 			return new ExplainResponse(entry.text(), entry.related(), null);
 		}
 		return new ExplainResponse(
-				"That's a good question. In a mortgage context, \"" + topicOrFieldKey + "\" affects how a "
-						+ "lender views your application - ask your mentor to connect the Claude API key and "
-						+ "the assistant will explain this properly using your own numbers.",
-				List.of(), null);
+				"This topic is not in our glossary yet.",
+				List.of(),
+				null);
 	}
 
 	@Override

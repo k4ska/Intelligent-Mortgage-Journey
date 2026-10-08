@@ -3,6 +3,18 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-02 — ExplainAgent glossary-only gate
+
+- **Strict glossary boundary**: explain requests whose topic is not present in
+  `Explanations.java` now return a fixed "This topic is not in our glossary yet."
+  response.
+- **No LLM fallback**: the gate runs in `AgentOrchestrator` before the specialist and
+  verifier are called, so unsupported topics cannot be improvised from general model
+  knowledge.
+- **Zero-token misses**: unsupported topics consume no LLM tokens.
+- **Stub parity**: `StubAgentService` returns the same fixed response for unsupported
+  topics, so behavior is consistent with and without an API key.
+
 ## 2026-09-24 — Token usage tracking and a daily token budget
 
 - **Why**: the OpenAI key has a 5M tokens/day limit on `gpt-5-mini` (resets at midnight

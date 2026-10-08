@@ -36,7 +36,7 @@ class TokenUsageIntegrationTest {
 
 		@Bean
 		@Primary
-                @SuppressWarnings("unused")
+		@SuppressWarnings("unused")
 		FakeChatModel fakeChatModel() {
 			return new FakeChatModel();
 		}
@@ -72,7 +72,14 @@ class TokenUsageIntegrationTest {
 
 	@Test
 	void countsTokensPerAgentThenFallsBackToStubWhenBudgetIsSpent() {
-		var first = agentService.explain("ltv", null);
+		var unknown = agentService.explain("not-in-the-glossary", null);
+		assertThat(unknown.explanation()).isEqualTo("This topic is not in our glossary yet.");
+		assertThat(unknown.relatedTopics()).isEmpty();
+		assertThat(unknown.followUpQuestion()).isNull();
+		assertThat(model.calls.get()).isZero();
+		assertThat(tracker.snapshot().usedTokens()).isZero();
+
+		var first = agentService.explain("loan-to-value", null);
 		assertThat(first.explanation()).isEqualTo("LTV is the loan divided by the price.");
 
 		var usage = tracker.snapshot();
@@ -83,7 +90,7 @@ class TokenUsageIntegrationTest {
 
 		// Budget spent: answers now come from the stub and the model is not called again.
 		int callsBefore = model.calls.get();
-		var second = agentService.explain("ltv", null);
+		var second = agentService.explain("loan-to-value", null);
 		assertThat(second.explanation()).isNotEqualTo("LTV is the loan divided by the price.").isNotBlank();
 		String chat = String.join("", agentService.chat(null, "hi").collectList().block());
 		assertThat(chat).contains("stub assistant");

@@ -61,6 +61,13 @@ public class AgentOrchestrator implements AgentService {
 
 	@Override
 	public ExplainResponse explain(String topicOrFieldKey, UUID applicationId) {
+		if (Explanations.lookup(topicOrFieldKey) == null) {
+			return new ExplainResponse(
+					"This topic is not in our glossary yet.",
+					List.of(),
+					null);
+		}
+
 		try {
 			return explainWithLlm(topicOrFieldKey, applicationId);
 		} catch (TokenBudgetExceededException e) {

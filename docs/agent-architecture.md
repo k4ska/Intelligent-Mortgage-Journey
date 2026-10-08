@@ -98,12 +98,11 @@ it knows). Two grounding sources exist today:
   only the figures that step feeds into. `VerifierAgent` checks every draft's numbers
   against the same facts.
 
-**Open follow-up from the mentor conversation, not yet implemented:** tightening
-`ExplainAgent` so a topic with no glossary entry returns a fixed "not in our glossary yet"
-message instead of letting Claude improvise from general knowledge - this would also
-mean zero LLM calls (and zero grounding risk) for anything outside the known vocabulary.
-Track this alongside expanding `Explanations.java` to cover every term/field the flow
-actually surfaces.
+`ExplainAgent` is hard-gated to the glossary at the orchestrator boundary. If
+`Explanations.lookup(topic)` returns `null`, `AgentOrchestrator` immediately returns a
+fixed "This topic is not in our glossary yet." response. The specialist and verifier are
+not called, so unsupported topics consume zero LLM tokens and cannot be answered from
+general model knowledge.
 
 ## Follow-up / clarifying questions
 
@@ -151,9 +150,9 @@ matter how many agents exist.
 - Grounding via a small glossary + the applicant's own (small) profile JSON is far
   cheaper than large reference dumps or letting the model "think through" domain
   knowledge from scratch.
-- The planned glossary-only gate on `ExplainAgent` (see above) would skip the LLM call
-  entirely for anything outside the known vocabulary - the cheapest possible response is
-  the one that never calls the model.
+- The glossary-only gate on `ExplainAgent` skips the entire LLM path for anything outside
+  the known vocabulary. Because the gate runs before both specialist and verifier calls,
+  unsupported topics consume zero LLM tokens.
 - On OpenAI's GPT-5 family, hidden reasoning tokens were most of each reply's output and
   most of the wait. Each agent's reasoning effort is set separately
   (`app.agent.reasoning-effort.*`, env `AGENT_REASONING_*`): `low` everywhere except the
