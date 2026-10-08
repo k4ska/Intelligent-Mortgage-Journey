@@ -26,16 +26,12 @@ const selectItems = computed(() =>
   <div class="flex flex-col gap-1.5">
     <div class="flex items-center justify-between">
       <label class="text-sm font-medium">{{ field.label }}</label>
-      <UButton
+      <FieldHelp
         v-if="field.helpKey"
-        size="xs"
-        color="neutral"
-        variant="ghost"
-        icon="i-lucide-help-circle"
-        @click="emit('explain', field.helpKey!)"
-      >
-        What's this?
-      </UButton>
+        :help-key="field.helpKey"
+        :label="field.label"
+        @explain="emit('explain', $event)"
+      />
     </div>
 
     <UInput

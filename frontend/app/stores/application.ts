@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import type {
   AgentMode,
   ApplicationView,
+  Definition,
   FlowDefinition,
   Step,
   ValidateResponse,
@@ -15,6 +16,8 @@ export const useApplicationStore = defineStore('application', {
   state: () => ({
     flow: null as FlowDefinition | null,
     agentMode: 'stub' as AgentMode,
+    /** Built-in field definitions by help key, shown instantly by "What's this?". */
+    definitions: {} as Record<string, Definition>,
     application: null as ApplicationView | null,
     /** Draft answers for the step on screen, before they are submitted. */
     draft: {} as Record<string, unknown>,
@@ -87,9 +90,15 @@ export const useApplicationStore = defineStore('application', {
   actions: {
     async bootstrap() {
       const api = useApi()
-      const [flow, status] = await Promise.all([api.getFlow(), api.getAgentStatus()])
+      const [flow, status, definitions] = await Promise.all([
+        api.getFlow(),
+        api.getAgentStatus(),
+        // Without definitions "What's this?" just falls back to the AI, so don't fail the page.
+        api.getDefinitions().catch(() => ({})),
+      ])
       this.flow = flow
       this.agentMode = status.mode
+      this.definitions = definitions
     },
 
     async startNewApplication() {

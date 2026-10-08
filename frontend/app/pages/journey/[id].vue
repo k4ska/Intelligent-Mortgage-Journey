@@ -4,6 +4,7 @@ const store = useApplicationStore()
 const id = computed(() => route.params.id as string)
 
 const assist = ref<{ explain: (k: string) => void } | null>(null)
+const assistContainer = ref<HTMLElement | null>(null)
 const assistantWidth = ref(360)
 const resizingAssistant = ref(false)
 
@@ -20,8 +21,15 @@ function stepStatus(stepId: string) {
   return store.isStepUnlocked(stepId) ? 'Up next' : 'Locked'
 }
 
-function onExplain(helpKey: string) {
+/** AI explanation for a field, answered in the assistant panel. */
+async function onExplain(helpKey: string) {
+  store.assistantOpen = true
+  await nextTick()
   assist.value?.explain(helpKey)
+  // Below lg the panel sits under the form, so bring it into view.
+  if (!window.matchMedia('(min-width: 1024px)').matches) {
+    assistContainer.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 }
 
 async function onNext() {
@@ -57,7 +65,7 @@ onBeforeUnmount(stopAssistantResize)
     </div>
 
     <template v-else>
-      <div class="journey-shell min-h-0 flex-1 overflow-hidden md:grid md:grid-cols-[250px_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]">
+      <div class="journey-shell min-h-0 flex-1 overflow-y-auto md:overflow-hidden md:grid md:grid-cols-[250px_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]">
         <aside class="journey-sidebar shrink-0 border-b border-default px-5 py-5 md:border-b-0 md:border-r md:px-6 md:py-8">
           <div class="flex items-start justify-between gap-4 md:block">
             <div>
@@ -156,7 +164,7 @@ onBeforeUnmount(stopAssistantResize)
               />
             </div>
 
-            <div v-if="store.assistantOpen" class="relative min-h-105 lg:sticky lg:top-0 lg:h-[calc(100vh-8rem)] lg:max-h-180">
+            <div v-if="store.assistantOpen" ref="assistContainer" class="relative min-h-105 lg:sticky lg:top-0 lg:h-[calc(100vh-8rem)] lg:max-h-180">
               <button
                 type="button"
                 class="assistant-resize-handle"

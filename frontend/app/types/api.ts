@@ -85,6 +85,12 @@ export interface ExplainResponse {
   followUpQuestion: string | null
 }
 
+/** A built-in plain-language definition, served from the backend's Explanations. */
+export interface Definition {
+  text: string
+  related: string[]
+}
+
 export interface ReviewResponse {
   summary: string
   concerns: string[]
