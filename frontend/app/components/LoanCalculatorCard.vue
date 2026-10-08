@@ -41,14 +41,14 @@ watch([price, downPayment], () => {
     <div class="mt-3 grid grid-cols-2 gap-2">
       <NumberInput
         v-model="price"
-        size="sm"
+        size="md"
         placeholder="Home price"
         leading-icon="i-lucide-euro"
         :aria-label="'Home price'"
       />
       <NumberInput
         v-model="downPayment"
-        size="sm"
+        size="md"
         placeholder="Down payment"
         leading-icon="i-lucide-euro"
         :aria-label="'Down payment'"
