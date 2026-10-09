@@ -17,44 +17,55 @@ import org.springframework.ai.chat.prompt.Prompt;
  */
 class VerifierAgentTest {
 
-	private static final String DRAFT = "Your loan-to-value is 85%.";
+    private static final String DRAFT = "Your loan-to-value is 85%.";
 
-	private static VerifierAgent verifierAnswering(String json) {
-		ChatModel model = prompt -> new ChatResponse(List.of(new Generation(new AssistantMessage(json))));
-		return new VerifierAgent(ChatClient.builder(model));
-	}
+    private static VerifierAgent verifierAnswering(String json) {
+        ChatModel model = prompt -> new ChatResponse(List.of(new Generation(new AssistantMessage(json))));
+        return new VerifierAgent(ChatClient.builder(model));
+    }
 
-	@Test
-	void approvedDraftIsReturnedAsIs() {
-		var verdict = verifierAnswering("{\"approved\": true, \"rewrite\": null}").verify("task", DRAFT, "{}");
+    @Test
+    void approvedDraftIsReturnedAsIs() {
+        var verdict = verifierAnswering("{\"approved\": true, \"rewrite\": null}").verify("task", DRAFT, "{}");
 
-		assertThat(verdict.approved()).isTrue();
-		assertThat(verdict.output()).isEqualTo(DRAFT);
-	}
+        assertThat(verdict.approved()).isTrue();
+        assertThat(verdict.output()).isEqualTo(DRAFT);
+    }
 
-	@Test
-	void rejectedDraftIsReplacedByTheRewrite() {
-		var verdict = verifierAnswering("{\"approved\": false, \"rewrite\": \"Safer wording.\"}")
-				.verify("task", DRAFT, "{}");
+    @Test
+    void rejectedDraftIsReplacedByTheRewrite() {
+        var verdict = verifierAnswering("{\"approved\": false, \"rewrite\": \"Safer wording.\"}")
+                .verify("task", DRAFT, "{}");
 
-		assertThat(verdict.approved()).isFalse();
-		assertThat(verdict.output()).isEqualTo("Safer wording.");
-	}
+        assertThat(verdict.approved()).isFalse();
+        assertThat(verdict.output()).isEqualTo("Safer wording.");
+    }
 
-	@Test
-	void rejectionWithoutRewriteFailsOpen() {
-		var verdict = verifierAnswering("{\"approved\": false, \"rewrite\": \"\"}").verify("task", DRAFT, "{}");
+    @Test
+    void rejectionWithoutRewriteFailsOpen() {
+        var verdict = verifierAnswering("{\"approved\": false, \"rewrite\": \"\"}").verify("task", DRAFT, "{}");
 
-		assertThat(verdict.approved()).isTrue();
-		assertThat(verdict.output()).isEqualTo(DRAFT);
-		assertThat(verdict.note()).isNotBlank();
-	}
+        assertThat(verdict.approved()).isTrue();
+        assertThat(verdict.output()).isEqualTo(DRAFT);
+        assertThat(verdict.note()).isNotBlank();
+    }
 
-	@Test
-	void brokenVerifierFailsOpen() {
-		var verdict = verifierAnswering("not json").verify("task", DRAFT, "{}");
+    @Test
+    void rejectedRewriteContainingFormatInstructionsFallsBackToDraft() {
+        var verdict = verifierAnswering("""
+                {"approved": false, "rewrite": "Safer wording. Your response should be in JSON format."}
+                """).verify("task", DRAFT, "{}");
 
-		assertThat(verdict.approved()).isTrue();
-		assertThat(verdict.output()).isEqualTo(DRAFT);
-	}
+        assertThat(verdict.approved()).isTrue();
+        assertThat(verdict.output()).isEqualTo(DRAFT);
+        assertThat(verdict.note()).contains("JSON format instructions");
+    }
+
+    @Test
+    void brokenVerifierFailsOpen() {
+        var verdict = verifierAnswering("not json").verify("task", DRAFT, "{}");
+
+        assertThat(verdict.approved()).isTrue();
+        assertThat(verdict.output()).isEqualTo(DRAFT);
+    }
 }
