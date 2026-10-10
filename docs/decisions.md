@@ -3,6 +3,26 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-10 — Co-applicant affordability uses household finances
+
+- **Household-level calculations**: when `hasCoApplicant` is true, `LoanProfileAssembler`
+  adds a second `LoanProfile.Applicant` and includes both applicants' gross monthly income
+  and existing monthly debt payments in DTI, the stressed monthly buffer, the stress-test
+  result and related risk indicators. When it is false, stale co-applicant answers do not
+  affect affordability.
+- **Collect the debts we count**: the `co-applicant` step now asks for
+  `coApplicantMonthlyDebtPayments` as well as name and gross monthly income; entering 0
+  is valid. This matches the step's promise that the second applicant's debts count too.
+- **No incomplete affordability figures for agents**: `ProfileFacts` omits DTI, the
+  monthly buffer after stress and the stress-test result until the needed loan, primary
+  applicant and co-applicant income/debt answers are entered. Its `basedOn` lists include
+  the co-applicant's income and debt keys when applicable. The full `LoanProfile` can
+  still use defaults for an in-progress application; agents receive `ProfileFacts`, not
+  those default-based figures.
+- **Profile and UI contract**: the profile contains both applicants, including the
+  co-applicant's name (employment is null because it is not collected), and the summary
+  displays both people and household totals.
+
 ## 2026-10-02 — ExplainAgent glossary-only gate
 
 - **Strict glossary boundary**: explain requests whose topic is not present in
