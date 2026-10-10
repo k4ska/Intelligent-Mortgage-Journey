@@ -24,6 +24,13 @@ const { data: review, pending: reviewPending } = useLazyAsyncData<ReviewResponse
   () => api.review(props.applicationId),
 )
 
+const householdIncome = computed(() =>
+  profile.value?.applicants.reduce((sum, applicant) => sum + applicant.monthlyGrossIncome, 0) ?? 0,
+)
+const householdDebt = computed(() =>
+  profile.value?.applicants.reduce((sum, applicant) => sum + applicant.monthlyDebtPayments, 0) ?? 0,
+)
+
 const stressColor = computed(() => {
   const r = profile.value?.financials.stressTestResult
   return r === 'FAIL' ? 'error' : r === 'TIGHT' ? 'warning' : 'success'
@@ -147,6 +154,31 @@ async function askAboutReview() {
           <dd class="font-medium">{{ formatMoney(profile.financials.estimatedMonthlyPayment) }}</dd>
         </div>
       </dl>
+
+      <div class="mt-5">
+        <h3 class="text-xs font-medium uppercase tracking-wide text-dimmed">Applicants</h3>
+        <div class="mt-2 grid gap-3 sm:grid-cols-2">
+          <div
+            v-for="(applicant, index) in profile.applicants"
+            :key="index"
+            class="rounded-lg border border-default p-3 text-sm"
+          >
+            <p class="font-medium">
+              {{ index === 0 ? 'Primary applicant' : 'Co-applicant' }}
+              <span v-if="applicant.name"> - {{ applicant.name }}</span>
+            </p>
+            <p v-if="applicant.employment" class="mt-1 text-muted capitalize">
+              {{ applicant.employment.toLowerCase().replaceAll('_', ' ') }}
+            </p>
+            <p class="mt-1">Gross income: {{ formatMoney(applicant.monthlyGrossIncome) }}/mo</p>
+            <p>Existing debt payments: {{ formatMoney(applicant.monthlyDebtPayments) }}/mo</p>
+          </div>
+        </div>
+        <p class="mt-2 text-sm text-muted">
+          Household totals: {{ formatMoney(householdIncome) }}/mo gross income,
+          {{ formatMoney(householdDebt) }}/mo existing debt payments.
+        </p>
+      </div>
 
       <div class="mt-4 flex items-center gap-2">
         <UBadge :color="stressColor" variant="subtle">

@@ -109,6 +109,15 @@
           "placeholder": "3 000",
           "options": null,
           "validation": { "required": true, "min": 0, "max": null, "pattern": null }
+        },
+        {
+          "key": "coApplicantMonthlyDebtPayments",
+          "type": "MONEY",
+          "label": "Their existing monthly debt payments",
+          "helpKey": "debt-payments",
+          "placeholder": "0",
+          "options": null,
+          "validation": { "required": true, "min": 0, "max": null, "pattern": null }
         }
       ],
       "next": [{ "default": "income" }]
