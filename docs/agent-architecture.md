@@ -1,3 +1,4 @@
+
 # Agent architecture
 
 This is the detailed reference for how the "agent" assist layer is built. `docs/decisions.md`
@@ -97,6 +98,28 @@ it knows). Two grounding sources exist today:
   gets it narrowed to the current step (`StepFacts`): that step's answers and blanks, and
   only the figures that step feeds into. `VerifierAgent` checks every draft's numbers
   against the same facts.
+
+### Co-applicant financial grounding
+
+When `hasCoApplicant` is true, `LoanProfileAssembler` includes a second applicant in
+`LoanProfile.applicants` and adds the co-applicant's monthly gross income and existing
+debt payments to the primary applicant's amounts. DTI, the monthly buffer after the
+rate-rise stress test, the stress-test result and related affordability risk indicators
+therefore reflect the household, not just the primary applicant. The `co-applicant`
+flow step collects `coApplicantName`, `coApplicantMonthlyIncome` and
+`coApplicantMonthlyDebtPayments`; an explicitly entered debt amount of 0 is valid.
+The final summary displays both applicants and the household totals.
+
+This does **not** make partial data safe to judge. `LoanProfile` continues to use
+fallback defaults for missing answers, but agents receive `ProfileFacts` instead. With
+a co-applicant selected, `ProfileFacts` includes `debtToIncomePercent`,
+`monthlyBufferAfterStress` and `stressTestResult` only after the necessary loan and
+primary-applicant inputs **and** both co-applicant income and debt-payment answers
+have been entered. Until then, those figures are omitted; missing co-applicant fields
+appear in `notAnsweredYet`. When present, each household affordability figure's
+`basedOn` includes `coApplicantMonthlyIncome` and
+`coApplicantMonthlyDebtPayments`. When no co-applicant is selected, their old answers
+are ignored for affordability calculations.
 
 `ExplainAgent` is hard-gated to the glossary at the orchestrator boundary. If
 `Explanations.lookup(topic)` returns `null`, `AgentOrchestrator` immediately returns a

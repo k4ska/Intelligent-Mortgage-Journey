@@ -108,7 +108,8 @@ export interface AgentStatus {
 
 export interface LoanProfile {
   applicants: Array<{
-    employment: string
+    name: string | null
+    employment: string | null
     monthlyGrossIncome: number
     monthlyDebtPayments: number
   }>
