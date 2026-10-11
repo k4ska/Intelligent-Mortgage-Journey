@@ -26,7 +26,7 @@ import reactor.core.publisher.Flux;
  * per call, with a 240-token budget: exactly one explain (specialist + verifier) fits.
  */
 @SpringBootTest(properties = {
-		"spring.ai.anthropic.api-key=sk-ant-dummy",
+		"spring.ai.openai.api-key=sk-dummy",
 		"app.token-budget.daily-limit=240" })
 @Import(TokenUsageIntegrationTest.FakeModelConfig.class)
 class TokenUsageIntegrationTest {

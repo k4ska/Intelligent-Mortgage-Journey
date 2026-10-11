@@ -97,8 +97,8 @@ export interface ReviewResponse {
   followUpQuestion: string | null
 }
 
-/** Which assistant backs the agent: the stub, or a real LLM provider. */
-export type AgentMode = 'stub' | 'claude' | 'openai'
+/** Which assistant backs the agent: the stub, or the real OpenAI-backed one. */
+export type AgentMode = 'stub' | 'openai'
 
 export interface AgentStatus {
   mode: AgentMode

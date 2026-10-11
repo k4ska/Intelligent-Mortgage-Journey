@@ -17,7 +17,7 @@ import java.util.UUID;
 
 /**
  * Deterministic stand-in for the real agent. Good enough to build and demo the whole
- * frontend against; swapped out automatically once an Anthropic API key is configured.
+ * frontend against; swapped out automatically once an OpenAI API key is configured.
  */
 public class StubAgentService implements AgentService {
 
@@ -97,7 +97,7 @@ public class StubAgentService implements AgentService {
 	@Override
 	public Flux<String> chat(UUID applicationId, String message) {
 		String reply = "You asked: \"" + message + "\". The stub assistant can only give canned answers "
-				+ "right now. Once an Anthropic or OpenAI API key is configured, the assistant will answer using "
+				+ "right now. Once an OpenAI API key is configured, the assistant will answer using "
 				+ "your application details and the mortgage explanation library.";
 		String[] words = reply.split(" ");
 		return Flux.fromArray(words)

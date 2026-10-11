@@ -21,26 +21,17 @@ spring:
 
   ai:
     model:
-      # Which LLM provider backs the agents: anthropic (default) or openai.
-      # Set AI_PROVIDER in the environment to switch - no code change needed.
-      chat: ${AI_PROVIDER:anthropic}
-      # We only use chat; keep the OpenAI starter from wiring its other models.
+      # The agents run on OpenAI. We only use chat; keep the OpenAI starter from wiring
+      # its other models.
+      chat: openai
       embedding: none
       image: none
       audio.speech: none
       audio.transcription: none
       moderation: none
-    anthropic:
-      # Set ANTHROPIC_API_KEY in the environment (or spring.ai.anthropic.api-key here).
-      # When the selected provider has no key, the app falls back to the deterministic
-      # stub agent - it still runs.
-      api-key: ${ANTHROPIC_API_KEY:}
-      chat:
-        options:
-          model: claude-sonnet-5
-          temperature: 0.3
     openai:
-      # Used when AI_PROVIDER=openai. Set OPENAI_API_KEY in the environment.
+      # Set OPENAI_API_KEY in the environment. Without a key, the app falls back to the
+      # deterministic stub agent - it still runs.
       api-key: ${OPENAI_API_KEY:}
       chat:
         options:
@@ -55,7 +46,7 @@ app:
     # How much hidden reasoning each agent does before answering (OpenAI GPT-5 family:
     # minimal, low, medium, high). Reasoning tokens are generated like visible output, so
     # they are most of the wait. The read-back keeps more, since quality matters most there.
-    # Ignored when AI_PROVIDER=anthropic. Leave a value empty to use OpenAI's default.
+    # Leave a value empty to use OpenAI's default.
     reasoning-effort:
       explain: ${AGENT_REASONING_EXPLAIN:low}
       validate: ${AGENT_REASONING_VALIDATE:low}

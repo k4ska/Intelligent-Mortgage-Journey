@@ -77,13 +77,13 @@ export const useApplicationStore = defineStore('application', {
     isStepUnlocked(state) {
       return (stepId: string) => state.application?.unlockedSteps.includes(stepId) ?? false
     },
-    /** True when a real LLM (Claude or OpenAI) backs the agent, not the stub. */
+    /** True when the real LLM (OpenAI) backs the agent, not the stub. */
     agentLive(state): boolean {
       return state.agentMode !== 'stub'
     },
-    /** Display name of whoever answers: 'Claude', 'OpenAI' or 'demo stub'. */
+    /** Display name of whoever answers: 'OpenAI' or 'demo stub'. */
     assistantName(state): string {
-      return { claude: 'Claude', openai: 'OpenAI', stub: 'demo stub' }[state.agentMode]
+      return { openai: 'OpenAI', stub: 'demo stub' }[state.agentMode]
     },
   },
 
