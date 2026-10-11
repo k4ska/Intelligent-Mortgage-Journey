@@ -15,8 +15,8 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatOptions;
 
 /**
- * {@link AgentConfig#withReasoningEffort} should add the reasoning effort on OpenAI
- * without dropping the model configured in application.yml, and do nothing otherwise.
+ * {@link AgentConfig#withReasoningEffort} should add the reasoning effort without dropping
+ * the model configured in application.yml, and do nothing when no effort is configured.
  */
 class ReasoningEffortTest {
 
@@ -36,24 +36,24 @@ class ReasoningEffortTest {
 		}
 	}
 
-	private static ChatOptions send(String provider, String effort) {
+	private static ChatOptions send(String effort) {
 		var model = new RecordingOpenAiModel();
-		AgentConfig.withReasoningEffort(ChatClient.builder(model), provider, effort)
+		AgentConfig.withReasoningEffort(ChatClient.builder(model), effort)
 				.build().prompt().user("hi").call().content();
 		return model.lastOptions.get();
 	}
 
 	@Test
-	void setsReasoningEffortOnOpenAiAndKeepsTheModel() {
-		var options = (OpenAiChatOptions) send("openai", "low");
+	void setsReasoningEffortAndKeepsTheModel() {
+		var options = (OpenAiChatOptions) send("low");
 
 		assertThat(options.getReasoningEffort()).isEqualTo("low");
 		assertThat(options.getModel()).isEqualTo("gpt-5-mini");
 	}
 
 	@Test
-	void leavesOptionsAloneForOtherProvidersOrBlankValues() {
-		assertThat(((OpenAiChatOptions) send("anthropic", "low")).getReasoningEffort()).isNull();
-		assertThat(((OpenAiChatOptions) send("openai", "")).getReasoningEffort()).isNull();
+	void leavesOptionsAloneForBlankValues() {
+		assertThat(((OpenAiChatOptions) send("")).getReasoningEffort()).isNull();
+		assertThat(((OpenAiChatOptions) send("  ")).getReasoningEffort()).isNull();
 	}
 }

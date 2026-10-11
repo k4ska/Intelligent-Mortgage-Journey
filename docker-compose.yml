@@ -1,8 +1,7 @@
 # `docker compose up --build` runs the whole app: backend on :8080, frontend on :3000.
-# Set ANTHROPIC_API_KEY in the environment (or a .env file next to this one) to use the
-# real Claude-backed agents, or AI_PROVIDER=openai + OPENAI_API_KEY for OpenAI; leave the
-# key unset and the backend falls back to the deterministic stub agent, so the whole
-# thing still runs without a key.
+# Set OPENAI_API_KEY in the environment (or a .env file next to this one) to use the
+# real OpenAI-backed agents; leave it unset and the backend falls back to the
+# deterministic stub agent, so the whole thing still runs without a key.
 #
 # Postgres is optional and off by default (the backend runs on in-memory H2). To use it:
 # `docker compose --profile postgres up -d db` then set SPRING_PROFILES_ACTIVE=postgres
@@ -13,8 +12,6 @@ services:
     ports:
       - "8080:8080"
     environment:
-      AI_PROVIDER: ${AI_PROVIDER:-anthropic}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
       APP_DAILY_TOKEN_BUDGET: ${APP_DAILY_TOKEN_BUDGET:-4500000}

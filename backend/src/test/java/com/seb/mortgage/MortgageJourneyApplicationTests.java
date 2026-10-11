@@ -15,7 +15,7 @@ class MortgageJourneyApplicationTests {
 
 	@Test
 	void contextLoads() {
-		// With no ANTHROPIC_API_KEY in the test environment, the stub agent must be active.
+		// With no OPENAI_API_KEY in the test environment, the stub agent must be active.
 		assertThat(agentService.mode()).isEqualTo("stub");
 	}
 }

@@ -34,10 +34,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	runtimeOnly 'com.h2database:h2'
 
-	// LLM providers via Spring AI. Both are on the classpath; spring.ai.model.chat
-	// (driven by AI_PROVIDER) picks which one is auto-configured. With no API key for
-	// the chosen provider, the app falls back to the stub agent.
-	implementation 'org.springframework.ai:spring-ai-starter-model-anthropic'
+	// OpenAI via Spring AI. With no OPENAI_API_KEY, the app falls back to the stub agent.
 	implementation 'org.springframework.ai:spring-ai-starter-model-openai'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

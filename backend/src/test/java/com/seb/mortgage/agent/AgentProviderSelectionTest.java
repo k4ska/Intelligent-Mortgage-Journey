@@ -3,7 +3,6 @@ package com.seb.mortgage.agent;
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -11,37 +10,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 /**
- * Checks that AI_PROVIDER (spring.ai.model.chat) plus the matching API key picks the
- * right LLM backend, and that a missing key falls back to the stub. The keys are dummies:
- * nothing here calls a real API.
+ * Checks that an OpenAI API key switches the agents to OpenAI, and that a missing key
+ * falls back to the stub. The key is a dummy: nothing here calls a real API.
  */
 class AgentProviderSelectionTest {
 
 	@Nested
-	@SpringBootTest(properties = "spring.ai.anthropic.api-key=sk-ant-dummy")
-        @SuppressWarnings("unused")
-	class AnthropicByDefault {
-
-		@Autowired AgentService agentService;
-		@Autowired ChatModel chatModel;
-
-		@SuppressWarnings("removal")
-		@Test
-		void usesClaude() {
-			assertThat(agentService.mode()).isEqualTo("claude");
-			assertThat(chatModel).isInstanceOf(AnthropicChatModel.class);
-			assertThat(chatModel.getDefaultOptions().getModel()).isEqualTo("claude-sonnet-5");
-			assertThat(chatModel.getDefaultOptions().getTemperature()).isEqualTo(0.3);
-		}
-	}
-
-	@Nested
 	@SpringBootTest(properties = {
-			"spring.ai.model.chat=openai",
 			"spring.ai.openai.api-key=sk-dummy",
 			"OPENAI_MODEL=gpt-test-model" })
         @SuppressWarnings("unused")
-	class OpenAiWhenSelected {
+	class OpenAiWithKey {
 
 		@Autowired AgentService agentService;
 		@Autowired ChatModel chatModel;
@@ -59,11 +38,9 @@ class AgentProviderSelectionTest {
 	}
 
 	@Nested
-	@SpringBootTest(properties = {
-			"spring.ai.model.chat=openai",
-			"spring.ai.anthropic.api-key=sk-ant-dummy" })
+	@SpringBootTest(properties = "spring.ai.openai.api-key=")
         @SuppressWarnings("unused")
-	class OpenAiSelectedWithoutItsKey {
+	class WithoutKey {
 
 		@Autowired AgentService agentService;
 

@@ -1,6 +1,6 @@
 # Backend — Intelligent Mortgage Journey
 
-Spring Boot 4 (Java 25) REST API. In-memory H2, Claude (or OpenAI) via Spring AI.
+Spring Boot 4 (Java 25) REST API. In-memory H2, OpenAI via Spring AI.
 
 ## Run
 
@@ -11,23 +11,15 @@ Spring Boot 4 (Java 25) REST API. In-memory H2, Claude (or OpenAI) via Spring AI
 ```
 
 The app runs **without** an API key — the agent falls back to a deterministic stub.
-To use the real Claude-backed agent, set the key before starting:
+To use the real OpenAI-backed agent, set the key before starting:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-./gradlew bootRun
-```
-
-To use OpenAI instead:
-
-```bash
-export AI_PROVIDER=openai
 export OPENAI_API_KEY=sk-...
 export OPENAI_MODEL=gpt-5-mini   # optional, this is the default
 ./gradlew bootRun
 ```
 
-`GET /api/agent/status` reports `{"mode":"stub"}`, `{"mode":"claude"}` or `{"mode":"openai"}`.
+`GET /api/agent/status` reports `{"mode":"stub"}` or `{"mode":"openai"}`.
 
 **Token usage:** every LLM call logs a `[tokens]` line in the backend's console (agent,
 model, input/output tokens, today's running total). `GET /api/agent/usage` returns today's
@@ -52,7 +44,7 @@ answer with the stub until midnight. The count is in-memory, so a backend restar
 | `POST /api/applications/{id}/steps` | `{ stepId, answers }` → merges answers, advances the flow |
 | `GET /api/applications/{id}/profile` | Standardized loan profile (contract 3) |
 | `GET /api/applications/{id}/offers` | Mock multi-bank offers derived from the profile |
-| `GET /api/agent/status` | `{ mode }` — `stub`, `claude` or `openai` |
+| `GET /api/agent/status` | `{ mode }` — `stub` or `openai` |
 | `GET /api/agent/usage` | Today's LLM token usage vs. the daily budget, per agent |
 | `POST /api/agent/explain` | `{ applicationId, topic \| fieldKey }` → `{ explanation, relatedTopics[], followUpQuestion }` |
 | `POST /api/agent/validate` | `{ applicationId, stepId }` → `{ status, issues[], followUpQuestion }` |

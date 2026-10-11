@@ -15,7 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * a step opens once every step before it is done, and answers from a branch that is no
  * longer taken are dropped.
  */
-@SpringBootTest(properties = { "spring.ai.anthropic.api-key=", "spring.ai.openai.api-key=" })
+@SpringBootTest(properties = "spring.ai.openai.api-key=")
 class JourneyNavigationTest {
 
 	@Autowired ApplicationService service;

@@ -15,7 +15,7 @@ import com.seb.mortgage.application.ApplicationService;
  * Issue #20: "Check my answers" early in the journey must not warn about figures built
  * from defaults the user never entered. Uses the stub (no API key).
  */
-@SpringBootTest(properties = { "spring.ai.anthropic.api-key=", "spring.ai.openai.api-key=" })
+@SpringBootTest(properties = "spring.ai.openai.api-key=")
 class StubValidationTest {
 
 	@Autowired AgentService agentService;

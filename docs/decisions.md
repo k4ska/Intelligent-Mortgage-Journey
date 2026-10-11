@@ -3,6 +3,19 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-11 — Dropped Anthropic, OpenAI only
+
+- **Why**: we only run the agents on OpenAI now, so the Anthropic path (the default since
+  2026-09-24) was dead code, and the default config and docs pointed people at
+  `ANTHROPIC_API_KEY`, a key we don't use.
+- **What changed**: the Anthropic Spring AI starter and the `spring.ai.anthropic` config
+  are gone, and so is the `AI_PROVIDER` switch. `LlmConfiguredCondition` checks
+  `OPENAI_API_KEY` only; no key -> stub, as before. `/api/agent/status` reports `stub`
+  or `openai`, and `'claude'` is gone from the frontend's `AgentMode`.
+- **Not reversed**: the agents still talk to Spring AI's provider-neutral `ChatClient`, so
+  adding another provider later means adding its starter and key check back, not
+  rewriting agents. The earlier entries below that mention Claude are kept as history.
+
 ## 2026-10-10 — Co-applicant affordability uses household finances
 
 - **Household-level calculations**: when `hasCoApplicant` is true, `LoanProfileAssembler`

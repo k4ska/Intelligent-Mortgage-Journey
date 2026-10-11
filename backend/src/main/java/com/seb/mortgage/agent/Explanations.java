@@ -5,7 +5,7 @@ import java.util.Map;
 
 /**
  * Plain-language explanation snippets keyed by {@code helpKey} / topic. Used directly by
- * the stub agent and offered to Claude as reference material by the real one, so the
+ * the stub agent and offered to the LLM as reference material by the real one, so the
  * vocabulary stays consistent whether or not an API key is configured.
  */
 public final class Explanations {

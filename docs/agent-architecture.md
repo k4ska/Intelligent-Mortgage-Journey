@@ -8,7 +8,7 @@ to date as the implementation changes. All code referenced lives under
 
 ## What "agent" means in this codebase
 
-Each agent is deliberately small: **one LLM call (Claude by default, or OpenAI, via Spring AI's `ChatClient`),
+Each agent is deliberately small: **one LLM call (OpenAI, via Spring AI's `ChatClient`),
 wrapped in a narrow system prompt that defines one job, fed only the context it needs for
 that job.** There is no autonomous tool-calling loop, no agent that decides on its own to
 call other agents or external tools in an open-ended way. The "agentic" behaviour is the
@@ -154,7 +154,7 @@ Adding a sixth specialist is meant to be mechanical:
    `super(chatClientBuilder, SYSTEM)`. Add whatever method(s) it needs.
 2. **New `@Bean`** in `AgentConfig`, guarded by the same condition every other agent
    bean uses (`@Conditional(LlmConfiguredCondition.class)`), so it only gets built when
-   the selected provider (Anthropic or OpenAI) has an API key configured.
+   an OpenAI API key is configured.
 3. **Wire it in**: call it from `AgentOrchestrator` (through `VerifierAgent` if its output
    is client-facing prose), and if it's a new client-facing capability, add its
    request/response shapes to `AgentDtos` and a route in `AgentController`. If it's stub-
@@ -176,14 +176,14 @@ matter how many agents exist.
 - The glossary-only gate on `ExplainAgent` skips the entire LLM path for anything outside
   the known vocabulary. Because the gate runs before both specialist and verifier calls,
   unsupported topics consume zero LLM tokens.
-- On OpenAI's GPT-5 family, hidden reasoning tokens were most of each reply's output and
+- On the GPT-5 family, hidden reasoning tokens were most of each reply's output and
   most of the wait. Each agent's reasoning effort is set separately
   (`app.agent.reasoning-effort.*`, env `AGENT_REASONING_*`): `low` everywhere except the
-  final read-back (`medium`). Anthropic ignores the setting.
+  final read-back (`medium`).
 - The verifier answers with `approved` plus a `rewrite` only when it rejects a draft, so
   an approved draft (the common case) is not generated a second time.
 - Verification currently costs one extra call per explain/validate/review request. If
   cost becomes a concern, the cheapest lever is a smaller/cheaper model for the verifier
   specifically (it's a narrow classification-and-rewrite task, not open-ended
   generation) - not yet done, `application.yml` currently points every agent at the same
-  `claude-sonnet-5` model.
+  model (`OPENAI_MODEL`, default `gpt-5-mini`).
