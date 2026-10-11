@@ -1,3 +1,4 @@
+
 import type {
   AgentStatus,
   ApplicationView,
@@ -96,6 +97,27 @@ export function useApi() {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
+      let dataLines: string[] = []
+
+      const emitEvent = () => {
+        if (dataLines.length === 0) return
+        onToken(dataLines.join('\n'))
+        dataLines = []
+      }
+
+      const processLine = (rawLine: string) => {
+        const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
+        if (line === '') {
+          // An empty line ends the current SSE event.
+          emitEvent()
+        } else if (line.startsWith('data:')) {
+          // Spring sends "data:" directly followed by the token. Do not trim:
+          // a space immediately after the colon can be the entire token.
+          dataLines.push(line.slice(5))
+        }
+        // Ignore SSE comments and other fields (event, id, retry).
+      }
+
       // eslint-disable-next-line no-constant-condition
       while (true) {
         const { done, value } = await reader.read()
@@ -103,11 +125,12 @@ export function useApi() {
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
         buffer = lines.pop() ?? ''
-        for (const line of lines) {
-          const trimmed = line.startsWith('data:') ? line.slice(5) : line
-          if (trimmed.trim().length) onToken(trimmed)
-        }
+        for (const line of lines) processLine(line)
       }
+
+      buffer += decoder.decode()
+      if (buffer) processLine(buffer)
+      emitEvent()
     },
   }
 }
