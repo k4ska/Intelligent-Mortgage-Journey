@@ -3,6 +3,18 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-12 — Hub topic cards are static content (#39)
+
+- **Reverses part of 2026-09-23**: "What is a loan?" and "Top 10 mistakes when applying"
+  no longer call `ExplainAgent`. The content is general and the same for everyone, so an
+  LLM call only added a wait, an answer that changed between clicks, and token cost.
+- **Source of truth stays `Explanations`**: the cards show the `what-is-a-loan` /
+  `top-mortgage-mistakes` entries the store already loads from `GET /api/explanations`, so
+  there's no copy in the frontend. Their related-topic chips open built-in definitions too.
+  The agent is only a fallback if the definitions failed to load, and only then does the
+  modal say "Answered by the assistant".
+- The two texts were rewritten now that they're the main content, not a stub fallback.
+
 ## 2026-10-12 — "How much can I borrow?" calculator (#29)
 
 - **Same rules as the journey**: the max loan is the smallest of the income limit

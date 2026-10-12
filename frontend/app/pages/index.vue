@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { ExplainResponse } from '~/types/api'
 
 const store = useApplicationStore()
 const api = useApi()
@@ -21,9 +20,9 @@ async function start() {
   }
 }
 
-// "What is a loan?" / "Top 10 mistakes" are backed by the same explain-agent that
-// powers the assist panel during the journey, so the hub demonstrates the agent's
-// value before the user has even started an application.
+// "What is a loan?" / "Top 10 mistakes" are fixed, general content, so they come from the
+// built-in definitions (loaded once in bootstrap) and open instantly with no LLM call.
+// The explain-agent is only a fallback when those definitions failed to load.
 interface Topic { key: string, title: string, teaser: string, icon: string }
 
 const topics: Topic[] = [
@@ -44,15 +43,23 @@ const topics: Topic[] = [
 const modalOpen = ref(false)
 const activeTopic = ref<Topic | null>(null)
 const loadingTopic = ref(false)
-const explanation = ref<ExplainResponse | null>(null)
+const explanation = ref<{ text: string, related: string[], fromAgent: boolean } | null>(null)
 
 async function openTopic(topic: Topic) {
   activeTopic.value = topic
-  explanation.value = null
   modalOpen.value = true
+
+  const definition = store.definitions[topic.key]
+  if (definition) {
+    explanation.value = { ...definition, fromAgent: false }
+    return
+  }
+
+  explanation.value = null
   loadingTopic.value = true
   try {
-    explanation.value = await api.explain(null, topic.key)
+    const answer = await api.explain(null, topic.key)
+    explanation.value = { text: answer.explanation, related: answer.relatedTopics, fromAgent: true }
   } finally {
     loadingTopic.value = false
   }
@@ -137,7 +144,7 @@ async function openRelated(key: string) {
           </div>
         </button>
 
-        <!-- Secondary: agent-backed topics, then the two standalone calculators -->
+        <!-- Secondary: quick-guide topics, then the two standalone calculators -->
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <button
             v-for="topic in topics"
@@ -152,7 +159,7 @@ async function openRelated(key: string) {
             <p class="mt-4 font-semibold text-[var(--ui-text-highlighted)]">{{ topic.title }}</p>
             <p class="mt-1.5 text-sm text-[var(--ui-text-muted)]">{{ topic.teaser }}</p>
             <span class="mt-4 inline-flex items-center gap-1 text-sm font-medium text-[var(--ui-primary)]">
-              Ask the assistant
+              Read the guide
               <UIcon name="i-lucide-arrow-right" class="transition-transform group-hover:translate-x-0.5" />
             </span>
           </button>
@@ -179,7 +186,7 @@ async function openRelated(key: string) {
               <h2 class="font-semibold text-[var(--ui-text-highlighted)]">
                 {{ activeTopic?.title }}
               </h2>
-              <p class="text-xs text-[var(--ui-text-dimmed)]">
+              <p v-if="explanation?.fromAgent" class="text-xs text-[var(--ui-text-dimmed)]">
                 Answered by the {{ store.assistantName }} assistant
               </p>
             </div>
@@ -192,12 +199,12 @@ async function openRelated(key: string) {
               <div class="h-3 w-2/3 animate-pulse rounded bg-[var(--ui-bg-elevated)]" />
             </div>
             <p v-else class="whitespace-pre-line text-sm leading-relaxed text-[var(--ui-text-muted)]">
-              {{ explanation?.explanation }}
+              {{ explanation?.text }}
             </p>
 
-            <div v-if="explanation?.relatedTopics.length" class="mt-4 flex flex-wrap gap-1.5">
+            <div v-if="explanation?.related.length" class="mt-4 flex flex-wrap gap-1.5">
               <UButton
-                v-for="t in explanation.relatedTopics"
+                v-for="t in explanation.related"
                 :key="t"
                 size="xs"
                 variant="soft"

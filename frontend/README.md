@@ -29,9 +29,9 @@ app/
 ├── stores/application.ts    Pinia store: flow definition + current application + draft answers
 ├── layouts/default.vue      header / shell
 ├── pages/
-│   ├── index.vue            landing hub: start the journey, or ask the agent-backed
-│   │                        "What is a loan?" / "Top 10 mistakes" cards, plus a
-│   │                        standalone loan calculator
+│   ├── index.vue            landing hub: start the journey, the "What is a loan?" /
+│   │                        "Top 10 mistakes" quick guides (built-in text, no LLM),
+│   │                        plus the two standalone calculators
 │   └── journey/[id].vue     the journey: progress bar, step, assist panel, final summary
 └── components/
     ├── FlowStep.vue         renders one step's fields + validation + nav
