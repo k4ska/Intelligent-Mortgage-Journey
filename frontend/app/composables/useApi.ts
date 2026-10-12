@@ -9,6 +9,8 @@ import type {
   ExplainResponse,
   FlowDefinition,
   LoanProfile,
+  MaxLoanRequest,
+  MaxLoanResponse,
   ReviewResponse,
   ValidateResponse,
 } from '~/types/api'
@@ -54,6 +56,12 @@ export function useApi() {
 
     estimate: (request: CalculatorEstimateRequest) =>
       req<CalculatorEstimateResponse>('/calculator/estimate', {
+        method: 'POST',
+        body: request,
+      }),
+
+    maxLoan: (request: MaxLoanRequest) =>
+      req<MaxLoanResponse>('/calculator/max-loan', {
         method: 'POST',
         body: request,
       }),

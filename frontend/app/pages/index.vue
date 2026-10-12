@@ -107,7 +107,7 @@ async function openRelated(key: string) {
 
     <!-- Hub: fills the rest of the viewport; scrolls internally only if it truly can't fit -->
     <div class="min-h-0 flex-1 overflow-y-auto">
-      <UContainer class="flex h-full max-w-4xl flex-col justify-center gap-4 py-4">
+      <UContainer class="flex h-full max-w-6xl flex-col justify-center gap-4 py-4">
         <!-- Primary: start the journey -->
         <button
           type="button"
@@ -137,8 +137,8 @@ async function openRelated(key: string) {
           </div>
         </button>
 
-        <!-- Secondary: agent-backed topics + the standalone calculator -->
-        <div class="grid gap-4 sm:grid-cols-3">
+        <!-- Secondary: agent-backed topics, then the two standalone calculators -->
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <button
             v-for="topic in topics"
             :key="topic.key"
@@ -158,6 +158,7 @@ async function openRelated(key: string) {
           </button>
 
           <LoanCalculatorCard />
+          <MaxLoanCalculatorCard />
         </div>
 
         <p class="text-center text-xs text-[var(--ui-text-dimmed)]">
