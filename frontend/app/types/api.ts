@@ -17,6 +17,13 @@ export interface FieldValidation {
   pattern?: string | null
 }
 
+/** op is one of: eq, ne, gt, gte, lt, lte, in. */
+export interface Condition {
+  field: string
+  op: string
+  value: unknown
+}
+
 export interface Field {
   key: string
   type: FieldType
@@ -25,6 +32,8 @@ export interface Field {
   placeholder?: string | null
   options?: FieldOption[] | null
   validation?: FieldValidation | null
+  /** Shown only while this holds; the backend drops a hidden field's answer. */
+  showIf?: Condition | null
 }
 
 export interface Step {
@@ -110,7 +119,7 @@ export interface LoanProfile {
   applicants: Array<{
     name: string | null
     employment: string | null
-    monthlyGrossIncome: number
+    monthlyNetIncome: number
     monthlyDebtPayments: number
   }>
   property: {
@@ -128,7 +137,10 @@ export interface LoanProfile {
   financials: {
     downPayment: number
     ltv: number
+    /** All loan payments as % of net income, at today's rate. */
     dti: number
+    /** The same at the stress-test rate - the figure the 50% limit applies to. */
+    stressedDti: number
     estimatedMonthlyPayment: number
     stressedMonthlyPayment: number
     monthlyBufferAfterStress: number
@@ -173,6 +185,8 @@ export interface MaxLoanResponse {
   monthlyPayment: number
   limitedBy: 'INCOME' | 'STRESS' | 'DOWN_PAYMENT'
   annualRatePct: number
+  /** maxDtiPct applies at this rate. */
+  stressRatePct: number
   termYears: number
   maxDtiPct: number
   maxLtvPct: number

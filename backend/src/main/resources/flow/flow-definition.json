@@ -104,8 +104,8 @@
         {
           "key": "coApplicantMonthlyIncome",
           "type": "MONEY",
-          "label": "Their monthly gross income",
-          "helpKey": "gross-income",
+          "label": "Their monthly net income (after tax)",
+          "helpKey": "net-income",
           "placeholder": "3 000",
           "options": null,
           "validation": { "required": true, "min": 0, "max": null, "pattern": null }
@@ -140,13 +140,14 @@
           "validation": { "required": true, "min": null, "max": null, "pattern": null }
         },
         {
-          "key": "monthlyGrossIncome",
+          "key": "monthlyNetIncome",
           "type": "MONEY",
-          "label": "Your monthly gross income",
-          "helpKey": "gross-income",
-          "placeholder": "4 000",
+          "label": "Your monthly net income (after tax)",
+          "helpKey": "net-income",
+          "placeholder": "2 500",
           "options": null,
-          "validation": { "required": true, "min": 1, "max": null, "pattern": null }
+          "validation": { "required": true, "min": 1, "max": null, "pattern": null },
+          "showIf": { "field": "employmentType", "op": "ne", "value": "SELF_EMPLOYED" }
         },
         {
           "key": "monthlyDebtPayments",
@@ -166,7 +167,7 @@
     {
       "id": "self-employed",
       "title": "Your business",
-      "subtitle": "Lenders look at a longer history for self-employed applicants.",
+      "subtitle": "Lenders look at a longer history for self-employed applicants. A twelfth of last year's net profit counts as your monthly income.",
       "fields": [
         {
           "key": "yearsTrading",
@@ -180,7 +181,7 @@
         {
           "key": "lastYearNetProfit",
           "type": "MONEY",
-          "label": "Net profit last year",
+          "label": "Net profit last year (after tax)",
           "helpKey": "net-profit",
           "placeholder": "48 000",
           "options": null,

@@ -3,6 +3,27 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-12 — Affordability on net income, Eesti Pank-style limits (#31)
+
+- **Net, not gross**: income fields ask for monthly net income (after tax), because that's
+  what Estonian lenders assess. `monthlyGrossIncome` is now `monthlyNetIncome`, and
+  `LoanProfile.applicants[].monthlyGrossIncome` is now `monthlyNetIncome`.
+- **Limits follow Eesti Pank's borrower rules for housing loans**, checked against Eesti
+  Pank and ESRB sources: all loan payments may take at most **50% of net income**, worked out
+  at a **stressed rate of the contract rate + 2 pp, at least 6%**. Constants on
+  `AffordabilityCalculator`: `MAX_DTI_PCT = 50`, `STRESS_DELTA_PCT = 2`, `STRESS_RATE_FLOOR_PCT = 6`.
+  The 15% exemption quota and the 30-year maturity cap are not modelled.
+- **Stress test**: FAIL when stressed payments are above 50% of net income; TIGHT when less
+  than €300 is left after debts and the stressed payment (`MIN_STRESS_BUFFER`, kept for
+  #32's living costs; with a 50% cap it only bites on very low incomes); otherwise PASS.
+  `Financials` gains `stressedDti`, the figure the limit applies to; `dti` stays the
+  ratio at today's rate.
+- **Self-employed income is last year's net profit ÷ 12** (team decision). The flow hides
+  monthly net income for self-employed applicants via a new field-level `showIf`, and the
+  backend drops a hidden field's answer like it drops off-path steps.
+- The max-loan calculator (#29) uses the same constants, so it moved with the journey;
+  LTV (85%, 90% with KredEx) is left to #33.
+
 ## 2026-10-12 — Hub topic cards are static content (#39)
 
 - **Reverses part of 2026-09-23**: "What is a loan?" and "Top 10 mistakes when applying"

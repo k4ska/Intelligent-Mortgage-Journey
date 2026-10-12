@@ -42,7 +42,7 @@ class JourneyNavigationTest {
 	}
 
 	private void completeFromIncomeToEnd() {
-		advance("income", Map.of("employmentType", "EMPLOYED", "monthlyGrossIncome", 5_000, "monthlyDebtPayments", 0));
+		advance("income", Map.of("employmentType", "EMPLOYED", "monthlyNetIncome", 5_000, "monthlyDebtPayments", 0));
 		advance("loan", Map.of("downPayment", 60_000, "loanAmount", 240_000, "termYears", 25, "rateType", "VARIABLE"));
 		advance("review", Map.of());
 	}
@@ -101,5 +101,21 @@ class JourneyNavigationTest {
 		assertThat(couple.isComplete()).isFalse();
 		assertThat(couple.getCurrentStepId()).isEqualTo("co-applicant");
 		assertThat(journey().unlockedSteps()).endsWith("applicants", "co-applicant").doesNotContain("loan");
+	}
+
+	/** Issue #31: switching to self-employed hides the monthly salary field and drops its answer. */
+	@Test
+	void switchingToSelfEmployedDropsTheHiddenMonthlyIncome() {
+		completeUpToApplicants();
+		advance("applicants", Map.of("hasCoApplicant", false));
+		advance("income", Map.of("employmentType", "EMPLOYED", "monthlyNetIncome", 3_000, "monthlyDebtPayments", 0));
+		assertThat(service.get(id).getAnswers()).containsEntry("monthlyNetIncome", 3_000);
+
+		service.goToStep(id, "income");
+		var selfEmployed = advance("income", Map.of("employmentType", "SELF_EMPLOYED", "monthlyDebtPayments", 0));
+
+		assertThat(selfEmployed.getAnswers()).doesNotContainKey("monthlyNetIncome");
+		assertThat(selfEmployed.getCurrentStepId()).isEqualTo("self-employed");
+		assertThat(service.stepFacts(id, "income").stepUnanswered()).doesNotContain("monthlyNetIncome");
 	}
 }

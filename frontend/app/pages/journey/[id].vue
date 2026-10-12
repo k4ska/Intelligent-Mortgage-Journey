@@ -151,6 +151,7 @@ onBeforeUnmount(stopAssistantResize)
                 v-else-if="store.currentStep"
                 :step="store.currentStep"
                 :draft="store.draft"
+                :answers="store.application?.answers ?? {}"
                 :validation="store.validation"
                 :busy="store.loading || store.validating"
                 :validating="store.validating"

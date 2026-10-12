@@ -18,6 +18,7 @@ import com.seb.mortgage.profile.LoanProfileAssembler;
 
 /**
  * Issue #29: "How much can I borrow?" must never promise a loan the journey then flags,
+ * on the net-income rules from #31,
  * so a loan at the calculated maximum has to pass the journey's own affordability checks.
  */
 class MaxLoanCalculatorTest {
@@ -27,6 +28,19 @@ class MaxLoanCalculatorTest {
 	private final CalculatorController controller = new CalculatorController(calculator, rateService);
 	private final LoanProfileAssembler assembler = new LoanProfileAssembler(calculator,
 			new PropertyValuationService(), rateService, new DocumentChecklistService());
+
+	@Test
+	void aSelfEmployedLoanAtTheMaximumPassesTooWhenIncomeIsProfitOverTwelve() {
+		MaxLoanResponse max = maxLoan(3_000.0, null, 200.0, null);
+		LoanApplication application = new LoanApplication("purpose");
+		application.putAnswers(Map.of("purchasePrice", max.maxLoanAmount() + 1_000_000, "downPayment", 1_000_000,
+				"loanAmount", max.maxLoanAmount(), "termYears", 25, "rateType", "VARIABLE",
+				"employmentType", "SELF_EMPLOYED", "lastYearNetProfit", 36_000, "monthlyDebtPayments", 200));
+
+		LoanProfile.Financials f = assembler.assemble(application).financials();
+		assertThat(f.stressedDti()).isLessThanOrEqualTo(AffordabilityCalculator.MAX_DTI_PCT);
+		assertThat(f.stressTestResult()).isEqualTo("PASS");
+	}
 
 	private MaxLoanResponse maxLoan(Double income, Double coIncome, Double debts, Double downPayment) {
 		return controller.maxLoan(new MaxLoanRequest(income, coIncome, debts, downPayment, null, null));
@@ -45,14 +59,25 @@ class MaxLoanCalculatorTest {
 		MaxLoanResponse r = maxLoan(4_000.0, null, 300.0, null);
 
 		assertThat(r.limitedBy()).isEqualTo(LoanLimit.INCOME);
-		// 40% of 4 000 is 1 600; minus 300 of existing debts leaves 1 300 for the mortgage.
-		assertThat(r.monthlyPayment()).isEqualTo(1_300);
+		// Half of 4 000 net is 2 000; minus 300 of existing debts leaves 1 700 for the mortgage
+		// at the stress-test rate (4.35% + 2 = 6.35%).
+		assertThat(r.stressRatePct()).isEqualTo(6.35);
+		assertThat(calculator.stressedMonthlyPayment(r.maxLoanAmount(), r.annualRatePct(), r.termYears()))
+				.isCloseTo(1_700, within(1.0));
 		assertThat(r.maxPropertyPrice()).isNull();
 	}
 
 	@Test
-	void stressTestSetsTheLimitOnALowIncome() {
-		// 40% of 500 is 200, but 500 - 300 buffer is also 200, and at +3 pp that buys less.
+	void stressRateIsNeverBelowSixPercent() {
+		MaxLoanResponse r = controller.maxLoan(new MaxLoanRequest(4_000.0, null, 0.0, null, 3.0, 25));
+
+		assertThat(r.stressRatePct()).isEqualTo(6.0);
+		assertThat(calculator.monthlyPayment(r.maxLoanAmount(), 6.0, 25)).isCloseTo(2_000, within(1.0));
+	}
+
+	@Test
+	void bufferSetsTheLimitOnAVeryLowIncome() {
+		// Half of 500 is 250, but 500 minus the 300 buffer leaves only 200.
 		assertThat(maxLoan(500.0, null, 0.0, null).limitedBy()).isEqualTo(LoanLimit.STRESS);
 	}
 
@@ -76,6 +101,7 @@ class MaxLoanCalculatorTest {
 	@Test
 	void noLoanWhenDebtsAlreadyUseTheWholeAllowance() {
 		MaxLoanResponse r = maxLoan(3_000.0, null, 1_500.0, 50_000.0);
+		// 1 500 of debts is already half of 3 000 net income.
 
 		assertThat(r.maxLoanAmount()).isZero();
 		assertThat(r.monthlyPayment()).isZero();
@@ -104,7 +130,7 @@ class MaxLoanCalculatorTest {
 		Map<String, Object> answers = new HashMap<>(Map.of(
 				"purchasePrice", max.maxLoanAmount() + down, "downPayment", down,
 				"loanAmount", max.maxLoanAmount(), "termYears", max.termYears(), "rateType", "VARIABLE",
-				"monthlyGrossIncome", income, "monthlyDebtPayments", debts));
+				"monthlyNetIncome", income, "monthlyDebtPayments", debts));
 		if (coIncome != null) {
 			answers.put("hasCoApplicant", true);
 			answers.put("coApplicantMonthlyIncome", coIncome);
@@ -113,7 +139,7 @@ class MaxLoanCalculatorTest {
 		application.putAnswers(answers);
 
 		LoanProfile.Financials f = assembler.assemble(application).financials();
-		assertThat(f.dti()).isLessThanOrEqualTo(AffordabilityCalculator.MAX_DTI_PCT);
+		assertThat(f.stressedDti()).isLessThanOrEqualTo(AffordabilityCalculator.MAX_DTI_PCT);
 		assertThat(f.stressTestResult()).isEqualTo("PASS");
 		assertThat(f.ltv()).isLessThanOrEqualTo(AffordabilityCalculator.TYPICAL_MAX_LTV_PCT);
 	}

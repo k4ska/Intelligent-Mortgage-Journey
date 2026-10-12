@@ -24,7 +24,7 @@ class ProfileFactsTest {
     private static final Map<String, Object> LOAN_STEP = Map.of(
             "downPayment", 25_000, "loanAmount", 475_000, "termYears", 25, "rateType", "VARIABLE");
     private static final Map<String, Object> INCOME_STEP = Map.of(
-            "employmentType", "EMPLOYED", "monthlyGrossIncome", 4_000, "monthlyDebtPayments", 300);
+            "employmentType", "EMPLOYED", "monthlyNetIncome", 4_000, "monthlyDebtPayments", 300);
 
     private LoanApplication applicationWith(Map<String, Object> answers) {
         LoanApplication application = new LoanApplication("purpose");
@@ -50,7 +50,7 @@ class ProfileFactsTest {
 
         assertThat(facts.answers()).isEmpty();
         assertThat(facts.figures()).isEmpty();
-        assertThat(facts.notAnsweredYet()).contains("purchasePrice", "downPayment", "monthlyGrossIncome");
+        assertThat(facts.notAnsweredYet()).contains("purchasePrice", "downPayment", "monthlyNetIncome");
     }
 
     @Test
@@ -89,12 +89,12 @@ class ProfileFactsTest {
         ProfileFacts everything = factsFor(merge(merge(Map.of("purchasePrice", 500_000), LOAN_STEP), INCOME_STEP));
 
         var income = everything.forStep("income", "Income",
-                List.of("employmentType", "monthlyGrossIncome", "monthlyDebtPayments"));
+                List.of("employmentType", "monthlyNetIncome", "monthlyDebtPayments"));
         assertThat(names(income.relevantFigures()))
                 .contains("debtToIncomePercent", "stressTestResult")
                 .doesNotContain("loanToValuePercent", "estimatedPropertyValue");
-        assertThat(income.stepAnswers()).containsOnlyKeys("employmentType", "monthlyGrossIncome", "monthlyDebtPayments");
-        assertThat(income.otherAnswers()).containsKey("purchasePrice").doesNotContainKey("monthlyGrossIncome");
+        assertThat(income.stepAnswers()).containsOnlyKeys("employmentType", "monthlyNetIncome", "monthlyDebtPayments");
+        assertThat(income.otherAnswers()).containsKey("purchasePrice").doesNotContainKey("monthlyNetIncome");
 
         var purpose = everything.forStep("purpose", "Purpose", List.of("loanPurpose"));
         assertThat(purpose.relevantFigures()).isEmpty();
@@ -104,18 +104,18 @@ class ProfileFactsTest {
     @Test
     void coApplicantChangesHouseholdAffordabilityAndAppearsInProfile() {
         Map<String, Object> base = merge(merge(Map.of("purchasePrice", 500_000), LOAN_STEP),
-                Map.of("employmentType", "EMPLOYED", "monthlyGrossIncome", 3_500,
+                Map.of("employmentType", "EMPLOYED", "monthlyNetIncome", 3_500,
                         "monthlyDebtPayments", 300));
         LoanProfile single = profileFor(base);
         LoanProfile joint = profileFor(merge(base, Map.of("hasCoApplicant", true,
-                "coApplicantName", "Sam", "coApplicantMonthlyIncome", 3_000,
+                "coApplicantName", "Sam", "coApplicantMonthlyIncome", 4_000,
                 "coApplicantMonthlyDebtPayments", 100)));
 
         assertThat(single.applicants()).hasSize(1);
         assertThat(joint.applicants()).hasSize(2);
         assertThat(joint.applicants().get(1).name()).isEqualTo("Sam");
         assertThat(joint.applicants().get(1).employment()).isNull();
-        assertThat(joint.applicants().get(1).monthlyGrossIncome()).isEqualTo(3_000);
+        assertThat(joint.applicants().get(1).monthlyNetIncome()).isEqualTo(4_000);
         assertThat(joint.applicants().get(1).monthlyDebtPayments()).isEqualTo(100);
 
         assertThat(joint.financials().dti()).isLessThan(single.financials().dti());
@@ -123,8 +123,8 @@ class ProfileFactsTest {
                 .isGreaterThan(single.financials().monthlyBufferAfterStress());
         assertThat(single.financials().stressTestResult()).isEqualTo("FAIL");
         assertThat(joint.financials().stressTestResult()).isEqualTo("PASS");
-        assertThat(single.riskIndicators()).anyMatch(r -> r.contains("Fails the rate-rise stress test"));
-        assertThat(joint.riskIndicators()).noneMatch(r -> r.contains("Fails the rate-rise stress test"));
+        assertThat(single.riskIndicators()).anyMatch(r -> r.contains("Fails the stress test"));
+        assertThat(joint.riskIndicators()).noneMatch(r -> r.contains("Fails the stress test"));
     }
 
     @Test
@@ -171,6 +171,51 @@ class ProfileFactsTest {
         assertThat(facts.notAnsweredYet()).doesNotContain(
                 "coApplicantName", "coApplicantMonthlyIncome", "coApplicantMonthlyDebtPayments");
         assertThat(names(facts.figures())).contains("debtToIncomePercent", "stressTestResult");
+    }
+
+    /** Issue #31: self-employed applicants count a twelfth of last year's net profit as monthly net income. */
+    @Test
+    void selfEmployedIncomeIsATwelfthOfLastYearsNetProfit() {
+        Map<String, Object> loan = merge(Map.of("purchasePrice", 500_000), LOAN_STEP);
+        Map<String, Object> selfEmployed = merge(loan, Map.of("employmentType", "SELF_EMPLOYED",
+                "monthlyDebtPayments", 300, "yearsTrading", 4, "lastYearNetProfit", 42_000));
+
+        LoanProfile profile = profileFor(selfEmployed);
+        assertThat(profile.applicants().get(0).monthlyNetIncome()).isEqualTo(3_500);
+        assertThat(profile.financials().dti()).isEqualTo(profileFor(merge(loan, Map.of(
+                "employmentType", "EMPLOYED", "monthlyNetIncome", 3_500, "monthlyDebtPayments", 300)))
+                .financials().dti());
+
+        ProfileFacts facts = factsFor(selfEmployed);
+        assertThat(facts.notAnsweredYet()).doesNotContain("monthlyNetIncome", "lastYearNetProfit");
+        ProfileFacts.Figure dti = facts.figures().stream()
+                .filter(f -> f.name().equals("debtToIncomePercent")).findFirst().orElseThrow();
+        assertThat(dti.basedOn()).contains("lastYearNetProfit").doesNotContain("monthlyNetIncome");
+
+        ProfileFacts noProfitYet = factsFor(merge(loan, Map.of("employmentType", "SELF_EMPLOYED",
+                "monthlyDebtPayments", 300)));
+        assertThat(noProfitYet.notAnsweredYet()).contains("lastYearNetProfit").doesNotContain("monthlyNetIncome");
+        assertThat(names(noProfitYet.figures())).doesNotContain("debtToIncomePercent", "stressTestResult");
+    }
+
+    /** Issue #31: the 50% limit applies at the stressed rate (contract rate + 2 pp, at least 6%). */
+    @Test
+    void stressTestFailsWhenStressedPaymentsTakeMoreThanHalfOfNetIncome() {
+        // 4.35% variable, so the stress test runs at 6.35%: about 1 664/month on 250 000 over 25 years.
+        Map<String, Object> loan = merge(Map.of("purchasePrice", 300_000), Map.of(
+                "downPayment", 50_000, "loanAmount", 250_000, "termYears", 25, "rateType", "VARIABLE"));
+        LoanProfile.Financials passes = profileFor(merge(loan, Map.of(
+                "employmentType", "EMPLOYED", "monthlyNetIncome", 3_400, "monthlyDebtPayments", 0))).financials();
+        LoanProfile.Financials fails = profileFor(merge(loan, Map.of(
+                "employmentType", "EMPLOYED", "monthlyNetIncome", 3_200, "monthlyDebtPayments", 0))).financials();
+
+        assertThat(passes.stressedMonthlyPayment()).isCloseTo(1_664, org.assertj.core.api.Assertions.within(1.0));
+        assertThat(passes.stressedDti()).isLessThanOrEqualTo(50);
+        assertThat(passes.stressTestResult()).isEqualTo("PASS");
+        assertThat(fails.stressedDti()).isGreaterThan(50);
+        assertThat(fails.stressTestResult()).isEqualTo("FAIL");
+        // Above 50% under stress but well within it at today's rate: the stress test is what decides.
+        assertThat(fails.dti()).isLessThan(50);
     }
 
     private static Map<String, Object> merge(Map<String, Object> a, Map<String, Object> b) {

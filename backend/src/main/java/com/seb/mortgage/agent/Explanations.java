@@ -36,14 +36,15 @@ public final class Explanations {
 			Map.entry("co-applicant", new Entry(
 					"A co-applicant is a second person applying for the mortgage with you. Their income can increase the household income considered by the lender, "
 							+ "but their existing debts and other commitments are considered as well.",
-					List.of("gross-income", "debt-payments"))),
+					List.of("net-income", "debt-payments"))),
 			Map.entry("co-applicant-name", new Entry(
 					"Enter the name of the second person applying for the mortgage with you. "
 							+ "Their financial information will be considered together with yours when the joint application is assessed.",
 					List.of("co-applicant"))),
-			Map.entry("gross-income", new Entry(
-					"Monthly gross income is the amount earned each month before income tax and other deductions are taken out. "
-							+ "Lenders use income as part of the affordability assessment and normally ask for documents that prove it.",
+			Map.entry("net-income", new Entry(
+					"Monthly net income is what actually lands in your bank account each month, after income tax and other deductions. "
+							+ "Estonian lenders assess affordability on net income: all your loan payments together may take at most half of it. "
+							+ "They normally ask for documents that prove it, such as bank statements.",
 					List.of("proof-of-income", "debt-to-income"))),
 			Map.entry("debt-payments", new Entry(
 					"Existing monthly debt payments are the regular payments you already make on borrowing such as personal loans, car finance, or credit cards. "
@@ -54,9 +55,10 @@ public final class Explanations {
 							+ "A longer trading history gives a lender more evidence to judge whether the income is stable and sustainable.",
 					List.of("employment-type", "proof-of-income", "net-profit"))),
 			Map.entry("net-profit", new Entry(
-					"Net profit is what the business earned after its expenses were deducted from its revenue. "
-							+ "For self-employed applicants, lenders may review recent profit figures together with tax returns or accounts to assess sustainable income.",
-					List.of("years-trading", "proof-of-income"))),
+					"Net profit is what the business earned after its expenses and taxes were deducted from its revenue. "
+							+ "For self-employed applicants it stands in for a salary: a twelfth of last year's net profit counts as monthly net income. "
+							+ "Lenders check it against tax returns or accounts to judge whether the income is sustainable.",
+					List.of("years-trading", "proof-of-income", "net-income"))),
 			Map.entry("loan-amount", new Entry(
 					"The loan amount is the amount you want to borrow from the lender. It is normally the part of the property price that is not covered by your down payment, "
 							+ "and together with the property value it determines your loan-to-value ratio.",
@@ -88,13 +90,14 @@ public final class Explanations {
 					List.of("interest-rate", "stress-test", "fixed-period"))),
 			Map.entry("stress-test", new Entry(
 					"A stress test checks whether you could still afford the payments if interest rates rose. "
-							+ "Lenders re-run your budget at a higher rate (here, +3 percentage points) and want "
-							+ "to see money left over each month afterwards.",
+							+ "Estonian lenders recalculate your payment at your rate plus 2 percentage points (and at least 6%), "
+							+ "and at that rate all your loan payments together must stay within half of your net income.",
 					List.of("interest-rate", "debt-to-income"))),
 			Map.entry("debt-to-income", new Entry(
-					"Debt-to-income (DTI) compares your monthly debt payments - including the new mortgage - "
-							+ "with your monthly income. Most lenders get uncomfortable above roughly 40%.",
-					List.of("stress-test", "debt-payments", "gross-income"))),
+					"Debt-to-income (DTI) compares your monthly loan payments - including the new mortgage - "
+							+ "with your monthly net income. Under Eesti Pank's rules it may be at most 50%, "
+							+ "worked out at the higher stress-test rate rather than today's rate.",
+					List.of("stress-test", "debt-payments", "net-income"))),
 			Map.entry("amortization", new Entry(
 					"Amortization is how the loan is paid down over time. With each monthly payment part goes "
 							+ "to interest and part reduces the balance; early on most of it is interest, later "
@@ -112,7 +115,7 @@ public final class Explanations {
 			Map.entry("proof-of-income", new Entry(
 					"Proof of income is the evidence a lender uses to confirm what you earn: recent payslips "
 							+ "and bank statements if employed, or tax returns and business accounts if self-employed.",
-					List.of("employment-type", "gross-income"))),
+					List.of("employment-type", "net-income"))),
 			Map.entry("what-is-a-loan", new Entry(
 					"""
 					A mortgage lets you buy a home now by borrowing most of the price from a lender, then paying it back - plus interest - in monthly instalments over many years, usually 20 to 30.

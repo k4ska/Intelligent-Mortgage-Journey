@@ -3,19 +3,29 @@ package com.seb.mortgage.mockdata;
 import org.springframework.stereotype.Service;
 
 /**
- * Simplified affordability maths. Not regulatory-accurate (by design, per the brief) but
- * good enough to make the agent's feedback concrete.
+ * Simplified affordability maths on monthly <b>net</b> income, following the shape of Eesti
+ * Pank's borrower rules for housing loans: all loan payments may take at most
+ * {@link #MAX_DTI_PCT}% of net income, checked at a stressed rate of the contract rate +
+ * {@link #STRESS_DELTA_PCT} points, but at least {@link #STRESS_RATE_FLOOR_PCT}%. Not a full
+ * implementation of those rules (no exemption quota, no maturity cap) but close enough
+ * to make the agent's feedback concrete.
  */
 @Service
 public class AffordabilityCalculator {
 
-	/** Percentage points added to the rate for the stress test. */
-	public static final double STRESS_DELTA_PCT = 3.0;
+	/** Percentage points added to the contract rate for the stress test. */
+	public static final double STRESS_DELTA_PCT = 2.0;
 
-	/** Above this debt-to-income (all debts incl. the mortgage, % of income) a profile is flagged. */
-	public static final double MAX_DTI_PCT = 40.0;
+	/** The stress-test rate is never below this, however low the contract rate is. */
+	public static final double STRESS_RATE_FLOOR_PCT = 6.0;
 
-	/** Money a month left after debts and the stressed payment for the stress test to PASS. */
+	/** Most of net income all loan payments (incl. the mortgage at the stressed rate) may take. */
+	public static final double MAX_DTI_PCT = 50.0;
+
+	/**
+	 * Money a month left after debts and the stressed payment for the stress test to PASS
+	 * rather than TIGHT. With the 50% limit this only bites on very low incomes.
+	 */
 	public static final double MIN_STRESS_BUFFER = 300.0;
 
 	/**
@@ -57,17 +67,18 @@ public class AffordabilityCalculator {
 	}
 
 	/**
-	 * The largest loan the journey's own checks would accept: debt-to-income within
-	 * {@link #MAX_DTI_PCT}, a stress-test buffer of at least {@link #MIN_STRESS_BUFFER}, and,
-	 * when a down payment is given, loan-to-value within {@link #TYPICAL_MAX_LTV_PCT}.
+	 * The largest loan the journey's own checks would accept: at the stressed rate, loan
+	 * payments within {@link #MAX_DTI_PCT}% of net income and a buffer of at least
+	 * {@link #MIN_STRESS_BUFFER}, and, when a down payment is given, loan-to-value within
+	 * {@link #TYPICAL_MAX_LTV_PCT}.
 	 * Floored to whole euros so a loan at the maximum never lands just over a limit.
 	 * The amount is 0 when the income can't carry any loan.
 	 */
 	public MaxLoan maxLoan(double monthlyIncome, double monthlyDebts, Double downPayment,
 			double annualRatePct, int termYears) {
-		double byIncome = principalFor(MAX_DTI_PCT / 100.0 * monthlyIncome - monthlyDebts, annualRatePct, termYears);
-		double byStress = principalFor(monthlyIncome - monthlyDebts - MIN_STRESS_BUFFER,
-				annualRatePct + STRESS_DELTA_PCT, termYears);
+		double stressedRate = stressedRate(annualRatePct);
+		double byIncome = principalFor(MAX_DTI_PCT / 100.0 * monthlyIncome - monthlyDebts, stressedRate, termYears);
+		double byStress = principalFor(monthlyIncome - monthlyDebts - MIN_STRESS_BUFFER, stressedRate, termYears);
 
 		double amount = byIncome;
 		LoanLimit limitedBy = LoanLimit.INCOME;
@@ -86,16 +97,21 @@ public class AffordabilityCalculator {
 		return new MaxLoan(Math.max(0, Math.floor(amount)), limitedBy);
 	}
 
+	/** The rate the stress test uses: contract rate + {@link #STRESS_DELTA_PCT}, at least {@link #STRESS_RATE_FLOOR_PCT}. */
+	public static double stressedRate(double annualRatePct) {
+		return Math.max(annualRatePct + STRESS_DELTA_PCT, STRESS_RATE_FLOOR_PCT);
+	}
+
 	public double stressedMonthlyPayment(double principal, double annualRatePct, int termYears) {
-		return monthlyPayment(principal, annualRatePct + STRESS_DELTA_PCT, termYears);
+		return monthlyPayment(principal, stressedRate(annualRatePct), termYears);
 	}
 
 	public double loanToValue(double loanAmount, double propertyValue) {
 		return propertyValue <= 0 ? 0 : round1(loanAmount / propertyValue * 100.0);
 	}
 
-	public double debtToIncome(double monthlyDebtPayments, double monthlyGrossIncome) {
-		return monthlyGrossIncome <= 0 ? 0 : round1(monthlyDebtPayments / monthlyGrossIncome * 100.0);
+	public double debtToIncome(double monthlyDebtPayments, double monthlyNetIncome) {
+		return monthlyNetIncome <= 0 ? 0 : round1(monthlyDebtPayments / monthlyNetIncome * 100.0);
 	}
 
 	private static double round1(double v) {

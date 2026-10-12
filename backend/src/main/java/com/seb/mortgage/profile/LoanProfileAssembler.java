@@ -24,17 +24,21 @@ import java.util.stream.Stream;
 @Service
 public class LoanProfileAssembler {
 
-    /** Answers that {@link #assemble} replaces with a default when they are missing. */
+    /**
+     * Answers that {@link #assemble} replaces with a default when they are missing. For a
+     * self-employed applicant {@code lastYearNetProfit} takes the place of {@code monthlyNetIncome}.
+     */
     static final List<String> DEFAULTED_KEYS = List.of(
             "loanPurpose", "propertyAddress", "propertyType", "purchasePrice", "employmentType",
-            "monthlyGrossIncome", "monthlyDebtPayments", "downPayment", "loanAmount", "termYears",
+            "monthlyNetIncome", "monthlyDebtPayments", "downPayment", "loanAmount", "termYears",
             "rateType");
+
+    /** Monthly net income assumed when none is given yet, so the profile is always complete. */
+    private static final double DEFAULT_MONTHLY_NET_INCOME = 2_500;
 
     private static final List<String> LOAN_INPUTS = List.of("purchasePrice", "downPayment", "loanAmount");
     private static final List<String> PAYMENT_INPUTS = List.of(
             "purchasePrice", "downPayment", "loanAmount", "termYears", "rateType", "fixedYears");
-    private static final List<String> AFFORDABILITY_INPUTS = Stream.concat(PAYMENT_INPUTS.stream(),
-            Stream.of("monthlyGrossIncome", "monthlyDebtPayments")).toList();
     private static final List<String> CO_APPLICANT_INPUTS = List.of(
             "coApplicantMonthlyIncome", "coApplicantMonthlyDebtPayments");
     private static final List<String> CO_APPLICANT_REQUIRED = List.of(
@@ -69,7 +73,7 @@ public class LoanProfileAssembler {
                 .estimate(str(a.get("propertyAddress"), ""), purchasePrice)
                 .estimatedValue();
 
-        double monthlyIncome = num(a.get("monthlyGrossIncome"), 4_000);
+        double monthlyIncome = monthlyNetIncome(a);
         double monthlyDebt = num(a.get("monthlyDebtPayments"), 0);
         boolean hasCoApplicant = Boolean.TRUE.equals(a.get("hasCoApplicant"));
         double coIncome = hasCoApplicant ? num(a.get("coApplicantMonthlyIncome"), 0) : 0;
@@ -85,12 +89,13 @@ public class LoanProfileAssembler {
         // LTV at origination is measured against the purchase price (what you agreed to pay).
         double ltv = calculator.loanToValue(loanAmount, purchasePrice);
         double dti = calculator.debtToIncome(householdDebt + payment, householdIncome);
+        double stressedDti = calculator.debtToIncome(householdDebt + stressed, householdIncome);
 
-        String stressResult = buffer < 0 ? "FAIL"
+        String stressResult = stressedDti > AffordabilityCalculator.MAX_DTI_PCT || buffer < 0 ? "FAIL"
                 : buffer < AffordabilityCalculator.MIN_STRESS_BUFFER ? "TIGHT" : "PASS";
 
         LoanProfile.Financials financials = new LoanProfile.Financials(
-                downPayment, ltv, dti, round2(payment), round2(stressed), buffer, stressResult);
+                downPayment, ltv, dti, stressedDti, round2(payment), round2(stressed), buffer, stressResult);
 
         List<LoanProfile.Applicant> applicants = new ArrayList<>();
         applicants.add(new LoanProfile.Applicant(
@@ -129,9 +134,11 @@ public class LoanProfileAssembler {
             }
         });
         boolean hasCoApplicant = Boolean.TRUE.equals(entered.get("hasCoApplicant"));
-        List<String> requiredKeys = hasCoApplicant
-                ? Stream.concat(DEFAULTED_KEYS.stream(), CO_APPLICANT_REQUIRED.stream()).toList()
-                : DEFAULTED_KEYS;
+        String incomeKey = incomeKey(entered);
+        List<String> requiredKeys = Stream.concat(
+                        DEFAULTED_KEYS.stream().map(k -> k.equals("monthlyNetIncome") ? incomeKey : k),
+                        hasCoApplicant ? CO_APPLICANT_REQUIRED.stream() : Stream.empty())
+                .toList();
         List<String> notAnsweredYet = requiredKeys.stream().filter(k -> !entered.containsKey(k)).toList();
 
         LoanProfile p = assemble(application);
@@ -142,12 +149,13 @@ public class LoanProfileAssembler {
         boolean hasPrice = entered.containsKey("purchasePrice");
         boolean hasLoan = entered.containsKey("loanAmount") || (hasPrice && entered.containsKey("downPayment"));
         boolean hasPayment = hasLoan && entered.containsKey("termYears") && entered.containsKey("rateType");
-        boolean hasAffordability = hasPayment && entered.containsKey("monthlyGrossIncome")
+        boolean hasAffordability = hasPayment && entered.containsKey(incomeKey)
                 && entered.containsKey("monthlyDebtPayments")
                 && (!hasCoApplicant || CO_APPLICANT_INPUTS.stream().allMatch(entered::containsKey));
-        List<String> affordabilityInputs = hasCoApplicant
-                ? Stream.concat(AFFORDABILITY_INPUTS.stream(), CO_APPLICANT_INPUTS.stream()).toList()
-                : AFFORDABILITY_INPUTS;
+        List<String> affordabilityInputs = Stream.of(PAYMENT_INPUTS.stream(),
+                        Stream.of("employmentType", incomeKey, "monthlyDebtPayments"),
+                        hasCoApplicant ? CO_APPLICANT_INPUTS.stream() : Stream.<String>empty())
+                .flatMap(keys -> keys).toList();
 
         List<ProfileFacts.Figure> figures = new ArrayList<>();
         if (hasPrice) {
@@ -170,6 +178,8 @@ public class LoanProfileAssembler {
         if (hasAffordability) {
             figures.add(new ProfileFacts.Figure("debtToIncomePercent", f.dti(), affordabilityInputs,
                     dtiRisk(f.dti())));
+            figures.add(new ProfileFacts.Figure("stressedDebtToIncomePercent", f.stressedDti(),
+                    affordabilityInputs, null));
             figures.add(new ProfileFacts.Figure("monthlyBufferAfterStress", f.monthlyBufferAfterStress(),
                     affordabilityInputs, null));
             figures.add(new ProfileFacts.Figure("stressTestResult", f.stressTestResult(),
@@ -200,19 +210,37 @@ public class LoanProfileAssembler {
 
     private static String dtiRisk(double dti) {
         return dti > AffordabilityCalculator.MAX_DTI_PCT
-                ? "Debt-to-income of " + dti + "% is above the level most lenders are comfortable with"
+                ? "Loan payments already take " + dti + "% of net income at today's rate - above the "
+                        + (int) AffordabilityCalculator.MAX_DTI_PCT + "% lenders may allow"
                 : null;
     }
 
     private static String stressRisk(LoanProfile.Financials f) {
         if ("FAIL".equals(f.stressTestResult())) {
-            return "Fails the rate-rise stress test - monthly costs would exceed income if rates rose "
-                    + (int) AffordabilityCalculator.STRESS_DELTA_PCT + " points";
+            return "Fails the stress test - at the stress-test rate, loan payments would take "
+                    + f.stressedDti() + "% of net income, above the "
+                    + (int) AffordabilityCalculator.MAX_DTI_PCT + "% limit";
         }
         if ("TIGHT".equals(f.stressTestResult())) {
             return "Thin buffer (" + f.monthlyBufferAfterStress() + "/month) after a rate-rise stress test";
         }
         return null;
+    }
+
+    private static boolean selfEmployed(Map<String, Object> answers) {
+        return "SELF_EMPLOYED".equals(str(answers.get("employmentType"), "EMPLOYED"));
+    }
+
+    /** The answer income comes from: last year's net profit when self-employed, else monthly net income. */
+    private static String incomeKey(Map<String, Object> answers) {
+        return selfEmployed(answers) ? "lastYearNetProfit" : "monthlyNetIncome";
+    }
+
+    /** Self-employed applicants count a twelfth of last year's net profit. */
+    private static double monthlyNetIncome(Map<String, Object> answers) {
+        return selfEmployed(answers)
+                ? round2(num(answers.get("lastYearNetProfit"), DEFAULT_MONTHLY_NET_INCOME * 12) / 12)
+                : num(answers.get("monthlyNetIncome"), DEFAULT_MONTHLY_NET_INCOME);
     }
 
     private static double num(Object o, double fallback) {

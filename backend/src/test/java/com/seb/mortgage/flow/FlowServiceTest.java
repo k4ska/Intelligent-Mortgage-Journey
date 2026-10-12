@@ -69,6 +69,17 @@ class FlowServiceTest {
 		assertThat(next.orElseThrow().id()).isEqualTo("self-employed");
 	}
 
+	/** Issue #31: self-employed applicants give last year's net profit, not a monthly salary. */
+	@Test
+	void monthlyNetIncomeIsHiddenForSelfEmployed() {
+		FlowDefinition.Field income = flowService.step("income").orElseThrow().fields().stream()
+				.filter(f -> f.key().equals("monthlyNetIncome")).findFirst().orElseThrow();
+
+		assertThat(income.visible(Map.of())).isTrue();
+		assertThat(income.visible(Map.of("employmentType", "EMPLOYED"))).isTrue();
+		assertThat(income.visible(Map.of("employmentType", "SELF_EMPLOYED"))).isFalse();
+	}
+
 	@Test
 	void fixedRateBranchIsTaken() {
 		var next = flowService.nextStep("loan", Map.of("rateType", "FIXED"));

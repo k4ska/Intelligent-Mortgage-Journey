@@ -160,6 +160,11 @@ generically.
 }
 ```
 
+A field can also carry `"showIf": { "field": …, "op": …, "value": … }` (same condition
+format as `next`). It is shown only while that holds, and the backend drops its answer
+otherwise - e.g. monthly net income is hidden for self-employed applicants, who give last
+year's net profit instead.
+
 ### 2. Agent API
 
 ```
