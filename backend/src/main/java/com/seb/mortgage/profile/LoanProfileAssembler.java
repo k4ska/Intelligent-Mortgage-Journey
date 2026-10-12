@@ -86,7 +86,8 @@ public class LoanProfileAssembler {
         double ltv = calculator.loanToValue(loanAmount, purchasePrice);
         double dti = calculator.debtToIncome(householdDebt + payment, householdIncome);
 
-        String stressResult = buffer < 0 ? "FAIL" : buffer < 300 ? "TIGHT" : "PASS";
+        String stressResult = buffer < 0 ? "FAIL"
+                : buffer < AffordabilityCalculator.MIN_STRESS_BUFFER ? "TIGHT" : "PASS";
 
         LoanProfile.Financials financials = new LoanProfile.Financials(
                 downPayment, ltv, dti, round2(payment), round2(stressed), buffer, stressResult);
@@ -198,7 +199,9 @@ public class LoanProfileAssembler {
     }
 
     private static String dtiRisk(double dti) {
-        return dti > 40 ? "Debt-to-income of " + dti + "% is above the level most lenders are comfortable with" : null;
+        return dti > AffordabilityCalculator.MAX_DTI_PCT
+                ? "Debt-to-income of " + dti + "% is above the level most lenders are comfortable with"
+                : null;
     }
 
     private static String stressRisk(LoanProfile.Financials f) {

@@ -191,9 +191,10 @@ The standardized output; feeds the mock multi-bank comparison screen.
 ```
 
 The multi-bank ambition is kept to a **single comparison screen** fed by this profile —
-no bank integrations. A fourth, standalone `POST /api/calculator/estimate` endpoint
-(price/down-payment/rate/term → monthly payment) sits outside these three contracts on
-purpose — it's pure math with no persistence or agent involvement, used by the landing
+no bank integrations. Two standalone calculator endpoints, `POST /api/calculator/estimate`
+(price/down-payment/rate/term → monthly payment) and `POST /api/calculator/max-loan`
+(income/debts/down payment → largest loan), sit outside these three contracts on
+purpose — they're pure math with no persistence or agent involvement, used by the landing
 page before an application exists.
 
 ---

@@ -38,7 +38,8 @@ app/
     ├── FieldInput.vue       renders a single field by its type
     ├── AssistPanel.vue      explanations + streaming chat
     ├── ProfileSummary.vue   the review screen: read-back, profile, offers, documents
-    └── LoanCalculatorCard.vue  price/down-payment → live monthly payment, no application needed
+    ├── LoanCalculatorCard.vue  price/down-payment → live monthly payment, no application needed
+    └── MaxLoanCalculatorCard.vue  income/debts/down payment → "how much can I borrow?", no application needed
 ```
 
 Both pages, and the shared `layouts/default.vue` shell, are built to fit the viewport

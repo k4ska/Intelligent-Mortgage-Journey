@@ -3,6 +3,24 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-12 — "How much can I borrow?" calculator (#29)
+
+- **Same rules as the journey**: the max loan is the smallest of the income limit
+  (DTI ≤ 40%), the stress-test limit (≥ €300 left at rate + 3 pp) and, when a down
+  payment is given, the LTV limit. The 40% / €300 limits are now constants on
+  `AffordabilityCalculator` (`MAX_DTI_PCT`, `MIN_STRESS_BUFFER`) that `LoanProfileAssembler`
+  also uses, so the calculator can't promise a loan the journey then flags. A round-trip
+  test checks that.
+- **LTV: a typical 85%, not the best mock bank's 95%** (`TYPICAL_MAX_LTV_PCT`), so the
+  estimate doesn't assume the most generous lender.
+- **Gross income for now**: #31 switches affordability to net income with new limits.
+  Until then the calculator asks for gross income to match the journey; #31 only has to
+  change the shared constants and the labels.
+- **Hub layout**: the four cards sit in one row on wide screens (two columns below `lg`),
+  and the hub container widens from `max-w-4xl` to `max-w-6xl` so everything still fits
+  the viewport.
+- Living costs/dependants and carrying the inputs into "Start the journey" are left out.
+
 ## 2026-10-11 — Dropped Anthropic, OpenAI only
 
 - **Why**: we only run the agents on OpenAI now, so the Anthropic path (the default since

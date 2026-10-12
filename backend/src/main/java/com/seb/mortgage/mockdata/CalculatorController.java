@@ -39,6 +39,30 @@ public class CalculatorController {
 		return new EstimateResponse(Math.round(loanAmount), Math.round(monthlyPayment), ltv, annualRatePct, termYears);
 	}
 
+	/**
+	 * "How much can I borrow?" - the largest loan the journey's affordability checks would
+	 * accept for this income, debts and (optional) down payment.
+	 */
+	@PostMapping("/max-loan")
+	public MaxLoanResponse maxLoan(@RequestBody MaxLoanRequest request) {
+		double income = nonNegative(request.monthlyIncome()) + nonNegative(request.coApplicantMonthlyIncome());
+		double debts = nonNegative(request.monthlyDebtPayments());
+		Double downPayment = request.downPayment() == null || request.downPayment() <= 0 ? null : request.downPayment();
+		Double requestedRate = request.annualRatePct();
+		Integer requestedTerm = request.termYears();
+		double annualRatePct = requestedRate == null ? rateService.rateFor(null, null) : requestedRate;
+		int termYears = requestedTerm == null ? 25 : requestedTerm;
+
+		AffordabilityCalculator.MaxLoan max = calculator.maxLoan(income, debts, downPayment, annualRatePct, termYears);
+		double maxLoanAmount = max.amount();
+		Double maxPropertyPrice = downPayment == null ? null : (double) Math.round(maxLoanAmount + downPayment);
+
+		return new MaxLoanResponse(maxLoanAmount, maxPropertyPrice,
+				Math.round(calculator.monthlyPayment(maxLoanAmount, annualRatePct, termYears)),
+				max.limitedBy(), annualRatePct, termYears,
+				AffordabilityCalculator.MAX_DTI_PCT, AffordabilityCalculator.TYPICAL_MAX_LTV_PCT);
+	}
+
 	private static double nonNegative(Double v) {
 		return v == null || v < 0 ? 0 : v;
 	}
@@ -47,4 +71,12 @@ public class CalculatorController {
 
 	public record EstimateResponse(
 			double loanAmount, double monthlyPayment, double ltv, double annualRatePct, int termYears) {}
+
+	public record MaxLoanRequest(Double monthlyIncome, Double coApplicantMonthlyIncome, Double monthlyDebtPayments,
+			Double downPayment, Double annualRatePct, Integer termYears) {}
+
+	/** {@code maxPropertyPrice} is null when no down payment was given. */
+	public record MaxLoanResponse(double maxLoanAmount, Double maxPropertyPrice, double monthlyPayment,
+			AffordabilityCalculator.LoanLimit limitedBy, double annualRatePct, int termYears,
+			double maxDtiPct, double maxLtvPct) {}
 }

@@ -157,6 +157,27 @@ export interface CalculatorEstimateRequest {
   termYears?: number | null
 }
 
+export interface MaxLoanRequest {
+  monthlyIncome: number | null
+  coApplicantMonthlyIncome?: number | null
+  monthlyDebtPayments?: number | null
+  downPayment?: number | null
+  annualRatePct?: number | null
+  termYears?: number | null
+}
+
+export interface MaxLoanResponse {
+  maxLoanAmount: number
+  /** Only when a down payment was given. */
+  maxPropertyPrice: number | null
+  monthlyPayment: number
+  limitedBy: 'INCOME' | 'STRESS' | 'DOWN_PAYMENT'
+  annualRatePct: number
+  termYears: number
+  maxDtiPct: number
+  maxLtvPct: number
+}
+
 export interface CalculatorEstimateResponse {
   loanAmount: number
   monthlyPayment: number
