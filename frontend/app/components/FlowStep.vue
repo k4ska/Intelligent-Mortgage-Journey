@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { Step, ValidateResponse } from '~/types/api'
 
-defineProps<{
+const props = defineProps<{
   step: Step
   draft: Record<string, unknown>
+  /** Saved answers from earlier steps. */
+  answers: Record<string, unknown>
   validation: ValidateResponse | null
   busy: boolean
   /** The agent is checking this step's answers. */
@@ -20,6 +22,12 @@ const emit = defineEmits<{
   back: []
 }>()
 
+/** The draft holds this step's answers; earlier answers can steer visibility too. */
+const visibleFields = computed(() => {
+  const answers = { ...props.answers, ...props.draft }
+  return props.step.fields.filter(field => fieldVisible(field, answers))
+})
+
 const severityColor = (s: string) =>
   s === 'BLOCKER' ? 'error' : s === 'WARNING' ? 'warning' : 'success'
 </script>
@@ -35,7 +43,7 @@ const severityColor = (s: string) =>
 
     <div class="flex flex-col gap-5">
       <FieldInput
-        v-for="field in step.fields"
+        v-for="field in visibleFields"
         :key="field.key"
         :field="field"
         :model-value="draft[field.key]"

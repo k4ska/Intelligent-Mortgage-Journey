@@ -59,7 +59,7 @@ public class CalculatorController {
 
 		return new MaxLoanResponse(maxLoanAmount, maxPropertyPrice,
 				Math.round(calculator.monthlyPayment(maxLoanAmount, annualRatePct, termYears)),
-				max.limitedBy(), annualRatePct, termYears,
+				max.limitedBy(), annualRatePct, AffordabilityCalculator.stressedRate(annualRatePct), termYears,
 				AffordabilityCalculator.MAX_DTI_PCT, AffordabilityCalculator.TYPICAL_MAX_LTV_PCT);
 	}
 
@@ -75,8 +75,11 @@ public class CalculatorController {
 	public record MaxLoanRequest(Double monthlyIncome, Double coApplicantMonthlyIncome, Double monthlyDebtPayments,
 			Double downPayment, Double annualRatePct, Integer termYears) {}
 
-	/** {@code maxPropertyPrice} is null when no down payment was given. */
+	/**
+	 * Incomes are monthly net (after tax). {@code maxPropertyPrice} is null when no down
+	 * payment was given; {@code maxDtiPct} applies at {@code stressRatePct}.
+	 */
 	public record MaxLoanResponse(double maxLoanAmount, Double maxPropertyPrice, double monthlyPayment,
-			AffordabilityCalculator.LoanLimit limitedBy, double annualRatePct, int termYears,
+			AffordabilityCalculator.LoanLimit limitedBy, double annualRatePct, double stressRatePct, int termYears,
 			double maxDtiPct, double maxLtvPct) {}
 }

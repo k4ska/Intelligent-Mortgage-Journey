@@ -35,8 +35,15 @@ public record FlowDefinition(
 			String placeholder,
 			/** Populated for {@link FieldType#SELECT} / {@link FieldType#RADIO}. */
 			List<Option> options,
-			Validation validation
-	) {}
+			Validation validation,
+			/** Shown only while this holds; null means always. A hidden field's answer is dropped. */
+			Condition showIf
+	) {
+
+		public boolean visible(Map<String, Object> answers) {
+			return showIf == null || showIf.matches(answers);
+		}
+	}
 
 	public enum FieldType { TEXT, MONEY, NUMBER, PERCENT, DATE, SELECT, RADIO, BOOLEAN }
 

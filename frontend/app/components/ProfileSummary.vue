@@ -25,7 +25,7 @@ const { data: review, pending: reviewPending } = useLazyAsyncData<ReviewResponse
 )
 
 const householdIncome = computed(() =>
-  profile.value?.applicants.reduce((sum, applicant) => sum + applicant.monthlyGrossIncome, 0) ?? 0,
+  profile.value?.applicants.reduce((sum, applicant) => sum + applicant.monthlyNetIncome, 0) ?? 0,
 )
 const householdDebt = computed(() =>
   profile.value?.applicants.reduce((sum, applicant) => sum + applicant.monthlyDebtPayments, 0) ?? 0,
@@ -170,12 +170,12 @@ async function askAboutReview() {
             <p v-if="applicant.employment" class="mt-1 text-muted capitalize">
               {{ applicant.employment.toLowerCase().replaceAll('_', ' ') }}
             </p>
-            <p class="mt-1">Gross income: {{ formatMoney(applicant.monthlyGrossIncome) }}/mo</p>
+            <p class="mt-1">Net income: {{ formatMoney(applicant.monthlyNetIncome) }}/mo</p>
             <p>Existing debt payments: {{ formatMoney(applicant.monthlyDebtPayments) }}/mo</p>
           </div>
         </div>
         <p class="mt-2 text-sm text-muted">
-          Household totals: {{ formatMoney(householdIncome) }}/mo gross income,
+          Household totals: {{ formatMoney(householdIncome) }}/mo net income,
           {{ formatMoney(householdDebt) }}/mo existing debt payments.
         </p>
       </div>
@@ -185,8 +185,9 @@ async function askAboutReview() {
           Stress test: {{ profile.financials.stressTestResult }}
         </UBadge>
         <span class="text-xs text-muted">
-          {{ formatMoney(profile.financials.stressedMonthlyPayment) }}/mo if rates rose 3 points
-          ({{ formatMoney(profile.financials.monthlyBufferAfterStress) }} left over)
+          {{ formatMoney(profile.financials.stressedMonthlyPayment) }}/mo at the stress-test rate:
+          loan payments {{ profile.financials.stressedDti }}% of net income (limit 50%),
+          {{ formatMoney(profile.financials.monthlyBufferAfterStress) }} left over
         </span>
       </div>
 

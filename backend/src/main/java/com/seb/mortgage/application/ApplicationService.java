@@ -102,17 +102,20 @@ public class ApplicationService {
 
 	/**
 	 * After answers change, a branching answer may have taken steps off the path (e.g. "no
-	 * co-applicant" after all). Their answers are dropped so they don't feed the profile or
-	 * the agents, and the application is complete only while every step on the path is.
+	 * co-applicant" after all), or hidden a field (e.g. monthly salary once "self-employed" is
+	 * picked). Those answers are dropped so they don't feed the profile or the agents, and
+	 * the application is complete only while every step on the path is.
 	 */
 	private void syncWithPath(LoanApplication application) {
-		List<FlowDefinition.Step> path = flowService.path(application.getAnswers());
+		Map<String, Object> answers = application.getAnswers();
+		List<FlowDefinition.Step> path = flowService.path(answers);
 		Set<String> pathIds = path.stream().map(FlowDefinition.Step::id).collect(Collectors.toSet());
-		List<String> offPathKeys = flowService.definition().steps().stream()
-				.filter(step -> !pathIds.contains(step.id()))
-				.flatMap(step -> step.fields().stream().map(FlowDefinition.Field::key))
+		List<String> droppedKeys = flowService.definition().steps().stream()
+				.flatMap(step -> step.fields().stream()
+						.filter(field -> !pathIds.contains(step.id()) || !field.visible(answers)))
+				.map(FlowDefinition.Field::key)
 				.toList();
-		application.removeAnswers(offPathKeys);
+		application.removeAnswers(droppedKeys);
 		application.retainCompleted(pathIds);
 		application.setComplete(pathIds.stream().allMatch(application.getCompletedSteps()::contains));
 	}
@@ -132,7 +135,10 @@ public class ApplicationService {
 	@Transactional(readOnly = true)
 	public ProfileFacts.StepFacts stepFacts(UUID id, String stepId) {
 		Optional<FlowDefinition.Step> step = flowService.step(stepId);
-		List<String> keys = step.map(s -> s.fields().stream().map(FlowDefinition.Field::key).toList())
+		Map<String, Object> answers = get(id).getAnswers();
+		List<String> keys = step.map(s -> s.fields().stream()
+				.filter(field -> field.visible(answers))
+				.map(FlowDefinition.Field::key).toList())
 				.orElse(List.of());
 		String title = step.map(FlowDefinition.Step::title).orElse(stepId);
 		return facts(id).forStep(stepId, title, keys);

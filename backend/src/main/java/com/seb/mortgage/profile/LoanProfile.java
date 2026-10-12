@@ -23,7 +23,7 @@ public record LoanProfile(
             String name,
             /** Not collected for the co-applicant. */
             String employment,
-            double monthlyGrossIncome,
+            double monthlyNetIncome,
             double monthlyDebtPayments
     ) {}
 
@@ -45,8 +45,10 @@ public record LoanProfile(
             double downPayment,
             /** Loan-to-value, %. */
             double ltv,
-            /** Debt-to-income, %. */
+            /** All loan payments incl. the new mortgage as % of net income, at today's rate. */
             double dti,
+            /** The same at the stress-test rate - the figure the 50% limit applies to. */
+            double stressedDti,
             double estimatedMonthlyPayment,
             /** Monthly payment if rates rose by the stress-test delta. */
             double stressedMonthlyPayment,

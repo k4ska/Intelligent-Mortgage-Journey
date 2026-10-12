@@ -102,9 +102,9 @@ it knows). Two grounding sources exist today:
 ### Co-applicant financial grounding
 
 When `hasCoApplicant` is true, `LoanProfileAssembler` includes a second applicant in
-`LoanProfile.applicants` and adds the co-applicant's monthly gross income and existing
-debt payments to the primary applicant's amounts. DTI, the monthly buffer after the
-rate-rise stress test, the stress-test result and related affordability risk indicators
+`LoanProfile.applicants` and adds the co-applicant's monthly net income and existing
+debt payments to the primary applicant's amounts. DTI (at today's rate and at the
+stress-test rate), the monthly buffer after the stress test, the stress-test result and related affordability risk indicators
 therefore reflect the household, not just the primary applicant. The `co-applicant`
 flow step collects `coApplicantName`, `coApplicantMonthlyIncome` and
 `coApplicantMonthlyDebtPayments`; an explicitly entered debt amount of 0 is valid.

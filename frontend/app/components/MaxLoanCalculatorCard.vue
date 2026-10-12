@@ -5,7 +5,7 @@ import type { MaxLoanResponse } from '~/types/api'
 // would accept, so this never promises something the journey then flags.
 const api = useApi()
 
-const income = ref<number | null>(4000)
+const income = ref<number | null>(2500)
 const coIncome = ref<number | null>(null)
 const debts = ref<number | null>(null)
 const downPayment = ref<number | null>(60000)
@@ -41,13 +41,13 @@ const limitText = computed(() => {
   const r = result.value
   if (!r) return ''
   if (r.maxLoanAmount <= 0) {
-    return `Your debts already take ${r.maxDtiPct}% or more of your income - no room for a mortgage payment.`
+    return `Your debts already take ${r.maxDtiPct}% or more of your net income - no room for a mortgage payment.`
   }
   switch (r.limitedBy) {
     case 'INCOME':
-      return `Limited by your income: more would put your debts above ${r.maxDtiPct}% of it.`
+      return `Limited by your income: at a stress-test rate of ${r.stressRatePct}%, more would put your loan payments above ${r.maxDtiPct}% of it.`
     case 'STRESS':
-      return 'Limited by the stress test: a 3-point rate rise would leave too little each month.'
+      return `Limited by the stress test: at ${r.stressRatePct}%, a bigger loan would leave too little each month.`
     case 'DOWN_PAYMENT':
       return `Limited by your down payment: lenders typically lend up to ${r.maxLtvPct}% of the price.`
   }
@@ -62,7 +62,7 @@ const limitText = computed(() => {
     </span>
     <p class="mt-4 font-semibold text-[var(--ui-text-highlighted)]">How much can I borrow?</p>
     <p class="mt-1.5 text-sm text-[var(--ui-text-muted)]">
-      Monthly gross income and debts, plus any down payment.
+      Monthly net income and debts, plus any down payment.
     </p>
 
     <div class="mt-3 grid grid-cols-2 gap-2">
@@ -71,14 +71,14 @@ const limitText = computed(() => {
         size="md"
         placeholder="Income"
         leading-icon="i-lucide-euro"
-        :aria-label="'Your monthly gross income'"
+        :aria-label="'Your monthly net income (after tax)'"
       />
       <NumberInput
         v-model="coIncome"
         size="md"
         placeholder="Partner"
         leading-icon="i-lucide-euro"
-        :aria-label="'Co-applicant monthly gross income (optional)'"
+        :aria-label="'Co-applicant monthly net income (optional)'"
       />
       <NumberInput
         v-model="debts"
