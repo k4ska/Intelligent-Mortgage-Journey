@@ -114,23 +114,24 @@ public final class Explanations {
 							+ "and bank statements if employed, or tax returns and business accounts if self-employed.",
 					List.of("employment-type", "gross-income"))),
 			Map.entry("what-is-a-loan", new Entry(
-					"A mortgage loan lets you buy a property now by borrowing most of its price from a lender, "
-							+ "then repaying it - plus interest - in monthly instalments over many years, commonly "
-							+ "20 to 30. You put down a portion yourself up front (the down payment); the property "
-							+ "itself is the lender's security until the loan is paid off. Two things chiefly set "
-							+ "your price: the loan-to-value and the interest rate you're offered.",
+					"""
+					A mortgage lets you buy a home now by borrowing most of the price from a lender, then paying it back - plus interest - in monthly instalments over many years, usually 20 to 30.
+
+					You pay part of the price yourself up front: the down payment. The home is the lender's security, so if the loan isn't repaid the lender can sell it.
+
+					What the loan costs you mostly comes down to the interest rate. That rate depends partly on your loan-to-value - how much you borrow compared with the home's value - and the lender also checks that your income can carry the payments.""",
 					List.of("loan-to-value", "interest-rate", "down-payment"))),
 			Map.entry("top-mortgage-mistakes", new Entry(
 					"""
-					1. Shopping for a home before knowing what you can actually afford.
-					2. Ignoring what happens if interest rates rise - lenders stress-test for this, so should you.
-					3. Underestimating debt-to-income; existing debt quietly eats into what you can borrow.
-					4. Making a big purchase or opening new credit right before applying.
-					5. Only checking one lender's rate instead of comparing a few.
-					6. Choosing the lowest monthly payment without checking total interest over the term.
-					7. Skipping the fine print on fixed vs. variable rate terms.
-					8. Not keeping a buffer for closing costs and moving expenses.
-					9. Assuming pre-approval is a guaranteed loan.
+					1. Shopping for a home before knowing how much you can borrow.
+					2. Ignoring what happens if interest rates rise - lenders stress-test for this, and so should you.
+					3. Forgetting existing debts: car loans, leasing and credit cards all reduce what you can borrow.
+					4. Taking on a new loan or a big purchase on credit right before applying.
+					5. Taking the first offer instead of comparing a few lenders.
+					6. Picking the lowest monthly payment without checking the total interest over the term.
+					7. Not understanding how a fixed rate differs from a variable one, and what happens when a fixed period ends.
+					8. Spending all your savings on the down payment, with nothing left for fees, moving or repairs.
+					9. Treating a pre-approval as a guaranteed loan.
 					10. Leaving proof-of-income documents until the last minute.""",
 					List.of("stress-test", "debt-to-income", "interest-rate")))
 		);
