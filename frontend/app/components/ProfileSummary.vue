@@ -31,6 +31,22 @@ const householdDebt = computed(() =>
   profile.value?.applicants.reduce((sum, applicant) => sum + applicant.monthlyDebtPayments, 0) ?? 0,
 )
 
+/** e.g. "2 adults, 1 dependant: €800/mo living costs counted (the minimum for this household)." */
+const householdLine = computed(() => {
+  const p = profile.value
+  if (!p) return ''
+  const { adults, dependants, enteredMonthlyCosts, minimumMonthlyCosts } = p.household
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+  let note = ''
+  if (enteredMonthlyCosts === null) note = ' (the minimum for this household)'
+  else if (enteredMonthlyCosts < minimumMonthlyCosts) note = ` (you entered ${formatMoney(enteredMonthlyCosts)}, below the minimum)`
+  const credit = p.financials.creditLimitMonthlyCost > 0
+    ? `, plus ${formatMoney(p.financials.creditLimitMonthlyCost)}/mo for credit limits`
+    : ''
+  return `${plural(adults, 'adult')}, ${plural(dependants, 'dependant')}: `
+    + `${formatMoney(p.financials.monthlyLivingCosts)}/mo living costs counted${note}${credit}.`
+})
+
 const stressColor = computed(() => {
   const r = profile.value?.financials.stressTestResult
   return r === 'FAIL' ? 'error' : r === 'TIGHT' ? 'warning' : 'success'
@@ -172,12 +188,16 @@ async function askAboutReview() {
             </p>
             <p class="mt-1">Net income: {{ formatMoney(applicant.monthlyNetIncome) }}/mo</p>
             <p>Existing debt payments: {{ formatMoney(applicant.monthlyDebtPayments) }}/mo</p>
+            <p v-if="applicant.creditLimits > 0">
+              Credit limits: {{ formatMoney(applicant.creditLimits) }}
+            </p>
           </div>
         </div>
         <p class="mt-2 text-sm text-muted">
           Household totals: {{ formatMoney(householdIncome) }}/mo net income,
           {{ formatMoney(householdDebt) }}/mo existing debt payments.
         </p>
+        <p class="mt-1 text-sm text-muted">{{ householdLine }}</p>
       </div>
 
       <div class="mt-4 flex items-center gap-2">

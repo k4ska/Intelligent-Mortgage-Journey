@@ -186,10 +186,12 @@ The standardized output; feeds the mock multi-bank comparison screen.
 
 ```jsonc
 {
-  "applicants": [ { "employment": "...", "monthlyIncome": 0 } ],
+  "applicants": [ { "employment": "...", "monthlyNetIncome": 0, "monthlyDebtPayments": 0, "creditLimits": 0 } ],
+  "household":   { "adults": 1, "dependants": 0, "enteredMonthlyCosts": null, "minimumMonthlyCosts": 0 },
   "property":    { "type": "...", "value": 0, "location": "..." },
   "loanRequest": { "amount": 0, "termYears": 0, "rateType": "...", "purpose": "..." },
-  "financials":  { "downPayment": 0, "ltv": 0, "dti": 0, "stressTestResult": "..." },
+  "financials":  { "downPayment": 0, "ltv": 0, "dti": 0, "stressedDti": 0, "monthlyLivingCosts": 0,
+                   "creditLimitMonthlyCost": 0, "stressTestResult": "..." },
   "riskIndicators": [ "..." ],
   "documents": [ "..." ]
 }

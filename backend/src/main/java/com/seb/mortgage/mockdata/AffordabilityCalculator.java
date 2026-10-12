@@ -23,10 +23,23 @@ public class AffordabilityCalculator {
 	public static final double MAX_DTI_PCT = 50.0;
 
 	/**
-	 * Money a month left after debts and the stressed payment for the stress test to PASS
-	 * rather than TIGHT. With the 50% limit this only bites on very low incomes.
+	 * Money a month left after debts, living costs and the stressed payment for the stress
+	 * test to PASS rather than TIGHT.
 	 */
 	public static final double MIN_STRESS_BUFFER = 300.0;
+
+	/**
+	 * Living costs a lender assumes at least, per adult and per dependant a month, even when
+	 * the applicant enters less. Prototype values: banks don't publish theirs.
+	 */
+	public static final double MIN_LIVING_COST_PER_ADULT = 300.0;
+	public static final double MIN_LIVING_COST_PER_DEPENDANT = 200.0;
+
+	/**
+	 * Share of total credit card / overdraft limits counted as a monthly debt payment, used
+	 * or not, since the limit could be drawn at any time. Prototype value.
+	 */
+	public static final double CREDIT_LIMIT_MONTHLY_PCT = 3.0;
 
 	/**
 	 * Loan-to-value a typical lender allows. The mock banks range from 80% to 95%; the
@@ -66,19 +79,36 @@ public class AffordabilityCalculator {
 		return monthlyPayment * (1 - Math.pow(1 + monthlyRate, -months)) / monthlyRate;
 	}
 
+	/** The least a household of this size is assumed to spend on living each month. */
+	public double minimumLivingCosts(int adults, int dependants) {
+		return adults * MIN_LIVING_COST_PER_ADULT + Math.max(0, dependants) * MIN_LIVING_COST_PER_DEPENDANT;
+	}
+
+	/** Living costs counted: what was entered, but never less than {@link #minimumLivingCosts}. */
+	public double livingCosts(Double entered, int adults, int dependants) {
+		return Math.max(entered == null ? 0 : entered, minimumLivingCosts(adults, dependants));
+	}
+
+	/** The monthly debt payment that total credit limits count as. */
+	public double creditLimitMonthlyCost(double totalCreditLimits) {
+		return Math.round(Math.max(0, totalCreditLimits) * CREDIT_LIMIT_MONTHLY_PCT) / 100.0;
+	}
+
 	/**
 	 * The largest loan the journey's own checks would accept: at the stressed rate, loan
 	 * payments within {@link #MAX_DTI_PCT}% of net income and a buffer of at least
-	 * {@link #MIN_STRESS_BUFFER}, and, when a down payment is given, loan-to-value within
-	 * {@link #TYPICAL_MAX_LTV_PCT}.
+	 * {@link #MIN_STRESS_BUFFER} after living costs, and, when a down payment is given,
+	 * loan-to-value within {@link #TYPICAL_MAX_LTV_PCT}. {@code monthlyDebts} already
+	 * includes {@link #creditLimitMonthlyCost}.
 	 * Floored to whole euros so a loan at the maximum never lands just over a limit.
 	 * The amount is 0 when the income can't carry any loan.
 	 */
-	public MaxLoan maxLoan(double monthlyIncome, double monthlyDebts, Double downPayment,
+	public MaxLoan maxLoan(double monthlyIncome, double monthlyDebts, double livingCosts, Double downPayment,
 			double annualRatePct, int termYears) {
 		double stressedRate = stressedRate(annualRatePct);
 		double byIncome = principalFor(MAX_DTI_PCT / 100.0 * monthlyIncome - monthlyDebts, stressedRate, termYears);
-		double byStress = principalFor(monthlyIncome - monthlyDebts - MIN_STRESS_BUFFER, stressedRate, termYears);
+		double byStress = principalFor(monthlyIncome - monthlyDebts - livingCosts - MIN_STRESS_BUFFER,
+				stressedRate, termYears);
 
 		double amount = byIncome;
 		LoanLimit limitedBy = LoanLimit.INCOME;

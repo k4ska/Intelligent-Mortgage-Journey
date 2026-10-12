@@ -46,21 +46,30 @@ public class CalculatorController {
 	@PostMapping("/max-loan")
 	public MaxLoanResponse maxLoan(@RequestBody MaxLoanRequest request) {
 		double income = nonNegative(request.monthlyIncome()) + nonNegative(request.coApplicantMonthlyIncome());
-		double debts = nonNegative(request.monthlyDebtPayments());
+		double creditLimitCost = calculator.creditLimitMonthlyCost(nonNegative(request.totalCreditLimits()));
+		double debts = nonNegative(request.monthlyDebtPayments()) + creditLimitCost;
+		// A partner's income means a second adult in the household.
+		int adults = nonNegative(request.coApplicantMonthlyIncome()) > 0 ? 2 : 1;
+		int dependants = request.dependants() == null ? 0 : Math.max(0, request.dependants());
+		Double enteredCosts = request.monthlyHouseholdCosts() == null || request.monthlyHouseholdCosts() < 0
+				? null : request.monthlyHouseholdCosts();
+		double livingCosts = calculator.livingCosts(enteredCosts, adults, dependants);
 		Double downPayment = request.downPayment() == null || request.downPayment() <= 0 ? null : request.downPayment();
 		Double requestedRate = request.annualRatePct();
 		Integer requestedTerm = request.termYears();
 		double annualRatePct = requestedRate == null ? rateService.rateFor(null, null) : requestedRate;
 		int termYears = requestedTerm == null ? 25 : requestedTerm;
 
-		AffordabilityCalculator.MaxLoan max = calculator.maxLoan(income, debts, downPayment, annualRatePct, termYears);
+		AffordabilityCalculator.MaxLoan max = calculator.maxLoan(
+				income, debts, livingCosts, downPayment, annualRatePct, termYears);
 		double maxLoanAmount = max.amount();
 		Double maxPropertyPrice = downPayment == null ? null : (double) Math.round(maxLoanAmount + downPayment);
 
 		return new MaxLoanResponse(maxLoanAmount, maxPropertyPrice,
 				Math.round(calculator.monthlyPayment(maxLoanAmount, annualRatePct, termYears)),
 				max.limitedBy(), annualRatePct, AffordabilityCalculator.stressedRate(annualRatePct), termYears,
-				AffordabilityCalculator.MAX_DTI_PCT, AffordabilityCalculator.TYPICAL_MAX_LTV_PCT);
+				AffordabilityCalculator.MAX_DTI_PCT, AffordabilityCalculator.TYPICAL_MAX_LTV_PCT,
+				livingCosts, creditLimitCost);
 	}
 
 	private static double nonNegative(Double v) {
@@ -72,8 +81,10 @@ public class CalculatorController {
 	public record EstimateResponse(
 			double loanAmount, double monthlyPayment, double ltv, double annualRatePct, int termYears) {}
 
+	/** {@code monthlyHouseholdCosts} left null means the household minimum is used. */
 	public record MaxLoanRequest(Double monthlyIncome, Double coApplicantMonthlyIncome, Double monthlyDebtPayments,
-			Double downPayment, Double annualRatePct, Integer termYears) {}
+			Double downPayment, Double annualRatePct, Integer termYears,
+			Integer dependants, Double monthlyHouseholdCosts, Double totalCreditLimits) {}
 
 	/**
 	 * Incomes are monthly net (after tax). {@code maxPropertyPrice} is null when no down
@@ -81,5 +92,5 @@ public class CalculatorController {
 	 */
 	public record MaxLoanResponse(double maxLoanAmount, Double maxPropertyPrice, double monthlyPayment,
 			AffordabilityCalculator.LoanLimit limitedBy, double annualRatePct, double stressRatePct, int termYears,
-			double maxDtiPct, double maxLtvPct) {}
+			double maxDtiPct, double maxLtvPct, double monthlyLivingCosts, double creditLimitMonthlyCost) {}
 }

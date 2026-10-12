@@ -49,7 +49,21 @@ public final class Explanations {
 			Map.entry("debt-payments", new Entry(
 					"Existing monthly debt payments are the regular payments you already make on borrowing such as personal loans, car finance, or credit cards. "
 							+ "They reduce the income available for a new mortgage and are used when assessing debt-to-income and affordability.",
-					List.of("debt-to-income", "stress-test"))),
+					List.of("debt-to-income", "stress-test", "credit-limits"))),
+			Map.entry("dependants", new Entry(
+					"Dependants are people in your household who rely on your income, usually children under 18. "
+							+ "Each one adds to the living costs a lender assumes your household has, which leaves less room for loan payments.",
+					List.of("household-costs", "stress-test"))),
+			Map.entry("household-costs", new Entry(
+					"Household living costs are what your household spends each month on everyday life: utilities, food, transport, "
+							+ "childcare, insurance and the like. Leave out rent and loan payments - the new mortgage replaces your rent, and loans are asked separately. "
+							+ "Lenders count at least a minimum per adult and per dependant, even if you enter less.",
+					List.of("dependants", "stress-test", "net-income"))),
+			Map.entry("credit-limits", new Entry(
+					"Credit limits are the most you could borrow on your credit cards and overdrafts, whether you use them or not. "
+							+ "Lenders count a small share of the total limit (here 3%) as a monthly debt payment, because you could draw on it at any time. "
+							+ "So closing a card you don't use can raise what you can borrow.",
+					List.of("debt-payments", "debt-to-income"))),
 			Map.entry("years-trading", new Entry(
 					"Years trading means how long your business or self-employed activity has been operating. "
 							+ "A longer trading history gives a lender more evidence to judge whether the income is stable and sustainable.",
@@ -91,7 +105,8 @@ public final class Explanations {
 			Map.entry("stress-test", new Entry(
 					"A stress test checks whether you could still afford the payments if interest rates rose. "
 							+ "Estonian lenders recalculate your payment at your rate plus 2 percentage points (and at least 6%), "
-							+ "and at that rate all your loan payments together must stay within half of your net income.",
+							+ "and at that rate all your loan payments together must stay within half of your net income, "
+							+ "with money still left over after your living costs.",
 					List.of("interest-rate", "debt-to-income"))),
 			Map.entry("debt-to-income", new Entry(
 					"Debt-to-income (DTI) compares your monthly loan payments - including the new mortgage - "

@@ -40,4 +40,21 @@ class StubValidationTest {
 		var loan = agentService.validate(id, "loan");
 		assertThat(loan.issues()).anyMatch(i -> i.message().contains("loan-to-value is 95.0%"));
 	}
+
+	/** Issue #32: the income step points out unused credit limits and too-low household costs. */
+	@Test
+	void incomeStepFlagsCreditLimitsAndLowHouseholdCosts() {
+		UUID id = applicationService.create().getId();
+		applicationService.submitStep(id, "applicants", Map.of("hasCoApplicant", false, "dependants", 1), true);
+		applicationService.submitStep(id, "income", Map.of("employmentType", "EMPLOYED", "monthlyNetIncome", 3_000,
+				"monthlyDebtPayments", 0, "totalCreditLimits", 5_000, "monthlyHouseholdCosts", 200), false);
+
+		var income = agentService.validate(id, "income");
+
+		assertThat(income.status()).isEqualTo(ValidationStatus.WARNING);
+		assertThat(income.issues()).anyMatch(i -> i.fieldKey().equals("totalCreditLimits")
+				&& i.message().contains("150 a month of debt"));
+		assertThat(income.issues()).anyMatch(i -> i.fieldKey().equals("monthlyHouseholdCosts")
+				&& i.message().contains("count 500 a month instead"));
+	}
 }

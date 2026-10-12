@@ -69,7 +69,7 @@ public class StubAgentService implements AgentService {
 				issues.add(new ValidationIssue("loanAmount", ValidationStatus.WARNING,
 						"This leaves about "
 								+ facts.figure("monthlyBufferAfterStress").map(ProfileFacts.Figure::value).orElse("")
-								+ " per month after a rate-rise stress test. Lenders usually want to see a larger cushion."));
+								+ " per month after living costs and a rate-rise stress test. Lenders usually want to see a larger cushion."));
 			}
 		});
 		facts.figure("debtToIncomePercent").map(f -> (Double) f.value())
@@ -77,6 +77,16 @@ public class StubAgentService implements AgentService {
 				.ifPresent(dti -> issues.add(new ValidationIssue("monthlyDebtPayments", ValidationStatus.WARNING,
 						"Loan payments would take " + dti + "% of your net income even at today's rate; paying "
 								+ "down other debt before applying would strengthen the application.")));
+
+		facts.figure("creditLimitMonthlyCost").filter(f -> f.concern() != null)
+				.ifPresent(f -> issues.add(new ValidationIssue("totalCreditLimits", ValidationStatus.WARNING,
+						"Your credit card and overdraft limits count as %,.0f a month of debt, ".formatted(f.value())
+								+ "even if you never use them, because you could. Closing limits you don't need "
+								+ "would raise what you can borrow.")));
+		facts.figure("monthlyLivingCosts").filter(f -> f.concern() != null)
+				.ifPresent(f -> issues.add(new ValidationIssue("monthlyHouseholdCosts", ValidationStatus.WARNING,
+						"That's less than lenders assume a household like yours needs, so they'll count "
+								+ "%,.0f a month instead. Double-check the figure if it seems low.".formatted(f.value()))));
 
 		ValidationStatus overall = issues.stream().anyMatch(i -> i.severity() == ValidationStatus.BLOCKER)
 				? ValidationStatus.BLOCKER
@@ -95,7 +105,11 @@ public class StubAgentService implements AgentService {
 						lr.purpose().toLowerCase(), p.property().type().toLowerCase(),
 						p.property().location())
 				+ "That is a loan-to-value of %.1f%% and an estimated payment of %,.0f per month (%,.0f at the stress-test rate)."
-						.formatted(f.ltv(), f.estimatedMonthlyPayment(), f.stressedMonthlyPayment());
+						.formatted(f.ltv(), f.estimatedMonthlyPayment(), f.stressedMonthlyPayment())
+				+ " Affordability counts %,.0f a month of living costs%s."
+						.formatted(f.monthlyLivingCosts(), f.creditLimitMonthlyCost() > 0
+								? " and %,.0f a month for your credit limits".formatted(f.creditLimitMonthlyCost())
+								: "");
 
 		return new ReviewResponse(summary, new ArrayList<>(p.riskIndicators()), null);
 	}

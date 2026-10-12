@@ -107,7 +107,9 @@ debt payments to the primary applicant's amounts. DTI (at today's rate and at th
 stress-test rate), the monthly buffer after the stress test, the stress-test result and related affordability risk indicators
 therefore reflect the household, not just the primary applicant. The `co-applicant`
 flow step collects `coApplicantName`, `coApplicantMonthlyIncome` and
-`coApplicantMonthlyDebtPayments`; an explicitly entered debt amount of 0 is valid.
+`coApplicantMonthlyDebtPayments` and `coApplicantCreditLimits`; an explicitly entered
+debt amount of 0 is valid. Both applicants' credit limits count towards the household's
+debt, and living costs are counted for both adults.
 The final summary displays both applicants and the household totals.
 
 This does **not** make partial data safe to judge. `LoanProfile` continues to use

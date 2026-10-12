@@ -121,7 +121,18 @@ export interface LoanProfile {
     employment: string | null
     monthlyNetIncome: number
     monthlyDebtPayments: number
+    /** Total credit card / overdraft limits, used or not. */
+    creditLimits: number
   }>
+  /** Asked once per household, not per applicant. */
+  household: {
+    adults: number
+    dependants: number
+    /** What the applicant entered; null when left blank. */
+    enteredMonthlyCosts: number | null
+    /** The least a lender assumes for this household size. */
+    minimumMonthlyCosts: number
+  }
   property: {
     type: string
     location: string
@@ -143,6 +154,10 @@ export interface LoanProfile {
     stressedDti: number
     estimatedMonthlyPayment: number
     stressedMonthlyPayment: number
+    /** Living costs counted: the entered figure, but never below the household minimum. */
+    monthlyLivingCosts: number
+    /** The monthly debt payment the credit limits count as; included in dti and stressedDti. */
+    creditLimitMonthlyCost: number
     monthlyBufferAfterStress: number
     stressTestResult: string
   }
@@ -176,6 +191,10 @@ export interface MaxLoanRequest {
   downPayment?: number | null
   annualRatePct?: number | null
   termYears?: number | null
+  dependants?: number | null
+  /** Left empty, the household minimum is used. */
+  monthlyHouseholdCosts?: number | null
+  totalCreditLimits?: number | null
 }
 
 export interface MaxLoanResponse {
@@ -190,6 +209,9 @@ export interface MaxLoanResponse {
   termYears: number
   maxDtiPct: number
   maxLtvPct: number
+  /** Living costs counted: the entered figure, but never below the household minimum. */
+  monthlyLivingCosts: number
+  creditLimitMonthlyCost: number
 }
 
 export interface CalculatorEstimateResponse {

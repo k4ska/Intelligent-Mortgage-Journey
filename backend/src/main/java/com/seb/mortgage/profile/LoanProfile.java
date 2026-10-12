@@ -11,6 +11,7 @@ import java.util.List;
  */
 public record LoanProfile(
         List<Applicant> applicants,
+        Household household,
         Property property,
         LoanRequest loanRequest,
         Financials financials,
@@ -24,7 +25,19 @@ public record LoanProfile(
             /** Not collected for the co-applicant. */
             String employment,
             double monthlyNetIncome,
-            double monthlyDebtPayments
+            double monthlyDebtPayments,
+            /** Total credit card / overdraft limits, used or not. */
+            double creditLimits
+    ) {}
+
+    /** Asked once per household, not per applicant. */
+    public record Household(
+            int adults,
+            int dependants,
+            /** What the applicant entered; null when left blank. */
+            Double enteredMonthlyCosts,
+            /** The least a lender assumes for this household size. */
+            double minimumMonthlyCosts
     ) {}
 
     public record Property(
@@ -52,6 +65,11 @@ public record LoanProfile(
             double estimatedMonthlyPayment,
             /** Monthly payment if rates rose by the stress-test delta. */
             double stressedMonthlyPayment,
+            /** Living costs counted: the entered figure, but never below the household minimum. */
+            double monthlyLivingCosts,
+            /** The monthly debt payment the credit limits count as; included in dti and stressedDti. */
+            double creditLimitMonthlyCost,
+            /** Net income minus debts, credit-limit cost, living costs and the stressed payment. */
             double monthlyBufferAfterStress,
             String stressTestResult
     ) {}

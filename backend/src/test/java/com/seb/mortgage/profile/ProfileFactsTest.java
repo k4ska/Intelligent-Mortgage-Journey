@@ -23,8 +23,10 @@ class ProfileFactsTest {
 
     private static final Map<String, Object> LOAN_STEP = Map.of(
             "downPayment", 25_000, "loanAmount", 475_000, "termYears", 25, "rateType", "VARIABLE");
+    /** The income step, plus the household size from "Who is applying?". */
     private static final Map<String, Object> INCOME_STEP = Map.of(
-            "employmentType", "EMPLOYED", "monthlyNetIncome", 4_000, "monthlyDebtPayments", 300);
+            "employmentType", "EMPLOYED", "monthlyNetIncome", 4_000, "monthlyDebtPayments", 300,
+            "totalCreditLimits", 0, "dependants", 0);
 
     private LoanApplication applicationWith(Map<String, Object> answers) {
         LoanApplication application = new LoanApplication("purpose");
@@ -146,7 +148,8 @@ class ProfileFactsTest {
         assertThat(missingDebt.notAnsweredYet()).contains("coApplicantMonthlyDebtPayments");
 
         ProfileFacts complete = factsFor(merge(coSelected,
-                Map.of("coApplicantMonthlyIncome", 3_000, "coApplicantMonthlyDebtPayments", 0)));
+                Map.of("coApplicantMonthlyIncome", 3_000, "coApplicantMonthlyDebtPayments", 0,
+                        "coApplicantCreditLimits", 0)));
         assertThat(names(complete.figures()))
                 .contains("debtToIncomePercent", "monthlyBufferAfterStress", "stressTestResult");
         ProfileFacts.Figure dti = complete.figures().stream()
@@ -178,7 +181,8 @@ class ProfileFactsTest {
     void selfEmployedIncomeIsATwelfthOfLastYearsNetProfit() {
         Map<String, Object> loan = merge(Map.of("purchasePrice", 500_000), LOAN_STEP);
         Map<String, Object> selfEmployed = merge(loan, Map.of("employmentType", "SELF_EMPLOYED",
-                "monthlyDebtPayments", 300, "yearsTrading", 4, "lastYearNetProfit", 42_000));
+                "monthlyDebtPayments", 300, "yearsTrading", 4, "lastYearNetProfit", 42_000,
+                "totalCreditLimits", 0, "dependants", 0));
 
         LoanProfile profile = profileFor(selfEmployed);
         assertThat(profile.applicants().get(0).monthlyNetIncome()).isEqualTo(3_500);
@@ -216,6 +220,69 @@ class ProfileFactsTest {
         assertThat(fails.stressTestResult()).isEqualTo("FAIL");
         // Above 50% under stress but well within it at today's rate: the stress test is what decides.
         assertThat(fails.dti()).isLessThan(50);
+    }
+
+    /** Issue #32: credit limits count as debt, and living costs never go below the household minimum. */
+    @Test
+    void creditLimitsAndLivingCostsCountInAffordability() {
+        Map<String, Object> base = merge(merge(Map.of("purchasePrice", 300_000), Map.of(
+                "downPayment", 50_000, "loanAmount", 250_000, "termYears", 25, "rateType", "VARIABLE")), INCOME_STEP);
+        LoanProfile plain = profileFor(base);
+        LoanProfile withLimits = profileFor(merge(base, Map.of("totalCreditLimits", 5_000)));
+        LoanProfile family = profileFor(merge(base, Map.of("dependants", 3)));
+
+        // 3% of 5 000 counts as 150 a month of debt, at today's rate and under stress.
+        assertThat(withLimits.financials().creditLimitMonthlyCost()).isEqualTo(150);
+        assertThat(withLimits.applicants().get(0).creditLimits()).isEqualTo(5_000);
+        assertThat(withLimits.financials().stressedDti()).isGreaterThan(plain.financials().stressedDti());
+        assertThat(withLimits.riskIndicators()).anyMatch(r -> r.contains("limits count as 150/month"));
+
+        // 1 adult: 300; plus 3 dependants: 900. Less buffer, same DTI (living costs aren't debt).
+        assertThat(plain.financials().monthlyLivingCosts()).isEqualTo(300);
+        assertThat(family.financials().monthlyLivingCosts()).isEqualTo(900);
+        assertThat(family.household().minimumMonthlyCosts()).isEqualTo(900);
+        assertThat(family.financials().monthlyBufferAfterStress())
+                .isEqualTo(plain.financials().monthlyBufferAfterStress() - 600);
+        assertThat(family.financials().dti()).isEqualTo(plain.financials().dti());
+    }
+
+    @Test
+    void enteredHouseholdCostsBelowTheMinimumAreRaisedAndFlagged() {
+        Map<String, Object> base = merge(merge(Map.of("purchasePrice", 500_000), LOAN_STEP),
+                merge(INCOME_STEP, Map.of("dependants", 2)));
+
+        LoanProfile low = profileFor(merge(base, Map.of("monthlyHouseholdCosts", 400)));
+        LoanProfile high = profileFor(merge(base, Map.of("monthlyHouseholdCosts", 1_500)));
+        LoanProfile blank = profileFor(merge(base, Map.of("monthlyHouseholdCosts", " ")));
+
+        assertThat(low.financials().monthlyLivingCosts()).isEqualTo(700);
+        assertThat(low.riskIndicators()).anyMatch(r -> r.contains("below the 700/month lenders assume"));
+        assertThat(high.financials().monthlyLivingCosts()).isEqualTo(1_500);
+        assertThat(blank.household().enteredMonthlyCosts()).isNull();
+        assertThat(blank.financials().monthlyLivingCosts()).isEqualTo(700);
+        assertThat(blank.riskIndicators()).noneMatch(r -> r.contains("lenders assume"));
+
+        ProfileFacts.Figure living = factsFor(merge(base, Map.of("monthlyHouseholdCosts", 400))).figures().stream()
+                .filter(f -> f.name().equals("monthlyLivingCosts")).findFirst().orElseThrow();
+        assertThat(living.concern()).contains("so the minimum is used");
+        assertThat(living.basedOn()).contains("dependants", "monthlyHouseholdCosts");
+    }
+
+    @Test
+    void affordabilityWaitsForDependantsAndCreditLimitsButNotOptionalHouseholdCosts() {
+        Map<String, Object> base = merge(merge(Map.of("purchasePrice", 500_000), LOAN_STEP), INCOME_STEP);
+        Map<String, Object> noLimits = new java.util.HashMap<>(base);
+        noLimits.remove("totalCreditLimits");
+        Map<String, Object> noDependants = new java.util.HashMap<>(base);
+        noDependants.remove("dependants");
+
+        assertThat(names(factsFor(noLimits).figures())).doesNotContain("creditLimitMonthlyCost", "stressTestResult");
+        assertThat(factsFor(noLimits).notAnsweredYet()).contains("totalCreditLimits");
+        assertThat(names(factsFor(noDependants).figures())).doesNotContain("monthlyLivingCosts", "stressTestResult");
+        assertThat(factsFor(noDependants).notAnsweredYet()).contains("dependants");
+        assertThat(names(factsFor(base).figures())).contains("monthlyLivingCosts", "creditLimitMonthlyCost",
+                "stressTestResult");
+        assertThat(factsFor(base).notAnsweredYet()).doesNotContain("monthlyHouseholdCosts");
     }
 
     private static Map<String, Object> merge(Map<String, Object> a, Map<String, Object> b) {

@@ -80,6 +80,15 @@
           "placeholder": null,
           "options": null,
           "validation": { "required": true, "min": null, "max": null, "pattern": null }
+        },
+        {
+          "key": "dependants",
+          "type": "NUMBER",
+          "label": "Dependants in the household (e.g. children)",
+          "helpKey": "dependants",
+          "placeholder": "0",
+          "options": null,
+          "validation": { "required": true, "min": 0, "max": null, "pattern": null }
         }
       ],
       "next": [
@@ -115,6 +124,15 @@
           "type": "MONEY",
           "label": "Their existing monthly debt payments",
           "helpKey": "debt-payments",
+          "placeholder": "0",
+          "options": null,
+          "validation": { "required": true, "min": 0, "max": null, "pattern": null }
+        },
+        {
+          "key": "coApplicantCreditLimits",
+          "type": "MONEY",
+          "label": "Their credit card and overdraft limits (total, even if unused)",
+          "helpKey": "credit-limits",
           "placeholder": "0",
           "options": null,
           "validation": { "required": true, "min": 0, "max": null, "pattern": null }
@@ -157,6 +175,24 @@
           "placeholder": "300",
           "options": null,
           "validation": { "required": true, "min": 0, "max": null, "pattern": null }
+        },
+        {
+          "key": "totalCreditLimits",
+          "type": "MONEY",
+          "label": "Your credit card and overdraft limits (total, even if unused)",
+          "helpKey": "credit-limits",
+          "placeholder": "0",
+          "options": null,
+          "validation": { "required": true, "min": 0, "max": null, "pattern": null }
+        },
+        {
+          "key": "monthlyHouseholdCosts",
+          "type": "MONEY",
+          "label": "Monthly household living costs, excluding rent and loans (optional)",
+          "helpKey": "household-costs",
+          "placeholder": "800",
+          "options": null,
+          "validation": { "required": false, "min": 0, "max": null, "pattern": null }
         }
       ],
       "next": [
