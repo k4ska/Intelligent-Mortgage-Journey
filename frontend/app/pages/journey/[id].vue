@@ -144,7 +144,7 @@ onBeforeUnmount(stopAssistantResize)
                 >
                   Back to edit my answers
                 </UButton>
-                <ProfileSummary :application-id="id" />
+                <ProfileSummary :application-id="id" :answers="store.application?.answers ?? {}" />
               </template>
 
               <FlowStep

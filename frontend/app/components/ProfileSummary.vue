@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import type { BankOffer, LoanProfile, ReviewResponse } from '~/types/api'
+import type { Answers, BankOffer, LoanProfile, ReviewResponse } from '~/types/api'
+import { downloadLoanProfilePdf } from '~/utils/loanProfilePdf'
 
-const props = defineProps<{ applicationId: string }>()
+const props = defineProps<{ applicationId: string; answers: Answers }>()
 
 const api = useApi()
 
 const followUp = ref('')
 const followUpAnswer = ref('')
 const followUpBusy = ref(false)
+const downloading = ref(false)
+const downloadError = ref('')
 
 const { data: profile } = await useAsyncData<LoanProfile>(
   `profile-${props.applicationId}`,
@@ -36,6 +39,25 @@ const stressColor = computed(() => {
   return r === 'FAIL' ? 'error' : r === 'TIGHT' ? 'warning' : 'success'
 })
 
+async function downloadPdf() {
+  if (!profile.value || !offers.value || !review.value || downloading.value) return
+  downloadError.value = ''
+  downloading.value = true
+  try {
+    await downloadLoanProfilePdf({
+      profile: profile.value,
+      offers: offers.value,
+      review: review.value,
+      answers: props.answers,
+    })
+  } catch (error) {
+    console.error('PDF generation failed', error)
+    downloadError.value = 'Could not create the PDF. Please try again.'
+  } finally {
+    downloading.value = false
+  }
+}
+
 async function askAboutReview() {
   const question = followUp.value.trim()
   if (!question || followUpBusy.value) return
@@ -55,6 +77,25 @@ async function askAboutReview() {
 
 <template>
   <div class="flex flex-col gap-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold">Your completed loan profile</h2>
+        <p class="text-sm text-muted">Keep a copy for your own records or bring it to a lender.</p>
+      </div>
+      <UButton
+        icon="i-lucide-download"
+        :loading="downloading"
+        :disabled="!profile || !offers || !review || downloading"
+        @click="downloadPdf"
+      >
+        Download PDF
+      </UButton>
+    </div>
+    <p v-if="!review && reviewPending" class="text-xs text-muted">
+      Download is available as soon as the assistant's read-back is ready.
+    </p>
+    <UAlert v-if="downloadError" color="error" :title="downloadError" />
+
     <UCard v-if="review || reviewPending">
       <template #header>
         <div class="flex items-center gap-2">

@@ -3,6 +3,24 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-14 — Downloadable loan-profile PDF (#30)
+
+- **Client-side PDF with pdfmake**, not a backend endpoint. The summary already has the
+  standardized `LoanProfile`, mock `/offers`, and the exact `ReviewResponse` the user
+  saw. Export reuses these objects (including `DocumentChecklistService`'s checklist)
+  and the application's answers for its address; it makes no API/LLM requests.
+- **Export only after the review loads**, so the assistant's real read-back and concerns
+  are included rather than a newly generated or incomplete answer. A future separate
+  issue can persist the review to avoid a fresh call after a full-page reload.
+- **A4 and theme-independent**: neutral Roboto styling, static colors, page numbers, and
+  a visible prototype disclaimer. The file is created/downloaded in the browser and
+  not uploaded or stored server-side. Guest sessions can export.
+- **Data minimization**: include the entered address and co-applicant's name to make
+  the PDF useful to a lender; no follow-up chat transcript or unnecessary raw answers.
+  This flow collects *net* income; gross income is labelled “Not collected” rather
+  than estimated. Financials use the current backend stress rule of +2 pp (6% floor),
+  not the older +3 pp proposed in the issue.
+
 ## 2026-10-12 — Affordability on net income, Eesti Pank-style limits (#31)
 
 - **Net, not gross**: income fields ask for monthly net income (after tax), because that's
