@@ -48,6 +48,7 @@ app:
     # they are most of the wait. Leave a value empty to use OpenAI's default. New agents
     # (advisor, document reader, bank) add their own key here.
     reasoning-effort:
+      advisor: ${AGENT_REASONING_ADVISOR:low}
       verifier: ${AGENT_REASONING_VERIFIER:low}
   token-budget:
     # Daily LLM token budget. Once spent, the agents answer with the stub until midnight.

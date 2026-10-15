@@ -1,0 +1,73 @@
+package com.seb.mortgage.conversation;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
+import jakarta.persistence.Table;
+
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * One message in a conversation, from the user or the advisor. The id is an increasing
+ * number, so it also gives the order (two messages can share a timestamp).
+ */
+@Entity
+@Table(name = "message")
+public class Message {
+
+	public enum Role { USER, ADVISOR }
+
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
+
+	@Column(nullable = false)
+	private UUID conversationId;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	private Role role;
+
+	@Lob
+	@Column(nullable = false, columnDefinition = "CLOB")
+	private String text;
+
+	@Column(nullable = false, updatable = false)
+	private Instant createdAt;
+
+	protected Message() {
+	}
+
+	public Message(UUID conversationId, Role role, String text) {
+		this.conversationId = conversationId;
+		this.role = role;
+		this.text = text;
+		this.createdAt = Instant.now();
+	}
+
+	public Long getId() {
+		return id;
+	}
+
+	public UUID getConversationId() {
+		return conversationId;
+	}
+
+	public Role getRole() {
+		return role;
+	}
+
+	public String getText() {
+		return text;
+	}
+
+	public Instant getCreatedAt() {
+		return createdAt;
+	}
+}

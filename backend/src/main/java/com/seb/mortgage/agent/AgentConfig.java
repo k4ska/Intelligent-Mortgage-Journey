@@ -62,7 +62,7 @@ public class AgentConfig {
 	 * everything else still come from
 	 * {@code spring.ai.openai.chat.options}, which Spring AI merges underneath.
 	 */
-	static ChatClient.Builder withReasoningEffort(ChatClient.Builder builder, String reasoningEffort) {
+	public static ChatClient.Builder withReasoningEffort(ChatClient.Builder builder, String reasoningEffort) {
 		if (!StringUtils.hasText(reasoningEffort)) {
 			return builder;
 		}
