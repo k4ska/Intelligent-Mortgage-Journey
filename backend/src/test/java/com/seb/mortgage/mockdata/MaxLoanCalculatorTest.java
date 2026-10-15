@@ -18,7 +18,7 @@ import com.seb.mortgage.profile.LoanProfileAssembler;
 
 /**
  * Issue #29: "How much can I borrow?" must never promise a loan the journey then flags,
- * on the net-income rules from #31,
+ * on the net-income rules from #31 and with the living costs and credit limits from #32,
  * so a loan at the calculated maximum has to pass the journey's own affordability checks.
  */
 class MaxLoanCalculatorTest {
@@ -43,7 +43,13 @@ class MaxLoanCalculatorTest {
 	}
 
 	private MaxLoanResponse maxLoan(Double income, Double coIncome, Double debts, Double downPayment) {
-		return controller.maxLoan(new MaxLoanRequest(income, coIncome, debts, downPayment, null, null));
+		return maxLoan(income, coIncome, debts, downPayment, null, null, null);
+	}
+
+	private MaxLoanResponse maxLoan(Double income, Double coIncome, Double debts, Double downPayment,
+			Integer dependants, Double householdCosts, Double creditLimits) {
+		return controller.maxLoan(new MaxLoanRequest(income, coIncome, debts, downPayment, null, null,
+				dependants, householdCosts, creditLimits));
 	}
 
 	@Test
@@ -69,16 +75,45 @@ class MaxLoanCalculatorTest {
 
 	@Test
 	void stressRateIsNeverBelowSixPercent() {
-		MaxLoanResponse r = controller.maxLoan(new MaxLoanRequest(4_000.0, null, 0.0, null, 3.0, 25));
+		MaxLoanResponse r = controller.maxLoan(new MaxLoanRequest(4_000.0, null, 0.0, null, 3.0, 25, null, null, null));
 
 		assertThat(r.stressRatePct()).isEqualTo(6.0);
 		assertThat(calculator.monthlyPayment(r.maxLoanAmount(), 6.0, 25)).isCloseTo(2_000, within(1.0));
 	}
 
 	@Test
-	void bufferSetsTheLimitOnAVeryLowIncome() {
-		// Half of 500 is 250, but 500 minus the 300 buffer leaves only 200.
-		assertThat(maxLoan(500.0, null, 0.0, null).limitedBy()).isEqualTo(LoanLimit.STRESS);
+	void bufferSetsTheLimitOnALowIncome() {
+		// Half of 1 100 is 550, but 1 100 minus 300 of living costs and the 300 buffer leaves only 500.
+		assertThat(maxLoan(1_100.0, null, 0.0, null).limitedBy()).isEqualTo(LoanLimit.STRESS);
+	}
+
+	/** Issue #32: unused credit limits still count as debt. */
+	@Test
+	void creditLimitsCountAsMonthlyDebt() {
+		MaxLoanResponse withLimits = maxLoan(3_000.0, null, 0.0, null, null, null, 5_000.0);
+
+		assertThat(withLimits.creditLimitMonthlyCost()).isEqualTo(150);
+		// The same as 150 of real monthly debt payments.
+		assertThat(withLimits.maxLoanAmount()).isEqualTo(maxLoan(3_000.0, null, 150.0, null).maxLoanAmount())
+				.isLessThan(maxLoan(3_000.0, null, 0.0, null).maxLoanAmount());
+	}
+
+	/** Issue #32: living costs are what was entered, but never below the household minimum. */
+	@Test
+	void livingCostsNeverGoBelowTheHouseholdMinimum() {
+		// 2 adults (a partner's income was given) and 2 dependants: 2 x 300 + 2 x 200.
+		assertThat(maxLoan(1_500.0, 1_000.0, 0.0, null, 2, 400.0, null).monthlyLivingCosts()).isEqualTo(1_000);
+		assertThat(maxLoan(1_500.0, 1_000.0, 0.0, null, 2, 1_400.0, null).monthlyLivingCosts()).isEqualTo(1_400);
+		assertThat(maxLoan(1_500.0, null, 0.0, null).monthlyLivingCosts()).isEqualTo(300);
+	}
+
+	@Test
+	void dependantsLowerTheLimitWhenTheBufferBinds() {
+		MaxLoanResponse noKids = maxLoan(1_500.0, null, 0.0, null, 0, null, null);
+		MaxLoanResponse threeKids = maxLoan(1_500.0, null, 0.0, null, 3, null, null);
+
+		assertThat(threeKids.limitedBy()).isEqualTo(LoanLimit.STRESS);
+		assertThat(threeKids.maxLoanAmount()).isLessThan(noKids.maxLoanAmount());
 	}
 
 	@Test
@@ -115,14 +150,16 @@ class MaxLoanCalculatorTest {
 
 	@ParameterizedTest
 	@CsvSource(nullValues = "-", value = {
-			"4000, -,    300,  -",
-			"4000, -,    300,  20000",
-			"2500, 1800, 450,  60000",
-			"600,  -,    0,    -",
-			"9000, -,    1200, 400000",
+			// income, partner, debts, down payment, dependants, household costs, credit limits
+			"4000, -,    300,  -,      0, -,    0",
+			"4000, -,    300,  20000,  2, 1200, 5000",
+			"2500, 1800, 450,  60000,  3, -,    3000",
+			"1500, -,    0,    -,      1, 500,  0",
+			"9000, -,    1200, 400000, 4, 3000, 10000",
 	})
-	void aLoanAtTheMaximumPassesTheJourneysChecks(double income, Double coIncome, double debts, Double downPayment) {
-		MaxLoanResponse max = maxLoan(income, coIncome, debts, downPayment);
+	void aLoanAtTheMaximumPassesTheJourneysChecks(double income, Double coIncome, double debts, Double downPayment,
+			int dependants, Double householdCosts, double creditLimits) {
+		MaxLoanResponse max = maxLoan(income, coIncome, debts, downPayment, dependants, householdCosts, creditLimits);
 		assertThat(max.maxLoanAmount()).isPositive();
 
 		// With no down payment given, the journey still needs a price; any large down payment works.
@@ -130,10 +167,15 @@ class MaxLoanCalculatorTest {
 		Map<String, Object> answers = new HashMap<>(Map.of(
 				"purchasePrice", max.maxLoanAmount() + down, "downPayment", down,
 				"loanAmount", max.maxLoanAmount(), "termYears", max.termYears(), "rateType", "VARIABLE",
-				"monthlyNetIncome", income, "monthlyDebtPayments", debts));
+				"monthlyNetIncome", income, "monthlyDebtPayments", debts,
+				"dependants", dependants, "totalCreditLimits", creditLimits));
+		if (householdCosts != null) {
+			answers.put("monthlyHouseholdCosts", householdCosts);
+		}
 		if (coIncome != null) {
 			answers.put("hasCoApplicant", true);
 			answers.put("coApplicantMonthlyIncome", coIncome);
+			answers.put("coApplicantCreditLimits", 0);
 		}
 		LoanApplication application = new LoanApplication("purpose");
 		application.putAnswers(answers);

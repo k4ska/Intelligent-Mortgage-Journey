@@ -3,6 +3,27 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-12 — Living costs and credit limits count in affordability (#32)
+
+- **New fields**: `dependants` ("Who is applying?", asked once per household),
+  `totalCreditLimits` (income step) and `coApplicantCreditLimits` (co-applicant step), so
+  both applicants' limits count, and optional `monthlyHouseholdCosts` (income step,
+  everyday costs excluding rent and loans).
+- **Living costs** = what was entered, but never below a minimum of **€300 per adult +
+  €200 per dependant** a month. They come off the stress-test buffer
+  (`net income − debts − living costs − stressed payment`), not the 50% DTI, which
+  stays about loan payments.
+- **Credit limits** count as **3% of the total limit a month** of debt, used or not, in
+  DTI, stressed DTI and the buffer.
+- **Prototype values, unverified**: no Estonian bank publishes its minimum living costs
+  or credit-limit share (SEB only says family size matters), so these are named constants
+  on `AffordabilityCalculator` to swap for real figures.
+- `LoanProfile` gains `household` and per-applicant `creditLimits`; `Financials` gains
+  `monthlyLivingCosts` and `creditLimitMonthlyCost`. Affordability figures now wait for
+  dependants and credit limits; household costs are optional and never block them.
+- The max-loan calculator takes the same inputs behind a collapsed "Household and credit
+  cards" section; left closed, the minimum living costs still count.
+
 ## 2026-10-12 — Affordability on net income, Eesti Pank-style limits (#31)
 
 - **Net, not gross**: income fields ask for monthly net income (after tax), because that's

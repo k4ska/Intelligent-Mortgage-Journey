@@ -31,7 +31,7 @@ public class LoanProfileAssembler {
     static final List<String> DEFAULTED_KEYS = List.of(
             "loanPurpose", "propertyAddress", "propertyType", "purchasePrice", "employmentType",
             "monthlyNetIncome", "monthlyDebtPayments", "downPayment", "loanAmount", "termYears",
-            "rateType");
+            "rateType", "dependants", "totalCreditLimits");
 
     /** Monthly net income assumed when none is given yet, so the profile is always complete. */
     private static final double DEFAULT_MONTHLY_NET_INCOME = 2_500;
@@ -40,9 +40,13 @@ public class LoanProfileAssembler {
     private static final List<String> PAYMENT_INPUTS = List.of(
             "purchasePrice", "downPayment", "loanAmount", "termYears", "rateType", "fixedYears");
     private static final List<String> CO_APPLICANT_INPUTS = List.of(
-            "coApplicantMonthlyIncome", "coApplicantMonthlyDebtPayments");
+            "coApplicantMonthlyIncome", "coApplicantMonthlyDebtPayments", "coApplicantCreditLimits");
     private static final List<String> CO_APPLICANT_REQUIRED = List.of(
-            "coApplicantName", "coApplicantMonthlyIncome", "coApplicantMonthlyDebtPayments");
+            "coApplicantName", "coApplicantMonthlyIncome", "coApplicantMonthlyDebtPayments",
+            "coApplicantCreditLimits");
+    /** monthlyHouseholdCosts is optional: left blank, the household minimum is used. */
+    private static final List<String> LIVING_COST_INPUTS = List.of(
+            "hasCoApplicant", "dependants", "monthlyHouseholdCosts");
 
     private final AffordabilityCalculator calculator;
     private final PropertyValuationService valuationService;
@@ -78,13 +82,24 @@ public class LoanProfileAssembler {
         boolean hasCoApplicant = Boolean.TRUE.equals(a.get("hasCoApplicant"));
         double coIncome = hasCoApplicant ? num(a.get("coApplicantMonthlyIncome"), 0) : 0;
         double coDebt = hasCoApplicant ? num(a.get("coApplicantMonthlyDebtPayments"), 0) : 0;
+        double creditLimits = num(a.get("totalCreditLimits"), 0);
+        double coCreditLimits = hasCoApplicant ? num(a.get("coApplicantCreditLimits"), 0) : 0;
+        double creditLimitCost = calculator.creditLimitMonthlyCost(creditLimits + coCreditLimits);
         double householdIncome = monthlyIncome + coIncome;
-        double householdDebt = monthlyDebt + coDebt;
+        // Unused credit limits count as debt: the money could be drawn at any time.
+        double householdDebt = monthlyDebt + coDebt + creditLimitCost;
+
+        int adults = hasCoApplicant ? 2 : 1;
+        int dependants = (int) num(a.get("dependants"), 0);
+        Double enteredCosts = optionalNum(a.get("monthlyHouseholdCosts"));
+        LoanProfile.Household household = new LoanProfile.Household(adults, dependants, enteredCosts,
+                calculator.minimumLivingCosts(adults, dependants));
+        double livingCosts = calculator.livingCosts(enteredCosts, adults, dependants);
 
         double rate = rateService.rateFor(rateType, fixedYears);
         double payment = calculator.monthlyPayment(loanAmount, rate, termYears);
         double stressed = calculator.stressedMonthlyPayment(loanAmount, rate, termYears);
-        double buffer = round2(householdIncome - householdDebt - stressed);
+        double buffer = round2(householdIncome - householdDebt - livingCosts - stressed);
 
         // LTV at origination is measured against the purchase price (what you agreed to pay).
         double ltv = calculator.loanToValue(loanAmount, purchasePrice);
@@ -95,14 +110,15 @@ public class LoanProfileAssembler {
                 : buffer < AffordabilityCalculator.MIN_STRESS_BUFFER ? "TIGHT" : "PASS";
 
         LoanProfile.Financials financials = new LoanProfile.Financials(
-                downPayment, ltv, dti, stressedDti, round2(payment), round2(stressed), buffer, stressResult);
+                downPayment, ltv, dti, stressedDti, round2(payment), round2(stressed), livingCosts,
+                creditLimitCost, buffer, stressResult);
 
         List<LoanProfile.Applicant> applicants = new ArrayList<>();
         applicants.add(new LoanProfile.Applicant(
-                null, str(a.get("employmentType"), "EMPLOYED"), monthlyIncome, monthlyDebt));
+                null, str(a.get("employmentType"), "EMPLOYED"), monthlyIncome, monthlyDebt, creditLimits));
         if (hasCoApplicant) {
             applicants.add(new LoanProfile.Applicant(
-                    str(a.get("coApplicantName"), null), null, coIncome, coDebt));
+                    str(a.get("coApplicantName"), null), null, coIncome, coDebt, coCreditLimits));
         }
 
         LoanProfile.Property property = new LoanProfile.Property(
@@ -115,10 +131,11 @@ public class LoanProfileAssembler {
 
         return new LoanProfile(
                 List.copyOf(applicants),
+                household,
                 property,
                 loanRequest,
                 financials,
-                riskIndicators(ltv, dti, financials, purchasePrice, estimatedValue),
+                riskIndicators(ltv, dti, financials, household, purchasePrice, estimatedValue),
                 documentChecklistService.requiredDocuments(a));
     }
 
@@ -149,13 +166,20 @@ public class LoanProfileAssembler {
         boolean hasPrice = entered.containsKey("purchasePrice");
         boolean hasLoan = entered.containsKey("loanAmount") || (hasPrice && entered.containsKey("downPayment"));
         boolean hasPayment = hasLoan && entered.containsKey("termYears") && entered.containsKey("rateType");
+        boolean hasLivingCosts = entered.containsKey("dependants");
+        boolean hasCreditLimits = entered.containsKey("totalCreditLimits")
+                && (!hasCoApplicant || entered.containsKey("coApplicantCreditLimits"));
         boolean hasAffordability = hasPayment && entered.containsKey(incomeKey)
-                && entered.containsKey("monthlyDebtPayments")
+                && entered.containsKey("monthlyDebtPayments") && hasLivingCosts && hasCreditLimits
                 && (!hasCoApplicant || CO_APPLICANT_INPUTS.stream().allMatch(entered::containsKey));
+        List<String> creditLimitInputs = hasCoApplicant
+                ? List.of("totalCreditLimits", "coApplicantCreditLimits")
+                : List.of("totalCreditLimits");
         List<String> affordabilityInputs = Stream.of(PAYMENT_INPUTS.stream(),
-                        Stream.of("employmentType", incomeKey, "monthlyDebtPayments"),
+                        Stream.of("employmentType", incomeKey, "monthlyDebtPayments", "totalCreditLimits"),
+                        LIVING_COST_INPUTS.stream(),
                         hasCoApplicant ? CO_APPLICANT_INPUTS.stream() : Stream.<String>empty())
-                .flatMap(keys -> keys).toList();
+                .flatMap(keys -> keys).distinct().toList();
 
         List<ProfileFacts.Figure> figures = new ArrayList<>();
         if (hasPrice) {
@@ -175,6 +199,14 @@ public class LoanProfileAssembler {
             figures.add(new ProfileFacts.Figure("stressedMonthlyPayment", f.stressedMonthlyPayment(),
                     PAYMENT_INPUTS, null));
         }
+        if (hasLivingCosts) {
+            figures.add(new ProfileFacts.Figure("monthlyLivingCosts", f.monthlyLivingCosts(),
+                    LIVING_COST_INPUTS, livingCostRisk(p.household())));
+        }
+        if (hasCreditLimits) {
+            figures.add(new ProfileFacts.Figure("creditLimitMonthlyCost", f.creditLimitMonthlyCost(),
+                    creditLimitInputs, creditLimitRisk(f.creditLimitMonthlyCost())));
+        }
         if (hasAffordability) {
             figures.add(new ProfileFacts.Figure("debtToIncomePercent", f.dti(), affordabilityInputs,
                     dtiRisk(f.dti())));
@@ -189,9 +221,10 @@ public class LoanProfileAssembler {
     }
 
     private static List<String> riskIndicators(double ltv, double dti, LoanProfile.Financials f,
-            double purchasePrice, double estimatedValue) {
+            LoanProfile.Household household, double purchasePrice, double estimatedValue) {
         List<String> risks = Stream.of(valuationRisk(purchasePrice, estimatedValue), ltvRisk(ltv),
-                dtiRisk(dti), stressRisk(f)).filter(Objects::nonNull).toList();
+                dtiRisk(dti), stressRisk(f), creditLimitRisk(f.creditLimitMonthlyCost()),
+                livingCostRisk(household)).filter(Objects::nonNull).toList();
         return risks.isEmpty()
                 ? List.of("No major risk indicators from the information provided so far")
                 : risks;
@@ -227,6 +260,23 @@ public class LoanProfileAssembler {
         return null;
     }
 
+    private static String creditLimitRisk(double creditLimitMonthlyCost) {
+        return creditLimitMonthlyCost > 0
+                ? "Credit card and overdraft limits count as " + Math.round(creditLimitMonthlyCost) + "/month of debt even if "
+                        + "unused - closing limits you don't need would raise what you can borrow"
+                : null;
+    }
+
+    private static String livingCostRisk(LoanProfile.Household h) {
+        Double entered = h.enteredMonthlyCosts();
+        return entered != null && entered < h.minimumMonthlyCosts()
+                ? "Household costs of " + Math.round(entered) + "/month are below the " + Math.round(h.minimumMonthlyCosts())
+                        + "/month lenders assume for " + h.adults() + (h.adults() == 1 ? " adult" : " adults")
+                        + " and " + h.dependants() + (h.dependants() == 1 ? " dependant" : " dependants")
+                        + ", so the minimum is used"
+                : null;
+    }
+
     private static boolean selfEmployed(Map<String, Object> answers) {
         return "SELF_EMPLOYED".equals(str(answers.get("employmentType"), "EMPLOYED"));
     }
@@ -255,6 +305,15 @@ public class LoanProfileAssembler {
             }
         }
         return fallback;
+    }
+
+    /** A number, or null when the answer is missing or blank (an optional field left empty). */
+    private static Double optionalNum(Object o) {
+        if (o == null || o.toString().isBlank()) {
+            return null;
+        }
+        double value = num(o, Double.NaN);
+        return Double.isNaN(value) ? null : value;
     }
 
     private static String str(Object o, String fallback) {

@@ -51,7 +51,7 @@ answer with the stub until midnight. The count is in-memory, so a backend restar
 | `POST /api/agent/review` | `{ applicationId }` → `{ summary, concerns[], followUpQuestion }` |
 | `POST /api/agent/chat` | `{ applicationId, message }` → `text/event-stream` of tokens |
 | `POST /api/calculator/estimate` | `{ propertyPrice, downPayment, annualRatePct?, termYears? }` → `{ loanAmount, monthlyPayment, ltv, annualRatePct, termYears }` — pure math, no persistence, usable before an application exists |
-| `POST /api/calculator/max-loan` | `{ monthlyIncome, coApplicantMonthlyIncome?, monthlyDebtPayments?, downPayment?, annualRatePct?, termYears? }` → `{ maxLoanAmount, maxPropertyPrice, monthlyPayment, limitedBy, annualRatePct, termYears, maxDtiPct, maxLtvPct }` — "how much can I borrow?" under the same DTI / stress-test limits the journey checks, plus a typical 85% LTV when a down payment is given |
+| `POST /api/calculator/max-loan` | `{ monthlyIncome, coApplicantMonthlyIncome?, monthlyDebtPayments?, downPayment?, annualRatePct?, termYears?, dependants?, monthlyHouseholdCosts?, totalCreditLimits? }` → `{ maxLoanAmount, maxPropertyPrice, monthlyPayment, limitedBy, annualRatePct, stressRatePct, termYears, maxDtiPct, maxLtvPct, monthlyLivingCosts, creditLimitMonthlyCost }` — "how much can I borrow?" on monthly net income, under the same limits the journey checks (incl. living costs and credit limits), plus a typical 85% LTV when a down payment is given |
 
 `followUpQuestion` is `null` unless the agent needs to ask the applicant something before
 it can do the job well — see `../docs/agent-architecture.md`.
