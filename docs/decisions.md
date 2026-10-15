@@ -3,6 +3,36 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-15 — Real kv.ee listings, best effort; the user fills the gaps
+
+- **Reverses the mock listings** from the vision (2026-10-15 pivot). When the user pastes
+  a kv.ee link, `lookupListing` makes one honest request for that page and reads its
+  schema.org structured data. If that fails, the advisor asks the user.
+- **Why it's allowed**: kv.ee's terms don't mention scraping, and its `robots.txt` allows
+  listing pages for generic bots and explicitly allows AI assistants fetching a page for
+  a user (`ChatGPT-User`, `Claude-Web`, ...). It only blocks AI *training* crawlers
+  (`GPTBot`, `CCBot`, `Google-Extended`, ...). Our use, one page because the user asked,
+  nothing kept for training, is on the allowed side.
+- **Why it's only best effort**: kv.ee runs a bot check. With an honest user agent, one
+  test listing loaded (a house in Haabneeme: price 549 000 EUR, type, address, 251.7 m²,
+  7 rooms, built 2001, all in the structured data); the next listing got a 403 challenge
+  page. **We never try to get around the bot check** (no faked browser, no solving the
+  challenge).
+- **Rules for the fetch**: only `kv.ee` links, one request per pasted link, an honest
+  user agent, a 5-second timeout, cached per link; no crawling, no other pages, no image
+  pages (`robots.txt` disallows them). Prices are read in code from the structured data,
+  never by the LLM from raw HTML.
+- **What the property needs**: **type** (apartment, house, plot, new build), **price**
+  and **location**. Size, rooms and year built are kept when the listing provides them,
+  but the advisor never asks for them.
+- **When the link can't be read**: the advisor asks for the type, price and location, or
+  for the page text pasted into the chat. Values the user states are `CONFIRMED`; values
+  the advisor picks out of pasted text are `UNCERTAIN` until the user confirms them.
+- **Monthly building or upkeep costs are dropped**: most kv.ee listings don't show them.
+  Affordability still counts the household's living costs.
+- **Later, if needed**: reliable listing data would need kv.ee's cooperation (an API or
+  partner access), something the mentor or SEB could ask about.
+
 ## 2026-10-15 — Advisor skeleton (#50)
 
 - **One endpoint per turn**: `POST /api/chat/messages` streams SSE events; the advisor's

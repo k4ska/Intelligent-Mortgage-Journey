@@ -6,7 +6,7 @@ accepted bank offer.
 
 University semester project (team of 3) built for an SEB project brief. It is an
 interactive **prototype**, not production software. **Not affiliated with any bank. All
-personal data, documents, listings and bank offers are simulated.**
+personal data, documents and bank offers are simulated.**
 
 > **Pivot, 2026-10-15.** The project changed from a guided form to a chat-based advisor.
 > The full picture is in **[`docs/vision.md`](docs/vision.md)**, and the high-level scheme
@@ -29,7 +29,8 @@ A conversation with an advisor agent, instead of a form:
 
 1. The user logs in, and the agent opens with *"Hi, how can I help you?"*
 2. Through natural conversation, the agent learns about the user's situation and goals.
-3. The user can paste a kv.ee link; the agent reads the price and building costs.
+3. The user can paste a kv.ee link; the agent reads the type, price and location (or
+   asks the user for them if the listing can't be read).
 4. The agent explains whether the user can afford it, and if not, what they could afford.
    Charts show how interest rates (Euribor + margin) change the picture.
 5. The agent asks for the documents a bank needs and explains where to get them; uploaded
@@ -51,7 +52,7 @@ property on the right, and an inbox tab for the bank emails.
 
 ### In scope
 
-Chat-based advisor · auto-filled profile and property panels · mock kv.ee listings ·
+Chat-based advisor · auto-filled profile and property panels · kv.ee listing lookup ·
 affordability with Estonian-style rules · document upload with confirmation · bank agents
 and an in-app inbox · negotiation · login with saved progress · responsive web + mobile.
 
@@ -73,7 +74,7 @@ extras** split, and what is mocked and how.
 | Backend    | Java + Spring Boot, REST + Server-Sent Events                        |
 | LLM        | OpenAI via [Spring AI](https://docs.spring.io/spring-ai/reference/) `ChatClient` (API key stays server-side) |
 | Database   | In-memory H2 by default; Postgres available via a `docker-compose` profile |
-| Data       | Mock services: listings, documents, interest rates, bank catalog |
+| Data       | Mock services: documents, interest rates, bank catalog; kv.ee listings read live (best effort) |
 | Email      | Stored in our own database at first; [agentmail.to](https://agentmail.to) later |
 
 ---
@@ -180,7 +181,7 @@ docker-compose.yml          backend + frontend services (+ optional Postgres pro
 
 | Area | Who | Owns |
 | --- | --- | --- |
-| Advisor side | **k4ska** | The advisor orchestrator, the advisor agent and its tools, keeping it honest (phases, number check, test conversations), the document reader, stream events, profile fields, mock listings, affordability and chart data |
+| Advisor side | **k4ska** | The advisor orchestrator, the advisor agent and its tools, keeping it honest (phases, number check, test conversations), the document reader, stream events, profile fields, the property and listing lookup, affordability and chart data |
 | Frontend | **janmatvejev** | The three-panel layout, login, chat streaming, panels, document upload, bank picker, inbox, charts, phone layout |
 | Bank side + platform | **lightbtw** | Auth, database, application snapshot, email gateway (database, then agentmail), the bank orchestrator, bank agents, bank rules and offers, verifier, inbox endpoints |
 
