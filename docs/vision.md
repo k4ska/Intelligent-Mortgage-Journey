@@ -16,8 +16,8 @@ email, and the advisor helps the user answer, compare and negotiate the offers u
 they accept one.
 
 The point of the prototype is **the process and how the agent helps the user through
-it**, not a real implementation. Personal data, documents, listings and banks are all
-mocked.
+it**, not a real implementation. Personal data, documents and banks are mocked. Listings
+are read from kv.ee when possible; otherwise the user gives the details themselves.
 
 ## The journey, step by step
 
@@ -31,9 +31,12 @@ mocked.
    you earn, do you have savings for a down payment, are you buying alone or with
    someone, do you have other loans. Every fact it learns appears in the profile panel on
    the right.
-4. **The property.** At any point the user can paste a kv.ee link. The agent "reads" the
-   listing and fills in the property panel: price, size, rooms, location, and monthly
-   building costs where available. (We use mock listings; see Scope.)
+4. **The property.** At any point the user can paste a kv.ee link. The agent tries to
+   read the listing and fills in the property panel with the **type** (apartment, house,
+   plot or new build), the **price** and the **location**, plus size, rooms and year
+   built when the page provides them. If the link can't be read, the agent asks the user
+   to look at the listing and give the type, price and location, or simply paste the page
+   text. See Scope for why.
 5. **Can I afford it?** The agent checks affordability with the existing affordability
    rules (net income, the Eesti Pank-style 50% payment limit, the stress test, living
    costs and credit limits). It explains the result in plain language:
@@ -89,7 +92,7 @@ mocked.
 │  ○ Valuation  │  [chart: rate vs. monthly        │  THE PROPERTY         │
 │    report     │   payment]                       │  2-room, Kalamaja 🏠  │
 │  [ Upload ]   │                                  │  Price  €189,000      │
-│               │  [ type a message...       ]     │  Building costs €95/mo│
+│               │  [ type a message...       ]     │  Apartment · Tallinn  │
 └───────────────┴──────────────────────────────────┴───────────────────────┘
 ```
 
@@ -134,12 +137,23 @@ list to the user (for example, co-applicant documents only if there is a co-appl
 - **English** for now. Estonian is a planned later addition, so don't hard-code text in a
   way that makes translation hard.
 
+### kv.ee listings (real, best effort)
+- When the user pastes a kv.ee link, the backend makes **one honest request** for that
+  page (identifying itself as our prototype, no faked browser) and reads the listing's
+  schema.org structured data: type, price, location, and size, rooms and year built.
+  kv.ee's `robots.txt` allows listing pages and explicitly allows AI assistants that
+  fetch a page for a user.
+- kv.ee's bot check lets some requests through and blocks others (one test listing loaded,
+  the next got a 403). **We never try to get around it.** When a fetch fails, the advisor
+  asks the user for the type, price and location, or to paste the page text. Values the
+  advisor picks out of pasted text are marked uncertain until the user confirms them.
+- **Monthly building or upkeep costs are left out**: most kv.ee listings don't show them.
+  Affordability still counts the household's living costs (what the user spends, but at
+  least the minimum per adult and dependant).
+
 ### Mocked (on purpose)
 - **Personal data and documents.** Any uploaded file is accepted; the agent invents
   matching values and the user confirms them.
-- **kv.ee listings.** A set of prepared mock listings (realistic price, details, photo,
-  building costs) behind a few kv.ee-style links. A link we don't recognise gets: "I
-  couldn't read that listing. Can you tell me the price and a few details?"
 - **Banks.** Real Estonian bank names, but every reply, offer and decision comes from our
   bank agents.
 - **Email.** At first the bank emails are messages stored in our own database and shown in
@@ -165,7 +179,8 @@ story to demo.
 **Core path**
 1. Login, and the saved conversation.
 2. Chat with the advisor, which fills in the profile panel (with sources).
-3. Pasting a mock kv.ee link fills in the property panel.
+3. Pasting a kv.ee link fills in the property panel (or the advisor asks for the type,
+   price and location when the link can't be read).
 4. An affordability answer in plain language, with the "you could afford something like..."
    advice.
 5. Document upload in the left panel, values confirmed in the chat.
@@ -199,8 +214,6 @@ pages are dropped.
 
 These will be answered in the high-level scheme or along the way.
 
-- Which kv.ee listings to prepare as mocks, and how many (3–5 across price ranges seems
-  right).
 - Exact rules for each bank agent (margin, max LTV, how strict it is, how far it goes in
   negotiation), so the banks feel different.
 - Where the real Euribor value would come from, if we use one.

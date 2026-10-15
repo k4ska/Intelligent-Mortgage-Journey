@@ -81,7 +81,8 @@ and next to an email thread in the inbox. Both write to the **same conversation*
 | Tool | What it does | Event it pushes |
 | --- | --- | --- |
 | `updateProfile(fields)` | Saves facts from the chat (source `CHAT`), or confirms uncertain ones | `profile_updated` |
-| `lookupListing(url)` | Finds a mock listing by its kv.ee link; unknown link → "not found" | `property_updated` |
+| `lookupListing(url)` | One honest fetch of a kv.ee listing, reading its structured data (type, price, location, size, rooms, year built). Blocked or not kv.ee → "couldn't read it, ask the user" | `property_updated` |
+| `updateProperty(fields)` | Saves type, price and location the user gives (or that the advisor picks out of pasted page text, marked uncertain) | `property_updated` |
 | `checkAffordability()` | Runs `AffordabilityCalculator` on the profile and property | — |
 | `suggestAffordableRange()` | What price range the user could afford instead | — |
 | `showChart(type, params)` | Calculates chart data (e.g. rate vs. monthly payment) | `chart` |
@@ -173,7 +174,7 @@ message).
 
 | Phase | When (worked out from the data) | Focus | Tools added |
 | --- | --- | --- | --- |
-| Getting to know you | Key facts missing (income, savings, buying alone or not, other loans) | Ask simple questions, one at a time | `updateProfile`, `lookupListing`, `explainTerm` |
+| Getting to know you | Key facts missing (income, savings, buying alone or not, other loans) | Ask simple questions, one at a time | `updateProfile`, `lookupListing`, `updateProperty`, `explainTerm` |
 | Property | Key facts known, no property yet | Ask what they have in mind, or suggest a range | `checkAffordability`, `suggestAffordableRange`, `showChart` |
 | Affordability | A property is set, affordability not yet discussed | Explain the result in plain language | (same) |
 | Documents | Affordability discussed | Ask for documents, explain where to get them | `requestDocument`, `checkReadiness` |
@@ -230,8 +231,10 @@ User ─────────── email, password (hashed)
  │      value · source (CHAT | LISTING | DOCUMENT) · status (UNCERTAIN | CONFIRMED)
  │      sourceDocument (if it came from a document)
  │
- ├─ Property ───── the active one: listing link, title, price, size, rooms,
- │                 address, monthly building costs, photo
+ ├─ Property ───── the active one. Required: type (APARTMENT | HOUSE | PLOT |
+ │                 NEW_BUILD), price, location. Only when read from the listing:
+ │                 size, rooms, year built. Plus the listing link, and for each value
+ │                 a source (LISTING | CHAT) and status (UNCERTAIN | CONFIRMED)
  │
  ├─ Document ───── type (ID, PAYSLIP, BANK_STATEMENT, DOWN_PAYMENT_PROOF, VALUATION,
  │                 PURCHASE_AGREEMENT, ...), status (NEEDED | UPLOADED | CONFIRMED),
@@ -246,7 +249,6 @@ User ─────────── email, password (hashed)
                          valid until), read/unread
 
 Seed data (the same for everyone, loaded at startup):
-  MockListing ── 3–5 kv.ee-style listings: link, price, details, photo, building costs
   Bank ───────── SEB, Swedbank, LHV, Luminor, Coop Pank: base margin, lowest margin,
                  max LTV, min down payment %, strictness, max negotiation rounds, tone
 ```
@@ -334,6 +336,17 @@ POST /api/inbox/{threadId}/assist  (SSE) { text } -> the advisor next to the thr
 
 ## 6. Key flows
 
+**Look up a listing**
+1. The user pastes a kv.ee link → `lookupListing` makes one request with an honest user
+   agent and a 5-second timeout. Only `kv.ee` links; no crawling, no other pages, no
+   image pages (`robots.txt` disallows those). Results are cached per link.
+2. It worked → the type, price and location (plus size, rooms, year built) are saved with
+   source `LISTING` → `property_updated`, and the advisor carries on.
+3. Blocked (kv.ee's bot check) or failed → the tool says so, and the advisor asks the user
+   for the type, price and location, or to paste the page text. Values the user states
+   are `CHAT` + `CONFIRMED`; values the advisor picks out of pasted text are `CHAT` +
+   `UNCERTAIN` until the user confirms them, like document values.
+
 **Upload a document**
 1. The user uploads a payslip → `POST /api/documents/PAYSLIP` → status `UPLOADED`.
 2. The frontend sends `{ trigger: "DOCUMENT_UPLOADED" }` to the chat.
@@ -376,7 +389,7 @@ com.seb.mortgage
 │                 DocumentReaderAgent, chat controller, stream events
 ├── conversation  Conversation, Message
 ├── profile       ProfileField, LoanProfile + assembler, ProfileFacts
-├── property      Property, mock listings
+├── property      Property, kv.ee listing reader
 ├── documents     Document, upload controller
 ├── bank          BankOrchestrator, BankAgent, bank rules, offer calculator,
 │                 applications, inbox controller
@@ -392,7 +405,7 @@ com.seb.mortgage
 
 | | **Advisor side**: k4ska | **Frontend**: janmatvejev | **Bank side + platform**: lightbtw |
 | --- | --- | --- | --- |
-| **Owns** | `AdvisorOrchestrator`, the advisor agent and its tools, phases, the number check, the verifier on chat turns, the test conversations, the document reader, stream events, profile fields, mock listings, connecting the affordability calculator, chart data | Three-panel layout, login pages, chat streaming, events updating the panels (including showing corrected replies), document upload, bank picker card, inbox + its advisor panel, charts, phone layout | Auth, database setup, application snapshot, email gateway (database, then agentmail), `BankOrchestrator`, bank agents and bank rules, offer calculator, verifier on emails, inbox endpoints |
+| **Owns** | `AdvisorOrchestrator`, the advisor agent and its tools, phases, the number check, the verifier on chat turns, the test conversations, the document reader, stream events, profile fields, the property and listing lookup, connecting the affordability calculator, chart data | Three-panel layout, login pages, chat streaming, events updating the panels (including showing corrected replies), document upload, bank picker card, inbox + its advisor panel, charts, phone layout | Auth, database setup, application snapshot, email gateway (database, then agentmail), `BankOrchestrator`, bank agents and bank rules, offer calculator, verifier on emails, inbox endpoints |
 | **Deletes** | `ExplainAgent`, `ValidateAgent`, `ReviewAgent`, `ChatAgent`, the old `AgentOrchestrator` | Form pages, step sidebar, landing hub | `flow/`, `application/`, the calculator endpoints |
 | **Can start without the others by** | Testing tools and the stream without a UI | Faking the stream and endpoints | Testing bank agents with a hand-made snapshot |
 
@@ -412,6 +425,5 @@ own column along the core demo path in [`vision.md`](vision.md).
 
 - The exact numbers in each bank's rules (margins, max LTV, min down payment,
   strictness), so the five banks feel different.
-- Which 3–5 mock listings to prepare, across price ranges.
 - Where the real 6-month Euribor would come from (or a fixed mock value).
 - The phone layout: the side panels probably become tabs or drawers.
