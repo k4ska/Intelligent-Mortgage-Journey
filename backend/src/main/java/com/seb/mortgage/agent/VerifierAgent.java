@@ -6,7 +6,7 @@ import java.util.Locale;
 
 /**
  * Independent verifier: never talks to the applicant directly, only checks a specialist's
- * draft reply before {@code AgentOrchestrator} lets it reach the client. Deliberately
+ * draft reply before an orchestrator lets it reach the client. Deliberately
  * built on its own {@link ChatClient} with its own system prompt, not shared with any
  * specialist, so it isn't primed by the same instructions it's meant to be checking.
  */

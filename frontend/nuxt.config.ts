@@ -45,7 +45,7 @@ export default defineNuxtConfig({
       title: 'Intelligent Mortgage Journey',
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'description', content: 'A guided, agent-supported mortgage application journey.' },
+        { name: 'description', content: 'A chat-based mortgage advisor, from "could I get a loan?" to an accepted offer.' },
       ],
     },
   },

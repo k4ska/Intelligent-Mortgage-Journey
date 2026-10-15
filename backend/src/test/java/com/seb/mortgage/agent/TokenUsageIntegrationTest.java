@@ -22,12 +22,12 @@ import org.springframework.context.annotation.Primary;
 import reactor.core.publisher.Flux;
 
 /**
- * Runs the real agents against a fake ChatModel that reports 100 input + 20 output tokens
- * per call, with a 240-token budget: exactly one explain (specialist + verifier) fits.
+ * Runs the real verifier against a fake ChatModel that reports 100 input + 20 output
+ * tokens per call, with a 120-token budget: exactly one call fits.
  */
 @SpringBootTest(properties = {
 		"spring.ai.openai.api-key=sk-dummy",
-		"app.token-budget.daily-limit=240" })
+		"app.token-budget.daily-limit=120" })
 @Import(TokenUsageIntegrationTest.FakeModelConfig.class)
 class TokenUsageIntegrationTest {
 
@@ -48,10 +48,7 @@ class TokenUsageIntegrationTest {
 		@Override
 		public ChatResponse call(Prompt prompt) {
 			calls.incrementAndGet();
-			String text = prompt.getContents().contains("Draft reply to check")
-					? "{\"approved\": true, \"rewrite\": null}"
-					: "{\"explanation\": \"LTV is the loan divided by the price.\", \"followUpQuestion\": null}";
-			return response(text);
+			return response("{\"approved\": true, \"rewrite\": null}");
 		}
 
 		@Override
@@ -66,34 +63,28 @@ class TokenUsageIntegrationTest {
 		}
 	}
 
-	@Autowired AgentService agentService;
+	@Autowired VerifierAgent verifier;
 	@Autowired TokenUsageTracker tracker;
 	@Autowired FakeChatModel model;
 
 	@Test
-	void countsTokensPerAgentThenFallsBackToStubWhenBudgetIsSpent() {
-		var unknown = agentService.explain("not-in-the-glossary", null);
-		assertThat(unknown.explanation()).isEqualTo("This topic is not in our glossary yet.");
-		assertThat(unknown.relatedTopics()).isEmpty();
-		assertThat(unknown.followUpQuestion()).isNull();
-		assertThat(model.calls.get()).isZero();
-		assertThat(tracker.snapshot().usedTokens()).isZero();
-
-		var first = agentService.explain("loan-to-value", null);
-		assertThat(first.explanation()).isEqualTo("LTV is the loan divided by the price.");
+	void countsTokensPerAgentThenStopsCallingTheModelWhenBudgetIsSpent() {
+		var first = verifier.verify("task", "A draft.", "{}");
+		assertThat(first.approved()).isTrue();
+		assertThat(first.note()).isNull();
 
 		var usage = tracker.snapshot();
-		assertThat(usage.usedTokens()).isEqualTo(240);
-		assertThat(usage.byAgent()).containsOnlyKeys("ExplainAgent", "VerifierAgent");
-		assertThat(usage.byAgent().get("ExplainAgent").inputTokens()).isEqualTo(100);
+		assertThat(usage.usedTokens()).isEqualTo(120);
+		assertThat(usage.byAgent()).containsOnlyKeys("VerifierAgent");
+		assertThat(usage.byAgent().get("VerifierAgent").inputTokens()).isEqualTo(100);
 		assertThat(usage.budgetExceeded()).isTrue();
 
-		// Budget spent: answers now come from the stub and the model is not called again.
+		// Budget spent: TokenUsageAdvisor refuses the call, so the model is not called again, and
+		// the verifier fails open with the draft unchanged.
 		int callsBefore = model.calls.get();
-		var second = agentService.explain("loan-to-value", null);
-		assertThat(second.explanation()).isNotEqualTo("LTV is the loan divided by the price.").isNotBlank();
-		String chat = String.join("", agentService.chat(null, "hi").collectList().block());
-		assertThat(chat).contains("stub assistant");
+		var second = verifier.verify("task", "A draft.", "{}");
+		assertThat(second.output()).isEqualTo("A draft.");
+		assertThat(second.note()).contains("Daily token budget reached");
 		assertThat(model.calls.get()).isEqualTo(callsBefore);
 	}
 }

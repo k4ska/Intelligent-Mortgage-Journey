@@ -11,7 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 /**
  * Checks that an OpenAI API key switches the agents to OpenAI, and that a missing key
- * falls back to the stub. The key is a dummy: nothing here calls a real API.
+ * leaves the app in stub mode. The key is a dummy: nothing here calls a real API.
  */
 class AgentProviderSelectionTest {
 
@@ -22,13 +22,13 @@ class AgentProviderSelectionTest {
         @SuppressWarnings("unused")
 	class OpenAiWithKey {
 
-		@Autowired AgentService agentService;
+		@Autowired AgentMode agentMode;
 		@Autowired ChatModel chatModel;
 
 		@SuppressWarnings("removal")
 		@Test
 		void usesOpenAi() {
-			assertThat(agentService.mode()).isEqualTo("openai");
+			assertThat(agentMode.value()).isEqualTo("openai");
 			assertThat(chatModel).isInstanceOf(OpenAiChatModel.class);
 			assertThat(chatModel.getDefaultOptions().getModel()).isEqualTo("gpt-test-model");
 			// Needed so streamed chat replies report token usage (see TokenUsageAdvisor).
@@ -42,11 +42,11 @@ class AgentProviderSelectionTest {
         @SuppressWarnings("unused")
 	class WithoutKey {
 
-		@Autowired AgentService agentService;
+		@Autowired AgentMode agentMode;
 
 		@Test
 		void fallsBackToStub() {
-			assertThat(agentService.mode()).isEqualTo("stub");
+			assertThat(agentMode.value()).isEqualTo("stub");
 		}
 	}
 }

@@ -95,7 +95,7 @@ public class AffordabilityCalculator {
 	}
 
 	/**
-	 * The largest loan the journey's own checks would accept: at the stressed rate, loan
+	 * The largest loan the affordability checks would accept: at the stressed rate, loan
 	 * payments within {@link #MAX_DTI_PCT}% of net income and a buffer of at least
 	 * {@link #MIN_STRESS_BUFFER} after living costs, and, when a down payment is given,
 	 * loan-to-value within {@link #TYPICAL_MAX_LTV_PCT}. {@code monthlyDebts} already

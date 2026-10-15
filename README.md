@@ -103,8 +103,7 @@ cd frontend && npm install --legacy-peer-deps && npm run dev
 
 Open http://localhost:3000.
 
-**No API key yet?** The app runs anyway: the agent falls back to a deterministic stub
-(canned explanations, rule-based validation, a templated read-back). `GET
+**No API key yet?** The app runs anyway, in stub mode: the agents give canned replies. `GET
 /api/agent/status` shows `stub` or `openai`. To use the real agents, set
 `OPENAI_API_KEY=sk-...` (optionally `OPENAI_MODEL`, default `gpt-5-mini`) in `.env`
 (Docker) or the environment (local dev) — no code change either way.
@@ -113,7 +112,7 @@ Open http://localhost:3000.
 model, input/output tokens, today's running total). `GET /api/agent/usage` returns today's
 totals per agent. There's a daily budget (`APP_DAILY_TOKEN_BUDGET`, default 4,500,000,
 resetting at midnight Europe/Tallinn): the log warns at 80%, and once it's spent the agents
-answer with the stub until midnight. The count is in-memory, so a backend restart resets it.
+give canned replies until midnight. The count is in-memory, so a backend restart resets it.
 
 `npm install` needs `--legacy-peer-deps` — npm 10.9.x crashes on Nuxt UI's optional-peer
 set otherwise.

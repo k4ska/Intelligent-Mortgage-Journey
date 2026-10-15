@@ -10,8 +10,8 @@ import org.springframework.ai.chat.client.ChatClient;
  * <p>Kept deliberately thin - no tool registration, no shared state, no shared prompt
  * text - so each agent's behaviour is fully defined by its own system prompt and its own
  * method(s). This is the one thing every agent in the codebase has in common; see
- * {@code docs/agent-architecture.md} for how the pieces fit together and the recipe for
- * adding a new agent.
+ * {@code docs/architecture.md} for how the agents fit together. (The advisor needs tool
+ * support here; that comes with #50.)
  */
 abstract class LlmSpecialistAgent {
 

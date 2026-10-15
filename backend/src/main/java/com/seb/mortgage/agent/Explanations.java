@@ -4,9 +4,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Plain-language explanation snippets keyed by {@code helpKey} / topic. Used directly by
- * the stub agent and offered to the LLM as reference material by the real one, so the
- * vocabulary stays consistent whether or not an API key is configured.
+ * Plain-language explanation snippets keyed by topic. This is the glossary behind the
+ * advisor's {@code explainTerm} tool (see {@code docs/architecture.md}), so definitions
+ * come from here rather than from the model's own memory.
  */
 public final class Explanations {
 
