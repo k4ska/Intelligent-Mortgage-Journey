@@ -9,9 +9,9 @@ interactive **prototype**, not production software. **Not affiliated with any ba
 personal data, documents, listings and bank offers are simulated.**
 
 > **Pivot, 2026-10-15.** The project changed from a guided form to a chat-based advisor.
-> The full picture is in **[`docs/vision.md`](docs/vision.md)**. The code in this repo
-> still mostly reflects the form-based version; it will be reworked once the high-level
-> scheme is agreed.
+> The full picture is in **[`docs/vision.md`](docs/vision.md)**, and the high-level scheme
+> in **[`docs/architecture.md`](docs/architecture.md)**. The code in this repo still
+> mostly reflects the form-based version until it's reworked.
 
 ---
 
@@ -132,11 +132,12 @@ which is the source of truth over any one person's chat history:
   by step, the screen, scope, and the core path vs. extras. **Start here.**
 - **[`docs/decisions.md`](docs/decisions.md)**: dated log of settled decisions, newest
   first.
-- **[`docs/agent-architecture.md`](docs/agent-architecture.md)**: how the agent backend
-  works today (form-based version; to be rewritten after the high-level scheme).
+- **[`docs/architecture.md`](docs/architecture.md)**: the high-level scheme: the two
+  orchestrators and their agents, the data, the API contracts, the key flows and the
+  work split. Read it second.
 
 When the team settles something new, add a dated entry to `docs/decisions.md` (and update
-`docs/vision.md` or `docs/agent-architecture.md` if it changes them) in the same PR. Don't
+`docs/vision.md` or `docs/architecture.md` if it changes them) in the same PR. Don't
 leave it only in a chat transcript someone else can't see. Current build status and open
 work live as GitHub issues, not as a status paragraph here.
 
@@ -144,12 +145,18 @@ work live as GitHub issues, not as a status paragraph here.
 
 ## API contracts
 
-The contracts of the form-based version (flow definition schema, agent API, loan profile)
-are **being replaced**. The flow definition schema goes away entirely; the agent API and
-the loan profile will be redesigned for the chat, the documents, the listings and the
-bank inbox as part of the high-level scheme. Until then, `backend/README.md` and the DTOs
-in the code describe the API as it is today. Keep `backend/.../agent/AgentDtos.java` and
-`frontend/app/types/api.ts` in sync when either changes.
+The frontend and backend meet at three contracts, defined in
+[`docs/architecture.md`](docs/architecture.md#4-api-contracts):
+
+1. **The REST endpoints**: auth, chat, profile, documents, banks and inbox.
+2. **The stream events**: one SSE stream per advisor turn carries the reply text *and*
+   events for the panels (`profile_updated`, `property_updated`, `document_status`,
+   `chart`, `bank_picker`, `draft_reply`).
+3. **The data**: profile fields (value, source, status), the property, documents, the
+   frozen application snapshot and the email threads.
+
+Until the code is reworked, `backend/README.md` describes the API as it is today. Keep the
+backend DTOs and `frontend/app/types/api.ts` in sync when either changes.
 
 ---
 
@@ -172,14 +179,21 @@ docker-compose.yml          backend + frontend services (+ optional Postgres pro
 
 ## Team & responsibilities
 
-The team is **k4ska**, **janmatvejev** and **lightbtw**. Who owns which area will be decided
-as part of the high-level scheme and added here.
+| Area | Who | Owns |
+| --- | --- | --- |
+| Advisor side | **k4ska** | The advisor orchestrator, the advisor agent and its tools, the document reader, stream events, profile fields, mock listings, affordability and chart data |
+| Frontend | **janmatvejev** | The three-panel layout, login, chat streaming, panels, document upload, bank picker, inbox, charts, phone layout |
+| Bank side + platform | **lightbtw** | Auth, database, application snapshot, email gateway (database, then agentmail), the bank orchestrator, bank agents, bank rules and offers, verifier, inbox endpoints |
+
+Details, including what each person deletes from the form-based version, are in
+[`docs/architecture.md`](docs/architecture.md#7-work-split).
 
 ---
 
 ## Next steps
 
 1. Agree on the vision ([`docs/vision.md`](docs/vision.md)). ✓
-2. Build the **high-level scheme** of the whole application: components, agents, data
-   flow, the new API contracts, and the work split.
-3. Turn the scheme into GitHub issues, starting with the core demo path.
+2. Agree on the high-level scheme ([`docs/architecture.md`](docs/architecture.md)). ✓
+3. Build the **walking skeleton**: log in → the advisor greets → one fact fills the
+   profile panel → pick one bank → an email lands in the inbox.
+4. Then deepen each area along the core demo path, followed by the extras.
