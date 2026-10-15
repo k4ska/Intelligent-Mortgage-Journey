@@ -6,8 +6,8 @@ living only in chat history or one person's head.
 ## Workflow
 
 1. **Every piece of work is an issue first.** Use the *Feature/task*, *Bug report*, or
-   *Research* template. Assign it, and put it in the milestone matching the roadmap phase
-   it belongs to (see `README.md`).
+   *Research* template. Assign it, and put it in the matching milestone. Read
+   `docs/vision.md` first: work on the **core demo path** comes before the extras.
 2. **Branch per issue**: `area/short-description` (e.g. `frontend/landing-hub`,
    `agent/glossary-gate`). Matches the `area:*` labels: `frontend`, `backend`, `agent`,
    `docs`, `infra`.

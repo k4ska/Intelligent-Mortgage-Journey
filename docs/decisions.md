@@ -3,6 +3,50 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-15 — Pivot: a chat-based advisor replaces the form
+
+- **Why**: after a meeting with the mentor, the project takes a 180° turn. Instead of a
+  guided form with agent help on the side, the whole journey is a **conversation** with
+  an advisor agent, like sitting down with a person. The full vision is in
+  **[`docs/vision.md`](vision.md)**.
+- **What the product is now**: the user talks to the advisor, which asks questions,
+  reads a (mock) kv.ee listing, checks affordability, collects documents, and then takes
+  the application to one or more real Estonian banks. The banks are played by **bank
+  agents** that reply by email in an in-app inbox; the advisor helps the user answer,
+  compare and negotiate the offers until they accept one.
+- **Layout**: documents panel on the left, chat in the middle, profile and property on
+  the right (auto-filled, with the source of each value and uncertain values marked).
+  The inbox is its own tab. The user corrects the profile through the chat only.
+- **Settled details**:
+  - The agent opens with "Hi, how can I help you?"; no starter prompts.
+  - Any uploaded file is accepted; the agent makes up matching values and asks the user
+    to confirm them, and explains where to get each document in real life.
+  - One property at a time, which can be switched; the agent suggests what the user
+    could afford if it's too expensive.
+  - Real bank names (SEB, Swedbank, LHV, Luminor, Coop Pank), with a visible "Prototype,
+    not affiliated with any bank" note. Bank agents reply straight away; they may ask
+    for something missing before sending an offer, and they can negotiate.
+  - Email starts as messages in our own database; **agentmail.to** (mentor's suggestion)
+    replaces that once the core works, behind the same interface.
+  - Login with email and password so progress is saved per user.
+  - Purchase with an optional co-applicant. English first, Estonian later. Real 6-month
+    Euribor if easy, otherwise mocked.
+  - **Out of scope**: Smart-ID or real identity checks, real bank applications or
+    emails, refinancing, KredEx.
+- **Core path vs. extras**: the vision splits the work into a core demo path that must
+  work end to end first, and extras (charts, negotiation, offer comparison, agentmail,
+  real Euribor, Estonian).
+- **Dropped**: the multi-step form, the flow definition schema (`flow/`), the
+  step-roadmap sidebar, the landing hub, and the two demo personas (`docs/personas.md`
+  is deleted). The entries below describe the form-based version and are kept as
+  history.
+- **Kept**: Spring Boot + Spring AI (OpenAI), the multi-agent orchestrator + verifier
+  pattern, the token budget, `AffordabilityCalculator` and its rules, the rate and bank
+  services, and `LoanProfile` as the shared state.
+- **Next**: a high-level scheme of the whole application (components, agents, data and
+  the split of work between k4ska, janmatvejev and lightbtw), before any issues or code.
+  `docs/agent-architecture.md` and the README's API contracts will be rewritten from it.
+
 ## 2026-10-12 — Living costs and credit limits count in affordability (#32)
 
 - **New fields**: `dependants` ("Who is applying?", asked once per household),
@@ -228,7 +272,6 @@ re-litigated.
 
 ## Open questions
 
-- Which market's mortgage rules to loosely model (affects field labels and the mock
-  affordability maths). Currently generic / euro-denominated.
-- Whether the "multi-bank" screen stays a single mock comparison or grows a second
-  standardized-profile consumer.
+See the "Open questions" section of [`docs/vision.md`](vision.md). The two earlier ones
+are settled: we model Estonian rules (2026-10-12), and the multi-bank idea became bank
+agents with an inbox (2026-10-15).
