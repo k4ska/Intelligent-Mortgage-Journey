@@ -3,6 +3,56 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-15 — High-level scheme for the chat-based advisor
+
+The full scheme is in **[`docs/architecture.md`](architecture.md)**, which replaces
+`docs/agent-architecture.md`. The decisions in it:
+
+- **The advisor uses tools** (Spring AI tool calling): `updateProfile`, `lookupListing`,
+  `checkAffordability`, `showChart`, `requestDocument`, `explainTerm`, `checkReadiness`,
+  `showBankPicker`, `draftReply` and others. **Reverses 2026-09-08**: agents were one LLM
+  call with no tools. Numbers still come from our code, never from the model.
+- **Two orchestrators** with a wall between them: `AdvisorOrchestrator` (advisor +
+  document reader, works for the user) and `BankOrchestrator` (bank agents + verifier,
+  works for the banks). They only meet at the email gateway; banks never see the chat.
+- **One stream per advisor turn** (SSE) carries both the reply text and events that
+  update the panels live (`profile_updated`, `property_updated`, `document_status`,
+  `chart`, `bank_picker`, `draft_reply`). Uploads, sending applications and accepting
+  an offer come back into the chat as **triggers** on the same endpoint.
+- **Keeping one advisor honest**: since one agent now does the jobs the specialists
+  used to do, four layers keep it on rails (section 3 of the architecture doc):
+  1. **Phases** worked out in code from the stored data decide the advisor's focus and
+     which tools it gets.
+  2. A plain-code **number check** after every turn makes sure each € amount and % in
+     the reply came from a tool, the profile or the user.
+  3. The **verifier checks flagged chat turns** (the number check failed, or the turn
+     talked about money) after streaming. A rejected turn is replaced via a
+     `corrected` event. **Reverses 2026-09-17**, where chat was never verified: chat
+     is now the whole product, not a side panel.
+  4. About 20 **test conversations** (`./gradlew advisorEval`, kept out of the normal
+     test run) measure how often the advisor gets it right.
+- **The verifier** is shared by both sides: flagged chat turns, bank emails (do the
+  numbers match the offer and the rules?) and the advisor's drafted replies.
+- **Stub**: a canned "assistant is offline" reply; no scripted fake conversations.
+- **The advisor is one brain in two places**: the main chat and the inbox assist write
+  to the same conversation (inbox messages tagged with their thread).
+- **Bank agents**: one class with five configs (real bank names). Code decides
+  eligibility, the offer and the lowest margin per negotiation round; the agent writes
+  the email within those limits. Banks can decline; at most 2 negotiation rounds by
+  default; banks answer straight away (the reply call waits).
+- **The user stays in control**: confirms document values, picks banks on a picker card
+  under the chat, and sends every email. The advisor only drafts.
+- **Data**: one conversation per user plus "start over"; profile stored one row per fact
+  (value, source, status); uploaded files are not stored (name only); the application
+  is a frozen snapshot with no updated re-sends; accepting an offer closes the other
+  threads, and the advisor offers to draft a "no thanks" to each.
+- **Auth**: Spring Security with a session cookie, not JWT.
+- **Removed**: `ValidateAgent` and `ReviewAgent` (readiness is a plain-code check), the
+  flow definition, and the `/api/calculator/*` endpoints (their maths become tools).
+- **Work split**: k4ska takes the advisor side, janmatvejev the frontend, lightbtw the bank
+  side and platform. The first milestone is a **walking skeleton** through the whole
+  path.
+
 ## 2026-10-15 — Pivot: a chat-based advisor replaces the form
 
 - **Why**: after a meeting with the mentor, the project takes a 180° turn. Instead of a

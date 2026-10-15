@@ -54,7 +54,7 @@ answer with the stub until midnight. The count is in-memory, so a backend restar
 | `POST /api/calculator/max-loan` | `{ monthlyIncome, coApplicantMonthlyIncome?, monthlyDebtPayments?, downPayment?, annualRatePct?, termYears?, dependants?, monthlyHouseholdCosts?, totalCreditLimits? }` → `{ maxLoanAmount, maxPropertyPrice, monthlyPayment, limitedBy, annualRatePct, stressRatePct, termYears, maxDtiPct, maxLtvPct, monthlyLivingCosts, creditLimitMonthlyCost }` — "how much can I borrow?" on monthly net income, under the same limits the journey checks (incl. living costs and credit limits), plus a typical 85% LTV when a down payment is given |
 
 `followUpQuestion` is `null` unless the agent needs to ask the applicant something before
-it can do the job well — see `../docs/agent-architecture.md`.
+it can do the job well.
 
 ## Package layout
 
@@ -69,9 +69,8 @@ com.seb.mortgage
 └── config       CORS
 ```
 
-See `../docs/agent-architecture.md` for how the `agent` package is put together —
-what each agent does, how grounding/verification work, and the recipe for adding a new
-agent.
+This is the form-era layout the code still has. The target design (advisor and bank
+orchestrators, new packages and API) is in `../docs/architecture.md`.
 
 The three contracts (`FlowDefinition`, `AgentDtos`, `LoanProfile`) are the interfaces
 between the three developers' areas — change them deliberately.

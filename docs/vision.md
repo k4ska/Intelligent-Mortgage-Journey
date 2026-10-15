@@ -2,7 +2,7 @@
 
 > Settled with the mentor on 2026-10-15 (see `docs/decisions.md`). This document is the
 > source of truth for *what* we are building. *How* the pieces fit together is the
-> high-level scheme, which comes next and lives in its own doc.
+> high-level scheme in [`architecture.md`](architecture.md).
 
 ## The idea in one paragraph
 

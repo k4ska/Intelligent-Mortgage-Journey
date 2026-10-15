@@ -23,7 +23,7 @@ living only in chat history or one person's head.
 
 - An **issue** is a unit of work to build.
 - A **decision** (an architecture or design choice the team settled on) goes in
-  `docs/decisions.md` as a dated entry, and in `docs/agent-architecture.md` too if it
+  `docs/decisions.md` as a dated entry, and in `docs/architecture.md` too if it
   changes how the agent backend works. Do this in the same PR that implements the
   decision, not after. `docs/decisions.md` is what a mentor, a teammate, or any of our own
   future AI sessions should be able to read to get full context without needing this
