@@ -1,6 +1,12 @@
 
 # Agent architecture
 
+> **Outdated since 2026-10-15.** This describes the agents of the form-based version.
+> The project is now a chat-based advisor (see [`vision.md`](vision.md)). The
+> orchestrator + specialists + verifier pattern stays, but the set of agents changes
+> (advisor, document reader, bank agents, ...). This doc will be rewritten from the
+> high-level scheme. Until then, read it as a description of the code as it is today.
+
 This is the detailed reference for how the "agent" assist layer is built. `docs/decisions.md`
 has the dated log of *why* we arrived here; this doc is the current-state picture, kept up
 to date as the implementation changes. All code referenced lives under
