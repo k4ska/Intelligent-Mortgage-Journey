@@ -3,11 +3,10 @@ package com.seb.mortgage.profile;
 import java.util.List;
 
 /**
- * Contract 3 of 3 (see README): the standardized loan profile.
- *
- * <p>Assembled from a completed (or in-progress) application plus derived financials.
- * This is the single structured object that feeds the mock multi-bank comparison screen,
- * and conceptually the object that could be shared across banks.
+ * The standardized loan profile: the user's facts plus derived financials, in one
+ * structured object that the affordability checks work on and that conceptually goes to
+ * the banks. It will be built from the user's profile fields (see
+ * {@code docs/architecture.md} §4).
  */
 public record LoanProfile(
         List<Applicant> applicants,

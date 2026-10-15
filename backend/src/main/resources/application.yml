@@ -30,8 +30,8 @@ spring:
       audio.transcription: none
       moderation: none
     openai:
-      # Set OPENAI_API_KEY in the environment. Without a key, the app falls back to the
-      # deterministic stub agent - it still runs.
+      # Set OPENAI_API_KEY in the environment. Without a key, the app runs in stub mode
+      # (canned replies) - it still starts.
       api-key: ${OPENAI_API_KEY:}
       chat:
         options:
@@ -45,13 +45,9 @@ app:
   agent:
     # How much hidden reasoning each agent does before answering (OpenAI GPT-5 family:
     # minimal, low, medium, high). Reasoning tokens are generated like visible output, so
-    # they are most of the wait. The read-back keeps more, since quality matters most there.
-    # Leave a value empty to use OpenAI's default.
+    # they are most of the wait. Leave a value empty to use OpenAI's default. New agents
+    # (advisor, document reader, bank) add their own key here.
     reasoning-effort:
-      explain: ${AGENT_REASONING_EXPLAIN:low}
-      validate: ${AGENT_REASONING_VALIDATE:low}
-      review: ${AGENT_REASONING_REVIEW:medium}
-      chat: ${AGENT_REASONING_CHAT:low}
       verifier: ${AGENT_REASONING_VERIFIER:low}
   token-budget:
     # Daily LLM token budget. Once spent, the agents answer with the stub until midnight.

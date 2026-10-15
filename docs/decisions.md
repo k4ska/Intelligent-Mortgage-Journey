@@ -3,6 +3,27 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-15 — Form-based code removed (#48)
+
+- **Deleted in one go**, before the walking skeleton, instead of each person deleting
+  their own part: the old orchestrator used the old application code, so separate
+  deletions would have broken each other's builds.
+- **Backend**: `flow/`, `application/`, the explain/validate/review/chat agents and
+  endpoints, `AgentOrchestrator`, `AgentService`, `AgentDtos`, `StubAgentService` (all
+  its methods were form tasks; #50 adds the canned "offline" reply), the calculator
+  endpoints, `PropertyValuationService`, `DocumentChecklistService` and
+  `LoanProfileAssembler`. `ProfileFacts` lost its per-step view.
+- **Kept**: the verifier, the token budget, per-agent reasoning effort (only the
+  verifier's key is left in `application.yml`), the `Explanations` glossary,
+  `AffordabilityCalculator` (its "how much can I borrow?" tests now test it directly),
+  `RateService`, `BankCatalogService`, `LoanProfile` and `ProfileFacts`.
+- **Agent mode**: `GET /api/agent/status` now reads a small `AgentMode` bean (`openai`
+  with a key, `stub` without) instead of `AgentService.mode()`.
+- **Frontend**: the journey page, landing hub, calculators, assist panel, flow store and
+  their types are gone; `index.vue` is a placeholder until #52. `utils/numbers.ts` stays
+  for euro formatting. The old SSE reader in `useApi.ts` is in git history if #52 wants
+  it as a starting point.
+
 ## 2026-10-15 — High-level scheme for the chat-based advisor
 
 The full scheme is in **[`docs/architecture.md`](architecture.md)**, which replaces
