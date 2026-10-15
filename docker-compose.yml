@@ -1,3 +1,4 @@
+
 # `docker compose up --build` runs the whole app: backend on :8080, frontend on :3000.
 # Set OPENAI_API_KEY in the environment (or a .env file next to this one) to use the
 # real OpenAI-backed agents; leave it unset and the backend falls back to the
@@ -22,6 +23,8 @@ services:
     build: ./frontend
     ports:
       - "3000:3000"
+    environment:
+      NUXT_PUBLIC_MOCK_API: ${NUXT_PUBLIC_MOCK_API:-false}
     depends_on:
       - backend
 
