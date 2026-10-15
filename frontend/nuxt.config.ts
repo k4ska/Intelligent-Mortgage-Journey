@@ -10,7 +10,6 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
-  // Banking register reads calmer in light mode by default; still toggleable.
   colorMode: {
     preference: 'light',
     fallback: 'light',
@@ -18,25 +17,29 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      // Where the Spring Boot API lives. In dev the Nitro proxy below forwards
-      // "/api" there, so the browser only ever talks to the Nuxt origin.
+      // Same-origin API requests are forwarded to the backend by Nitro.
       apiBase: '/api',
+
+      // Disabled by default. Docker Compose passes NUXT_PUBLIC_MOCK_API
+      // from the root .env to override this at runtime.
+      mockApi: false,
     },
   },
 
   nitro: {
-    // Dev-only: forward /api to the backend so there are no CORS surprises locally.
+    // Local development outside Docker.
     devProxy: {
       '/api': {
         target: 'http://localhost:8080/api',
         changeOrigin: true,
       },
     },
-    // Built server (e.g. running in docker-compose): same idea, server-to-server, so the
-    // browser only ever talks to this app's own origin. Defaults to the "backend" service
-    // name on the compose network; override with API_PROXY_TARGET if that's not it.
+
+    // Built Docker server: forward requests over the Compose network.
     routeRules: {
-      '/api/**': { proxy: `${process.env.API_PROXY_TARGET ?? 'http://backend:8080'}/api/**` },
+      '/api/**': {
+        proxy: `${process.env.API_PROXY_TARGET ?? 'http://backend:8080'}/api/**`,
+      },
     },
   },
 
@@ -45,7 +48,10 @@ export default defineNuxtConfig({
       title: 'Intelligent Mortgage Journey',
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'description', content: 'A chat-based mortgage advisor, from "could I get a loan?" to an accepted offer.' },
+        {
+          name: 'description',
+          content: 'A chat-based mortgage advisor, from "could I get a loan?" to an accepted offer.',
+        },
       ],
     },
   },

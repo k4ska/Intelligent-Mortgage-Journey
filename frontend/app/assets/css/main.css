@@ -38,33 +38,32 @@ h1, h2, h3 {
   letter-spacing: -0.01em;
 }
 
-/* Shared landing-hub card look, used by the hub's own buttons (pages/index.vue) and by
-   LoanCalculatorCard.vue - kept global (not scoped) so both can use it. */
-.topic-card {
-  display: block;
-  width: 100%;
-  border-radius: var(--ui-radius, 0.75rem);
-  padding: 1.1rem 1.25rem;
-  text-align: left;
-  background: var(--ui-bg);
+/* Walking skeleton shell: panels scroll internally, not the document. */
+.app-panel {
   border: 1px solid var(--ui-border);
-  box-shadow: 0 6px 18px -12px rgba(15, 23, 42, 0.15);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  border-radius: 1rem;
+  background: var(--ui-bg);
+  min-height: 0;
 }
-
-.topic-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--color-current-300);
-  box-shadow: 0 12px 24px -12px rgba(26, 58, 143, 0.25);
-}
-
-.topic-icon {
-  display: inline-flex;
-  height: 2.25rem;
-  width: 2.25rem;
+.app-panel-header {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 0.65rem;
-  background: var(--color-current-100);
-  color: var(--color-current-700);
+  gap: 0.65rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--ui-border);
 }
+.app-panel-header h2 { font-family: 'Source Sans 3', sans-serif; font-size: 0.95rem; font-weight: 700; }
+.app-input {
+  width: 100%;
+  border: 1px solid var(--ui-border);
+  border-radius: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  outline: none;
+}
+.app-input:focus { border-color: var(--ui-primary); box-shadow: 0 0 0 2px var(--color-current-100); }
+.app-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.app-nav-link { display: flex; align-items: center; gap: 0.4rem; border-radius: 0.65rem; padding: 0.5rem 0.9rem; font-size: 0.875rem; color: var(--ui-text-muted); }
+.app-nav-link:hover { color: var(--ui-text); }
+.app-nav-link-active { background: var(--ui-bg); color: var(--ui-text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }

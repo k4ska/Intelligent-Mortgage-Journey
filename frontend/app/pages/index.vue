@@ -1,30 +1,14 @@
 <script setup lang="ts">
-// Placeholder until the walking skeleton lands (#52 replaces this with login and the
-// three-panel chat). Shows whether the backend is up and which agent mode it runs in.
-const api = useApi()
-const { data: status, error } = await useAsyncData('agent-status', () => api.getAgentStatus())
+import { useAdvisorStore } from '~/stores/advisor'
+
+const advisor = useAdvisorStore()
+onMounted(() => advisor.load())
 </script>
 
 <template>
-  <UContainer class="flex h-full items-center justify-center py-8">
-    <UCard class="w-full max-w-lg">
-      <div class="flex flex-col gap-3">
-        <h1 class="text-xl font-semibold">
-          A chat-based mortgage advisor is on its way
-        </h1>
-        <p class="text-[var(--ui-text-muted)]">
-          The form-based journey has been removed. Next comes a conversation with an advisor that
-          helps you from "could I even get a loan?" to an accepted bank offer.
-        </p>
-        <p class="text-sm text-[var(--ui-text-dimmed)]">
-          <template v-if="error">
-            The backend isn't reachable.
-          </template>
-          <template v-else-if="status">
-            Backend is up. Agent mode: {{ status.mode }}.
-          </template>
-        </p>
-      </div>
-    </UCard>
-  </UContainer>
+  <div class="mx-auto grid h-full min-h-0 w-full max-w-[1800px] grid-cols-[230px_minmax(340px,1fr)_280px] gap-3 overflow-x-auto p-3 lg:grid-cols-[minmax(230px,1fr)_minmax(420px,2.15fr)_minmax(280px,1.15fr)] lg:gap-4 lg:p-4">
+    <DocumentsPanel />
+    <ChatPanel />
+    <ProfilePanel />
+  </div>
 </template>
