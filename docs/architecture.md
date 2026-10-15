@@ -33,10 +33,11 @@
 │                         └──────▲───────┘                                 │
 │  ┌──────────── BANK ORCHESTRATOR (works for the banks) ───┴────────────┐  │
 │  │  Bank agent ×5 (SEB, Swedbank, LHV, Luminor, Coop Pank)             │  │
-│  │  Offer calculator (bank rules, in code) · Verifier                  │  │
+│  │  Offer calculator (bank rules, in code)                             │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │                                                                          │
-│  Shared: token budget + usage tracking · stub fallback · database        │
+│  Shared: verifier (chat turns + bank emails) · token budget + usage      │
+│          tracking · stub fallback · database                             │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -73,7 +74,8 @@ and next to an email thread in the inbox. Both write to the **same conversation*
 
 - **Sees:** the conversation, profile facts, the active property, the document
   checklist, and the user's bank emails.
-- **Outputs:** a streamed reply plus events for the panels (see section 4).
+- **Outputs:** a streamed reply plus events for the panels (see section 5).
+- **Kept on rails** by phases, a number check and the verifier: see section 3.
 - **Tools** (Spring AI tool calling; each tool runs our code and may push an event):
 
 | Tool | What it does | Event it pushes |
@@ -113,15 +115,18 @@ the file.
   (default 2). After that: "this is our final offer".
 - **Answers straight away**: the user's reply call waits for the bank's answer.
 
-**4. Verifier agent.** Kept from today, now gating what isn't streamed:
+### Shared
+
+**4. Verifier agent.** Kept from today, and used by both orchestrators (it lives in the
+shared `agent` package, outside the wall). It checks:
 
 - **bank emails**: do the numbers in the text match the offer object and the bank's
   rules?
 - **the advisor's drafted replies**: no made-up numbers, calm tone.
+- **flagged advisor chat turns**: see section 3.
 
 It still fails open: if the verifier call itself errors, the draft goes through
-unchanged. The streamed chat isn't verified (nothing complete exists to check before
-the user sees it); it's protected by rule 1, because every number comes from tools.
+unchanged.
 
 ### Without an API key (or when the daily budget is spent)
 
@@ -136,12 +141,82 @@ for the advisor and bank agents. We don't script fake conversations.
 | `ChatAgent` | The advisor agent, with tools and events |
 | `ExplainAgent` + `Explanations` | The `explainTerm` tool (glossary kept) |
 | `ValidateAgent`, `ReviewAgent` | Dropped; readiness is a plain-code check |
-| `VerifierAgent` | Kept, checks bank emails and drafts |
+| `VerifierAgent` | Kept, checks flagged chat turns, bank emails and drafts |
 | `StubAgentService` | Canned "offline" replies |
 | `LoanProfileAssembler`, `ProfileFacts` | Kept; built from profile field rows instead of form answers |
 | `AffordabilityCalculator`, `RateService`, `BankCatalogService` | Kept; bank catalog moves to the real bank names and gains the bank rules |
 
-## 3. The data
+## 3. Keeping the advisor honest
+
+The user talks to one advisor, so it does jobs that used to be separate specialists. No
+setup can guarantee an LLM never hallucinates (the old one couldn't either), so we make
+it hard to get things wrong, catch what slips through, and measure the rest. The
+specialists' exact tasks live on as tools and code; these four layers replace the
+focus they gave.
+
+| What could go wrong | What protects it |
+| --- | --- |
+| Invented numbers (max loan, payments, rates) | Numbers come from tools; the **number check** catches any that don't |
+| Wrong definitions (Euribor, LTV) | `explainTerm` reads our glossary |
+| Jumping ahead (going to the banks too early) | **Phases** in code; `showBankPicker` needs `checkReadiness` to pass |
+| A wrong value in the profile | It shows in the panel with its source; the user corrects it in the chat |
+| Promises or bad advice ("you'll surely get it") | The prompt, plus the **verifier** on flagged turns |
+| Made-up offers | The offer calculator, plus the verifier on bank emails |
+
+### Layer 1: phases in code
+
+The advisor orchestrator works out the conversation's **phase from the stored data**
+(the model never chooses it). Each phase adds a short focus instruction to the advisor's
+prompt and decides which tools it gets. Tools unlock cumulatively, so a natural
+conversation can still jump around (for example, pasting a listing link in the first
+message).
+
+| Phase | When (worked out from the data) | Focus | Tools added |
+| --- | --- | --- | --- |
+| Getting to know you | Key facts missing (income, savings, buying alone or not, other loans) | Ask simple questions, one at a time | `updateProfile`, `lookupListing`, `explainTerm` |
+| Property | Key facts known, no property yet | Ask what they have in mind, or suggest a range | `checkAffordability`, `suggestAffordableRange`, `showChart` |
+| Affordability | A property is set, affordability not yet discussed | Explain the result in plain language | (same) |
+| Documents | Affordability discussed | Ask for documents, explain where to get them | `requestDocument`, `checkReadiness` |
+| Ready | `checkReadiness` passes | Tell the user they're ready, offer to go to the bank | `showBankPicker` |
+| At the banks | The application is sent | Help with the inbox: explain, compare, negotiate | `draftReply` (inbox only) |
+
+### Layer 2: the number check (plain code, after every turn)
+
+When the advisor's reply finishes, code pulls every € amount and % out of the text and
+checks that each one appeared in that turn's tool results, the profile, the property, the
+user's own messages, or the user's bank emails (rounding within 1% allowed, so "about
+€210,000" passes for €209,734). It's deterministic, free and instant.
+
+### Layer 3: the verifier on flagged turns
+
+A turn is **flagged** when the number check fails, or when it talks about money (it
+called `checkAffordability`, `suggestAffordableRange` or `showChart`, or it compares
+offers). The text has already streamed to the user, so the stream stays open while the
+verifier checks the finished reply:
+
+- approved → `done`, nothing changes;
+- rejected → a `corrected` event replaces the message with the verifier's safe version,
+  and the UI marks it as corrected, then `done`.
+
+Unflagged turns (most small talk and questions) end straight away, so the chat stays fast.
+
+### Layer 4: test conversations (measuring it)
+
+About 20 scripted conversations run against the real advisor, each with checks on the
+outcome. For example:
+
+- a user with a low income → the advisor suggests a cheaper range, with no invented
+  numbers;
+- a user who gives contradictory numbers → the profile ends up with the corrected value;
+- a user who pushes for a promise → no promise is given;
+- a user who asks to go to the bank too early → no bank picker.
+
+They live under `backend/src/test/.../advisor/scenarios/` and run with a separate Gradle
+task (`./gradlew advisorEval`), not in the normal `./gradlew test`, because they need an
+API key and cost tokens. We run them after prompt or tool changes and keep the results,
+so we can show how often the advisor gets things right.
+
+## 4. The data
 
 ```
 User ─────────── email, password (hashed)
@@ -182,7 +257,7 @@ Seed data (the same for everyone, loaded at startup):
 - **The application is a frozen snapshot**: the bank sees exactly what was sent, even
   if the conversation changes things afterwards.
 
-## 4. API contracts
+## 5. API contracts
 
 These are the agreements that let frontend and backend work in parallel. Keep the
 backend DTOs and `frontend/app/types/api.ts` in sync.
@@ -221,6 +296,8 @@ document_status   { type, status, whereToGet }
 chart             { chartType, title, data }
 bank_picker       { banks: [{ id, name }] }                 card under the chat
 draft_reply       { threadId, body }                        fills the inbox reply box
+corrected         { messageId, text }                       the verifier replaced a flagged
+                                                            reply (see section 3)
 done              { messageId }
 error             { message }
 ```
@@ -255,7 +332,7 @@ POST /api/inbox/{threadId}/assist  (SSE) { text } -> the advisor next to the thr
 `GET /api/agent/status` and `GET /api/agent/usage`. The calculator endpoints
 (`/api/calculator/*`) are removed; their maths lives on as advisor tools.
 
-## 5. Key flows
+## 6. Key flows
 
 **Upload a document**
 1. The user uploads a payslip → `POST /api/documents/PAYSLIP` → status `UPLOADED`.
@@ -290,13 +367,13 @@ POST /api/inbox/{threadId}/assist  (SSE) { text } -> the advisor next to the thr
    payment, home insurance) and offers to draft a polite "no thanks" for each other bank,
    which the user sends. Closed threads accept that last message but get no bank answer.
 
-## 6. Backend package layout (target)
+## 7. Backend package layout (target)
 
 ```
 com.seb.mortgage
 ├── auth          users, Spring Security, session login
-├── advisor       AdvisorOrchestrator, AdvisorAgent + tools, DocumentReaderAgent,
-│                 chat controller, stream events
+├── advisor       AdvisorOrchestrator, AdvisorAgent + tools, phases, number check,
+│                 DocumentReaderAgent, chat controller, stream events
 ├── conversation  Conversation, Message
 ├── profile       ProfileField, LoanProfile + assembler, ProfileFacts
 ├── property      Property, mock listings
@@ -311,11 +388,11 @@ com.seb.mortgage
 └── config        CORS, security
 ```
 
-## 7. Work split
+## 8. Work split
 
 | | **Advisor side**: k4ska | **Frontend**: janmatvejev | **Bank side + platform**: lightbtw |
 | --- | --- | --- | --- |
-| **Owns** | `AdvisorOrchestrator`, the advisor agent and its tools, the document reader, stream events, profile fields, mock listings, connecting the affordability calculator, chart data | Three-panel layout, login pages, chat streaming, events updating the panels, document upload, bank picker card, inbox + its advisor panel, charts, phone layout | Auth, database setup, application snapshot, email gateway (database, then agentmail), `BankOrchestrator`, bank agents and bank rules, offer calculator, verifier on emails, inbox endpoints |
+| **Owns** | `AdvisorOrchestrator`, the advisor agent and its tools, phases, the number check, the verifier on chat turns, the test conversations, the document reader, stream events, profile fields, mock listings, connecting the affordability calculator, chart data | Three-panel layout, login pages, chat streaming, events updating the panels (including showing corrected replies), document upload, bank picker card, inbox + its advisor panel, charts, phone layout | Auth, database setup, application snapshot, email gateway (database, then agentmail), `BankOrchestrator`, bank agents and bank rules, offer calculator, verifier on emails, inbox endpoints |
 | **Deletes** | `ExplainAgent`, `ValidateAgent`, `ReviewAgent`, `ChatAgent`, the old `AgentOrchestrator` | Form pages, step sidebar, landing hub | `flow/`, `application/`, the calculator endpoints |
 | **Can start without the others by** | Testing tools and the stream without a UI | Faking the stream and endpoints | Testing bank agents with a hand-made snapshot |
 
@@ -331,7 +408,7 @@ The thinnest possible version of the whole path, before any part goes deep:
 Once that runs end to end, every contract has been proven and each person deepens their
 own column along the core demo path in [`vision.md`](vision.md).
 
-## 8. Open questions
+## 9. Open questions
 
 - The exact numbers in each bank's rules (margins, max LTV, min down payment,
   strictness), so the five banks feel different.

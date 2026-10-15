@@ -19,9 +19,20 @@ The full scheme is in **[`docs/architecture.md`](architecture.md)**, which repla
   update the panels live (`profile_updated`, `property_updated`, `document_status`,
   `chart`, `bank_picker`, `draft_reply`). Uploads, sending applications and accepting
   an offer come back into the chat as **triggers** on the same endpoint.
-- **The verifier** now checks what isn't streamed: bank emails (do the numbers match the
-  offer and the rules?) and the advisor's drafted replies. The chat stays unverified,
-  protected by numbers coming from tools.
+- **Keeping one advisor honest**: since one agent now does the jobs the specialists
+  used to do, four layers keep it on rails (section 3 of the architecture doc):
+  1. **Phases** worked out in code from the stored data decide the advisor's focus and
+     which tools it gets.
+  2. A plain-code **number check** after every turn makes sure each € amount and % in
+     the reply came from a tool, the profile or the user.
+  3. The **verifier checks flagged chat turns** (the number check failed, or the turn
+     talked about money) after streaming. A rejected turn is replaced via a
+     `corrected` event. **Reverses 2026-09-17**, where chat was never verified: chat
+     is now the whole product, not a side panel.
+  4. About 20 **test conversations** (`./gradlew advisorEval`, kept out of the normal
+     test run) measure how often the advisor gets it right.
+- **The verifier** is shared by both sides: flagged chat turns, bank emails (do the
+  numbers match the offer and the rules?) and the advisor's drafted replies.
 - **Stub**: a canned "assistant is offline" reply; no scripted fake conversations.
 - **The advisor is one brain in two places**: the main chat and the inbox assist write
   to the same conversation (inbox messages tagged with their thread).

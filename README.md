@@ -146,12 +146,12 @@ work live as GitHub issues, not as a status paragraph here.
 ## API contracts
 
 The frontend and backend meet at three contracts, defined in
-[`docs/architecture.md`](docs/architecture.md#4-api-contracts):
+[`docs/architecture.md`](docs/architecture.md#5-api-contracts):
 
 1. **The REST endpoints**: auth, chat, profile, documents, banks and inbox.
 2. **The stream events**: one SSE stream per advisor turn carries the reply text *and*
    events for the panels (`profile_updated`, `property_updated`, `document_status`,
-   `chart`, `bank_picker`, `draft_reply`).
+   `chart`, `bank_picker`, `draft_reply`, `corrected`).
 3. **The data**: profile fields (value, source, status), the property, documents, the
    frozen application snapshot and the email threads.
 
@@ -181,12 +181,12 @@ docker-compose.yml          backend + frontend services (+ optional Postgres pro
 
 | Area | Who | Owns |
 | --- | --- | --- |
-| Advisor side | **k4ska** | The advisor orchestrator, the advisor agent and its tools, the document reader, stream events, profile fields, mock listings, affordability and chart data |
+| Advisor side | **k4ska** | The advisor orchestrator, the advisor agent and its tools, keeping it honest (phases, number check, test conversations), the document reader, stream events, profile fields, mock listings, affordability and chart data |
 | Frontend | **janmatvejev** | The three-panel layout, login, chat streaming, panels, document upload, bank picker, inbox, charts, phone layout |
 | Bank side + platform | **lightbtw** | Auth, database, application snapshot, email gateway (database, then agentmail), the bank orchestrator, bank agents, bank rules and offers, verifier, inbox endpoints |
 
 Details, including what each person deletes from the form-based version, are in
-[`docs/architecture.md`](docs/architecture.md#7-work-split).
+[`docs/architecture.md`](docs/architecture.md#8-work-split).
 
 ---
 
