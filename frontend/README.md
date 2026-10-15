@@ -30,13 +30,24 @@ For a live example, send `I earn 2350 euros a month`. The mock emits `profile_up
 
 Set `NUXT_PUBLIC_MOCK_API=false` to use the real backend endpoints. Do not use mock mode in production.
 
+## Run locally without Docker
+
+```bash
+npm install --legacy-peer-deps    # see note below
+npm run dev                        # http://localhost:3000
+```
+
+The backend must be running on `http://localhost:8080`. The Nuxt dev server proxies `/api/*` there (`nitro.devProxy` in `nuxt.config.ts`), so the browser only talks to the Nuxt origin. To use the mock API instead, start it with `NUXT_PUBLIC_MOCK_API=true npm run dev`.
+
+> **`--legacy-peer-deps`**: npm 10.9.x crashes on Nuxt UI's large optional-peer set (`Cannot read properties of null (reading 'edgesOut')`). `--legacy-peer-deps` avoids the buggy resolution path. Alternatively use pnpm.
+
 ## Structure
 
 - `layouts/default.vue` — Top bar, navigation and prototype notice
 - `pages/` — Chat, login, registration and inbox placeholder
 - `components/` — Documents, chat and profile panels
 - `stores/auth.ts` — Authentication state
-- `stores/advisor.ts` — Chat history, profile and stream events
+- `stores/advisor.ts` — Chat history, profile and stream handling
 - `composables/useApi.ts` — Backend endpoints and mock switch
 - `middleware/auth.global.ts` — Authentication guard
 - `mocks/advisor.ts` — Fake auth, chat and profile

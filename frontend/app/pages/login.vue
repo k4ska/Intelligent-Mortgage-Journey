@@ -4,6 +4,9 @@ import { copy } from '~/utils/copy'
 
 const auth = useAuthStore()
 auth.error = ''
+const route = useRoute()
+const notice = computed(() => route.query.registered ? copy.accountCreated
+  : route.query.expired ? copy.sessionExpired : '')
 const email = ref('')
 const password = ref('')
 const { isMock } = useApi()
@@ -28,6 +31,7 @@ async function submit() { await auth.login(email.value, password.value) }
           {{ copy.password }}
           <input v-model="password" class="app-input mt-2" type="password" autocomplete="current-password" required minlength="1" />
         </label>
+        <p v-if="notice && !auth.error" role="status" class="text-sm text-[var(--ui-text-muted)]">{{ notice }}</p>
         <p v-if="auth.error" role="alert" class="text-sm text-red-600">{{ auth.error }}</p>
         <UButton type="submit" block size="lg" :loading="auth.busy">{{ copy.login }}</UButton>
       </form>

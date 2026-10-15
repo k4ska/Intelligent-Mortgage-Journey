@@ -1,4 +1,5 @@
 import type { ChatMessage, Profile, ProfileField, StreamEvent } from '~/types/api'
+import { mergeProfileFields } from '~/utils/profile'
 
 // Explicit development-only mock. Never sends or stores passwords. It intentionally
 // does NOT simulate secure authentication: use the real API for that.
@@ -63,11 +64,7 @@ export function mockSend(text: string): Response {
   const state = data(user)
   state.messages.push({ id: state.nextId++, role: 'user', text, createdAt: new Date().toISOString() })
   const fields = detectIncome(text)
-  for (const field of fields) {
-    const index = state.profile.fields.findIndex(existing => existing.key === field.key)
-    if (index >= 0) state.profile.fields[index] = field
-    else state.profile.fields.push(field)
-  }
+  mergeProfileFields(state.profile.fields, fields)
   save(user, state)
 
   const answer = fields.length
@@ -75,6 +72,7 @@ export function mockSend(text: string): Response {
     : 'Thanks for sharing. Tell me a little more about your finances or the home you are looking for.'
   const parts = answer.match(/.{1,12}/gs) || [answer]
   const encoder = new TextEncoder()
+  let cancelled = false
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const emit = (event: StreamEvent) => {
@@ -85,6 +83,8 @@ export function mockSend(text: string): Response {
         if (fields.length) emit({ type: 'profile_updated', data: { fields } })
         for (const delta of parts) {
           await new Promise(resolve => setTimeout(resolve, 65))
+          // Like the real server, a cancelled request stops generating and saves no reply.
+          if (cancelled) return
           emit({ type: 'text', data: { delta } })
         }
         const id = state.nextId++
@@ -94,6 +94,7 @@ export function mockSend(text: string): Response {
         controller.close()
       } catch (error) { controller.error(error) }
     },
+    cancel() { cancelled = true },
   })
   return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
 }

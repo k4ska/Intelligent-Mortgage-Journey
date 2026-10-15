@@ -5,9 +5,13 @@ import { copy } from '~/utils/copy'
 const advisor = useAdvisorStore()
 const draft = ref('')
 const list = ref<HTMLElement | null>(null)
-const lastText = computed(() => advisor.messages.map(message => `${message.id}:${message.text}`).join('|'))
+// Only the newest message changes while streaming, so the count and its text are enough.
+const scrollKey = computed(() => {
+  const last = advisor.messages.at(-1)
+  return `${advisor.messages.length}:${last?.id}:${last?.text.length}`
+})
 
-watch(lastText, async () => {
+watch(scrollKey, async () => {
   await nextTick()
   if (list.value) list.value.scrollTop = list.value.scrollHeight
 }, { immediate: true })

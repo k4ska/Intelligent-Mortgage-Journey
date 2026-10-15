@@ -4,8 +4,15 @@ const eventTypes = new Set<StreamEvent['type']>([
   'text', 'profile_updated', 'bank_picker', 'done', 'error',
 ])
 
-/** Parse named SSE events from a POST response, including fragmented UTF-8/chunks. */
-export async function consumeStream(response: Response, onEvent: (event: StreamEvent) => void) {
+/**
+ * Parse named SSE events from a POST response, including fragmented UTF-8/chunks.
+ * On any failure or abort the response body is cancelled so the server stops generating.
+ */
+export async function consumeStream(
+  response: Response,
+  onEvent: (event: StreamEvent) => void,
+  signal?: AbortSignal,
+) {
   if (!response.body) throw new Error('Missing response stream')
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
@@ -38,16 +45,24 @@ export async function consumeStream(response: Response, onEvent: (event: StreamE
     }
   }
 
+  const onAbort = () => { void reader.cancel(signal?.reason).catch(() => {}) }
+  signal?.addEventListener('abort', onAbort, { once: true })
+
   try {
     while (true) {
+      signal?.throwIfAborted()
       const { done, value } = await reader.read()
       if (done) break
       append(decoder.decode(value, { stream: true }))
     }
+    signal?.throwIfAborted()
+    // Per the SSE spec, an event without a terminating blank line is incomplete and discarded.
     append(decoder.decode())
-    if (pending) lines.push(pending.replace(/\r$/, ''))
-    if (lines.length) dispatch()
+  } catch (error) {
+    await reader.cancel(error).catch(() => {})
+    throw error
   } finally {
+    signal?.removeEventListener('abort', onAbort)
     reader.releaseLock()
   }
 }

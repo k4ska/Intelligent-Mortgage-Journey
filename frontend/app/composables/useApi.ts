@@ -15,30 +15,33 @@ export function useApi() {
   const request = <T>(path: string, options: Parameters<typeof $fetch>[1] = {}) =>
     $fetch<T>(`${base}${path}`, { credentials: 'same-origin', ...options })
 
+  // Run mocks asynchronously so their errors reject like real requests instead of throwing.
+  const later = <T>(fn: () => T): Promise<T> => Promise.resolve().then(fn)
+
   return {
     isMock: mock,
     getMe: (): Promise<AuthUser> => mock
-      ? Promise.resolve(mockMe())
+      ? later(mockMe)
       : request<AuthUser>('/auth/me'),
     register: (email: string, password: string): Promise<AuthUser> => mock
-      ? Promise.resolve(mockRegister(email))
+      ? later(() => mockRegister(email))
       : request<AuthUser>('/auth/register', { method: 'POST', body: { email, password } }),
     login: (email: string, password: string): Promise<AuthUser> => mock
-      ? Promise.resolve(mockLogin(email))
+      ? later(() => mockLogin(email))
       : request<AuthUser>('/auth/login', { method: 'POST', body: { email, password } }),
     logout: (): Promise<void> => mock
-      ? Promise.resolve(mockLogout())
+      ? later(mockLogout)
       : request<void>('/auth/logout', { method: 'POST' }),
     getChat: (): Promise<ChatMessage[]> => mock
-      ? Promise.resolve(mockChat())
+      ? later(mockChat)
       : request<ChatMessage[]>('/chat'),
     getProfile: (): Promise<Profile> => mock
-      ? Promise.resolve(mockProfile())
+      ? later(mockProfile)
       : request<Profile>('/profile'),
     getAgentStatus: () => request<AgentStatus>('/agent/status'),
 
     // EventSource cannot POST JSON; fetch provides the ReadableStream we need.
-    sendMessage: async (text: string): Promise<Response> => {
+    sendMessage: async (text: string, signal?: AbortSignal): Promise<Response> => {
       if (mock) return mockSend(text)
 
       const response = await fetch(`${base}/chat/messages`, {
@@ -49,6 +52,7 @@ export function useApi() {
           Accept: 'text/event-stream',
         },
         body: JSON.stringify({ text }),
+        signal,
       })
 
       if (!response.ok) {
