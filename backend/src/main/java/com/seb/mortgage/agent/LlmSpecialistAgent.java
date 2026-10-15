@@ -7,13 +7,13 @@ import org.springframework.ai.chat.client.ChatClient;
  * one {@link ChatClient} off a fresh, prototype-scoped {@code ChatClient.Builder} with
  * the agent's own system prompt, and nothing else.
  *
- * <p>Kept deliberately thin - no tool registration, no shared state, no shared prompt
- * text - so each agent's behaviour is fully defined by its own system prompt and its own
- * method(s). This is the one thing every agent in the codebase has in common; see
- * {@code docs/architecture.md} for how the agents fit together. (The advisor needs tool
- * support here; that comes with #50.)
+ * <p>Kept deliberately thin - no shared state, no shared prompt text - so each agent's
+ * behaviour is fully defined by its own system prompt and its own method(s). Agents that
+ * use tools (like the advisor) pass them per request with {@code .tools(...)}, because a
+ * tool usually acts for one user. This is the one thing every agent in the codebase has in
+ * common; see {@code docs/architecture.md} for how the agents fit together.
  */
-abstract class LlmSpecialistAgent {
+public abstract class LlmSpecialistAgent {
 
 	protected final ChatClient chatClient;
 

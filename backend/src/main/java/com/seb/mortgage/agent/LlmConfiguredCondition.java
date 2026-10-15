@@ -13,7 +13,7 @@ import org.springframework.util.StringUtils;
  * because our configuration is processed before Spring AI's auto-configuration, so that
  * bean never exists yet when the condition is evaluated.
  */
-class LlmConfiguredCondition implements Condition {
+public class LlmConfiguredCondition implements Condition {
 
 	@Override
 	public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {

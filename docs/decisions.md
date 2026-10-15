@@ -3,6 +3,33 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-15 — Advisor skeleton (#50)
+
+- **One endpoint per turn**: `POST /api/chat/messages` streams SSE events; the advisor's
+  tools push `profile_updated` and `bank_picker` into the same stream while the reply is
+  still being written. Tools are passed per request (`.tools(...)`), with one tools object
+  per turn, so a tool can only act for the user who's talking.
+- **Memory**: every turn sends the last 40 messages plus the profile fields (as JSON) to
+  the advisor.
+- **A fixed list of profile keys** (`ProfileKey`): the advisor can't invent new ones.
+  Values are stored in one plain form (`"2350"`, `"yes"`), and "2,350" is rejected
+  rather than guessed (it means 2.35 in Estonian). Facts the user states in the chat are
+  saved as `CHAT` + `CONFIRMED`.
+- **Skeleton readiness rule**: `showBankPicker` only works once `netIncome` is known;
+  the real `checkReadiness` comes later.
+- **Current user**: a `CurrentUser` interface; until auth (#49) provides the real one,
+  `DevCurrentUserConfig` makes every request one demo user. It backs off as soon as #49
+  adds its own `CurrentUser` bean. Users are identified by a `UUID`.
+- **For the bank side**: `ProfileSnapshotProvider.snapshot(userId)` returns the profile
+  fields, so the bank code never touches the advisor's tables.
+- **Messages** get an increasing numeric id, which is also their order (two messages can
+  share a timestamp).
+- **Without an API key** (or once the budget is spent), the turn streams "The assistant
+  is offline. Please add an API key."
+- `LlmSpecialistAgent`, `LlmConfiguredCondition` and `AgentConfig.withReasoningEffort`
+  are now public so agents can live in their own packages. New setting:
+  `AGENT_REASONING_ADVISOR` (default `low`).
+
 ## 2026-10-15 — Form-based code removed (#48)
 
 - **Deleted in one go**, before the walking skeleton, instead of each person deleting

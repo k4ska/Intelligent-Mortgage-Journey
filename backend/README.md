@@ -35,12 +35,15 @@ give canned replies until midnight. The count is in-memory, so a backend restart
 
 ## API surface
 
-The form-based endpoints were removed in #48. What's left today:
-
 | Method & path | Purpose |
 | --- | --- |
 | `GET /api/agent/status` | `{ mode }`: `stub` or `openai` |
 | `GET /api/agent/usage` | Today's LLM token usage vs. the daily budget, per agent |
+| `GET /api/chat` | The conversation, oldest first: `[{ id, role: "user" \| "advisor", text, createdAt }]`. A new user's starts with "Hi, how can I help you?" |
+| `POST /api/chat/messages` | `{ text }` → `text/event-stream`: one advisor turn as events `text`, `profile_updated`, `bank_picker`, then `done` (or `error`) |
+| `GET /api/profile` | `{ fields: [{ key, value, source, status }], property: null }` |
+
+Until auth (#49) lands, every request acts as one demo user (`DevCurrentUserConfig`).
 
 The chat-based advisor adds auth, chat, profile, documents, banks and inbox endpoints;
 they're specified in `../docs/architecture.md` §5 and built in the walking skeleton
@@ -50,10 +53,15 @@ issues (#49–#53). Add each one to this table as it lands.
 
 ```
 com.seb.mortgage
+├── advisor      AdvisorOrchestrator, AdvisorAgent and its tools, stream events, chat
+│                controller
 ├── agent        shared agent base: LlmSpecialistAgent, VerifierAgent, token budget
 │                (TokenUsageAdvisor, TokenUsageTracker), AgentMode, the Explanations
 │                glossary, status/usage controller
-├── profile      LoanProfile and ProfileFacts records
+├── auth         CurrentUser (a demo user until #49)
+├── conversation Conversation, Message, ConversationService
+├── profile      ProfileField rows, ProfileKey, ProfileService, ProfileSnapshotProvider
+│                (for the bank side), profile controller, LoanProfile and ProfileFacts
 ├── mockdata     AffordabilityCalculator, RateService, BankCatalogService
 └── config       CORS
 ```

@@ -8,3 +8,58 @@ export type AgentMode = 'stub' | 'openai'
 export interface AgentStatus {
   mode: AgentMode
 }
+
+// ---- Chat (GET /api/chat, POST /api/chat/messages) ----
+
+export interface ChatMessage {
+  /** Increasing number; also the order of the conversation. */
+  id: number
+  role: 'user' | 'advisor'
+  text: string
+  createdAt: string
+}
+
+// ---- Profile (GET /api/profile) ----
+
+export type ProfileFieldSource = 'CHAT' | 'LISTING' | 'DOCUMENT'
+export type ProfileFieldStatus = 'UNCERTAIN' | 'CONFIRMED'
+
+/**
+ * Keys the advisor can fill in so far (backend: ProfileKey). Amounts are plain numbers in
+ * euros as strings ("2350"), yes/no answers are "yes" or "no".
+ */
+export type ProfileFieldKey =
+  | 'netIncome'
+  | 'employment'
+  | 'savings'
+  | 'monthlyDebtPayments'
+  | 'hasCoApplicant'
+  | 'coApplicantNetIncome'
+  | 'dependants'
+
+export interface ProfileField {
+  key: ProfileFieldKey
+  value: string
+  source: ProfileFieldSource
+  status: ProfileFieldStatus
+}
+
+export interface Profile {
+  fields: ProfileField[]
+  /** Null until listings are added. */
+  property: null
+}
+
+// ---- Stream events of one advisor turn (SSE event name = type) ----
+
+export interface BankOption {
+  id: string
+  name: string
+}
+
+export type StreamEvent =
+  | { type: 'text', data: { delta: string } }
+  | { type: 'profile_updated', data: { fields: ProfileField[] } }
+  | { type: 'bank_picker', data: { banks: BankOption[] } }
+  | { type: 'done', data: { messageId: number } }
+  | { type: 'error', data: { message: string } }
