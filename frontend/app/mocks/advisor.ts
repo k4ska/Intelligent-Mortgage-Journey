@@ -60,12 +60,13 @@ function detectIncome(message: string): ProfileField[] {
 }
 
 // Development fixtures only. The real picker always uses the banks from the SSE event;
-// the UI never relies on these placeholder IDs (they change when #51 is merged).
+// these match the bank ids the backend uses (#51).
 const MOCK_BANKS: BankOption[] = [
-  { id: 'northbank', name: 'Northbank' },
-  { id: 'unionhypo', name: 'Union Hypothek' },
-  { id: 'meridian', name: 'Meridian Building Society' },
-  { id: 'harborsavings', name: 'Harbor Savings' },
+  { id: 'seb', name: 'SEB' },
+  { id: 'swedbank', name: 'Swedbank' },
+  { id: 'lhv', name: 'LHV' },
+  { id: 'luminor', name: 'Luminor' },
+  { id: 'coop', name: 'Coop Pank' },
 ]
 
 interface MockInboxData {
