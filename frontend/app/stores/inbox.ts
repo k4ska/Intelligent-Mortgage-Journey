@@ -11,6 +11,7 @@ export const useInboxStore = defineStore('inbox', {
     activeThread: null as InboxThreadDetail | null,
     loaded: false,
     loading: false,
+    refreshQueued: false,
     opening: false,
     error: '',
     threadError: '',
@@ -20,7 +21,13 @@ export const useInboxStore = defineStore('inbox', {
   },
   actions: {
     async load(force = false) {
-      if (this.loading || (this.loaded && !force)) return
+      // A forced refresh during a load (e.g. right after sending an application) runs
+      // once that load finishes, so new threads are never missed.
+      if (this.loading) {
+        if (force) this.refreshQueued = true
+        return
+      }
+      if (this.loaded && !force) return
       this.loading = true
       this.error = ''
       const userId = useAuthStore().user?.id
@@ -34,6 +41,10 @@ export const useInboxStore = defineStore('inbox', {
         this.error = copy.inboxLoadError
       } finally {
         this.loading = false
+        if (this.refreshQueued) {
+          this.refreshQueued = false
+          void this.load(true)
+        }
       }
     },
     async open(threadId: string) {
