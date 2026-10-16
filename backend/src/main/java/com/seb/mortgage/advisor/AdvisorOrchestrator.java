@@ -1,24 +1,26 @@
 package com.seb.mortgage.advisor;
 
-import com.seb.mortgage.agent.TokenBudgetExceededException;
-import com.seb.mortgage.conversation.ConversationService;
-import com.seb.mortgage.conversation.Message;
-import com.seb.mortgage.mockdata.BankCatalogService;
-import com.seb.mortgage.profile.ProfileService;
+import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
+
+import com.seb.mortgage.agent.TokenBudgetExceededException;
+import com.seb.mortgage.conversation.ConversationService;
+import com.seb.mortgage.conversation.Message;
+import com.seb.mortgage.mockdata.BankCatalogService;
+import com.seb.mortgage.profile.ProfileService;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 import tools.jackson.databind.ObjectMapper;
-
-import java.time.Duration;
-import java.util.List;
-import java.util.UUID;
 
 /**
  * Runs one advisor turn: saves the user's message, streams the advisor's reply with the

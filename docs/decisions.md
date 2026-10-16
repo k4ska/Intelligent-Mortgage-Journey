@@ -3,6 +3,13 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-16 - Session auth and prototype CSRF
+
+- Authentication uses Spring Security's server-side session cookie and BCrypt password
+  hashes; JWT is intentionally out of scope for the prototype.
+- CSRF is disabled because the SPA is same-origin behind the development/API proxy. It
+  must be revisited before exposing the backend outside that deployment shape.
+
 ## 2026-10-15 — Real kv.ee listings, best effort; the user fills the gaps
 
 - **Reverses the mock listings** from the vision (2026-10-15 pivot). When the user pastes
