@@ -25,10 +25,11 @@ public class BankCatalogService {
 	) {}
 
 	private static final List<Bank> BANKS = List.of(
-			new Bank("northbank", "Northbank", -0.05, 85, "Sharp rates, strict on income"),
-			new Bank("unionhypo", "Union Hypothek", 0.10, 90, "Flexible on LTV, slightly higher rate"),
-			new Bank("meridian", "Meridian Building Society", 0.00, 80, "Balanced, fast decisions"),
-			new Bank("harborsavings", "Harbor Savings", 0.20, 95, "Highest LTV, best for thin deposits")
+			new Bank("seb", "SEB", -0.05, 85, "Clear and reassuring"),
+			new Bank("swedbank", "Swedbank", 0.10, 85, "Friendly and practical"),
+			new Bank("lhv", "LHV", 0.00, 85, "Direct and concise"),
+			new Bank("luminor", "Luminor", 0.15, 85, "Formal and helpful"),
+			new Bank("coop", "Coop Pank", 0.20, 90, "Warm and straightforward")
 	);
 
 	private final AffordabilityCalculator calculator;
