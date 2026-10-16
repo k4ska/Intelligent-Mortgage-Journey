@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { AuthUser } from '~/composables/useApi'
 import { useAdvisorStore } from '~/stores/advisor'
+import { useInboxStore } from '~/stores/inbox'
 import { copy } from '~/utils/copy'
 import { errorStatus } from '~/utils/errors'
 
@@ -20,6 +21,7 @@ export const useAuthStore = defineStore('auth', {
       const advisor = useAdvisorStore()
       advisor.cancel()
       advisor.$reset()
+      useInboxStore().$reset()
     },
     /** The server session is gone (any API call returned 401): drop local state and re-login. */
     async expire() {

@@ -63,3 +63,39 @@ export type StreamEvent =
   | { type: 'bank_picker', data: { banks: BankOption[] } }
   | { type: 'done', data: { messageId: number } }
   | { type: 'error', data: { message: string } }
+
+// ---- Applications and inbox (#51) ----
+
+export interface ApplicationResult {
+  applicationId: string
+  threads: { threadId: string; bankId: string; status: string }[]
+}
+
+export interface InboxThread {
+  threadId: string
+  bank: BankOption
+  status: string
+  unread: boolean
+  lastEmail: {
+    subject: string
+    preview: string
+    createdAt: string
+  }
+}
+
+export interface InboxEmail {
+  id: string | number
+  from: 'BANK' | 'USER'
+  type: string
+  subject: string
+  body: string
+  offer: null
+  createdAt: string
+}
+
+export interface InboxThreadDetail {
+  threadId: string
+  bank: BankOption
+  status: string
+  emails: InboxEmail[]
+}

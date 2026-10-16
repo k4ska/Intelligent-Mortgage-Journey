@@ -1,4 +1,4 @@
-import type { ChatMessage, Profile, ProfileField, StreamEvent } from '~/types/api'
+import type { ApplicationResult, BankOption, ChatMessage, InboxEmail, InboxThread, InboxThreadDetail, Profile, ProfileField, StreamEvent } from '~/types/api'
 import { mergeProfileFields } from '~/utils/profile'
 
 // Explicit development-only mock. Never sends or stores passwords. It intentionally
@@ -59,6 +59,79 @@ function detectIncome(message: string): ProfileField[] {
     : []
 }
 
+// Development fixtures only. The real picker always uses the banks from the SSE event;
+// the UI never relies on these placeholder IDs (they change when #51 is merged).
+const MOCK_BANKS: BankOption[] = [
+  { id: 'northbank', name: 'Northbank' },
+  { id: 'unionhypo', name: 'Union Hypothek' },
+  { id: 'meridian', name: 'Meridian Building Society' },
+  { id: 'harborsavings', name: 'Harbor Savings' },
+]
+
+interface MockInboxData {
+  nextId: number
+  threads: InboxThread[]
+  emails: Record<string, InboxEmail[]>
+}
+
+function inboxKey(user: MockUser) { return `mortgage-mock-inbox:${user.id}` }
+function inboxData(user: MockUser): MockInboxData {
+  return read<MockInboxData>(inboxKey(user), { nextId: 1, threads: [], emails: {} })
+}
+
+export function mockSubmitApplication(bankIds: string[]): ApplicationResult {
+  const user = current()
+  const selected = [...new Set(bankIds)]
+  if (!selected.length || selected.some(id => !MOCK_BANKS.some(bank => bank.id === id))) {
+    throw Object.assign(new Error('Invalid banks'), { status: 400 })
+  }
+
+  const state = inboxData(user)
+  const applicationId = `mock-application-${state.nextId++}`
+  const threads: ApplicationResult['threads'] = []
+  for (const id of selected) {
+    const bank = MOCK_BANKS.find(option => option.id === id)!
+    const threadId = `mock-thread-${state.nextId++}`
+    const createdAt = new Date().toISOString()
+    const subject = 'Your mortgage application'
+    const body = `Thank you for applying to ${bank.name}. Could you confirm the property you would like to buy and the loan amount you need? We look forward to hearing from you.`
+    const email: InboxEmail = {
+      id: `mock-email-${state.nextId++}`,
+      from: 'BANK',
+      type: 'question',
+      subject,
+      body,
+      offer: null,
+      createdAt,
+    }
+    state.emails[threadId] = [email]
+    state.threads.unshift({
+      threadId,
+      bank,
+      status: 'OPEN',
+      unread: true,
+      lastEmail: { subject, preview: body.slice(0, 120), createdAt },
+    })
+    threads.push({ threadId, bankId: id, status: 'OPEN' })
+  }
+  write(inboxKey(user), state)
+  return { applicationId, threads }
+}
+
+export function mockGetInbox(): InboxThread[] {
+  return inboxData(current()).threads
+}
+
+export function mockGetThread(threadId: string): InboxThreadDetail {
+  const user = current()
+  const state = inboxData(user)
+  const thread = state.threads.find(item => item.threadId === threadId)
+  if (!thread) throw Object.assign(new Error('Thread not found'), { status: 404 })
+  thread.unread = false
+  write(inboxKey(user), state)
+  return { threadId, bank: thread.bank, status: thread.status, emails: state.emails[threadId] || [] }
+}
+
 export function mockSend(text: string): Response {
   const user = current()
   const state = data(user)
@@ -67,9 +140,17 @@ export function mockSend(text: string): Response {
   mergeProfileFields(state.profile.fields, fields)
   save(user, state)
 
-  const answer = fields.length
-    ? 'Thanks — I have added your monthly net income to your profile. What else should I know?'
-    : 'Thanks for sharing. Tell me a little more about your finances or the home you are looking for.'
+  const wantsBanks = /\b(banks?|lenders?)\b/i.test(text)
+    && /\b(apply|application|send|pick|choose|show|ready|go)\b/i.test(text)
+  const ready = state.profile.fields.some(field => field.key === 'netIncome')
+  const showPicker = wantsBanks && ready
+  const answer = wantsBanks
+    ? showPicker
+      ? 'You can choose one or more banks below and send your application.'
+      : 'Before we contact banks, please tell me your monthly net income.'
+    : fields.length
+      ? 'Thanks — I have added your monthly net income to your profile. What else should I know?'
+      : 'Thanks for sharing. Tell me a little more about your finances or the home you are looking for.'
   const parts = answer.match(/.{1,12}/gs) || [answer]
   const encoder = new TextEncoder()
   let cancelled = false
@@ -81,6 +162,7 @@ export function mockSend(text: string): Response {
       try {
         // First send a fact BEFORE the first text token, like the real advisor.
         if (fields.length) emit({ type: 'profile_updated', data: { fields } })
+        if (showPicker) emit({ type: 'bank_picker', data: { banks: MOCK_BANKS } })
         for (const delta of parts) {
           await new Promise(resolve => setTimeout(resolve, 65))
           // Like the real server, a cancelled request stops generating and saves no reply.

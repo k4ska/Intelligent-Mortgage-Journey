@@ -1,6 +1,5 @@
-
-import type { AgentStatus, ChatMessage, Profile } from '~/types/api'
-import { mockChat, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockSend } from '~/mocks/advisor'
+import type { AgentStatus, ApplicationResult, ChatMessage, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
+import { mockChat, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockSend, mockSubmitApplication } from '~/mocks/advisor'
 
 export interface AuthUser { id: string; email: string }
 
@@ -39,6 +38,15 @@ export function useApi() {
       ? later(mockProfile)
       : request<Profile>('/profile'),
     getAgentStatus: () => request<AgentStatus>('/agent/status'),
+    sendApplication: (bankIds: string[]): Promise<ApplicationResult> => mock
+      ? later(() => mockSubmitApplication(bankIds))
+      : request<ApplicationResult>('/applications', { method: 'POST', body: { bankIds } }),
+    getInbox: (): Promise<InboxThread[]> => mock
+      ? later(mockGetInbox)
+      : request<InboxThread[]>('/inbox'),
+    getInboxThread: (threadId: string): Promise<InboxThreadDetail> => mock
+      ? later(() => mockGetThread(threadId))
+      : request<InboxThreadDetail>(`/inbox/${encodeURIComponent(threadId)}`),
 
     // EventSource cannot POST JSON; fetch provides the ReadableStream we need.
     sendMessage: async (text: string, signal?: AbortSignal): Promise<Response> => {
