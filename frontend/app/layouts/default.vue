@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import { useAuthStore } from '~/stores/auth'
+import { useInboxStore } from '~/stores/inbox'
 import { copy } from '~/utils/copy'
 
 const auth = useAuthStore()
+const inbox = useInboxStore()
+
+watch(() => auth.isAuthenticated, (authenticated) => {
+  if (authenticated) void inbox.load()
+}, { immediate: true })
 </script>
 
 <template>
@@ -22,6 +28,7 @@ const auth = useAuthStore()
           </NuxtLink>
           <NuxtLink to="/inbox" class="app-nav-link" active-class="app-nav-link-active">
             <UIcon name="i-lucide-mail" />{{ copy.inboxTab }}
+            <span v-if="inbox.unreadCount" class="rounded-full bg-[var(--ui-primary)] px-1.5 text-xs font-semibold text-white">{{ inbox.unreadCount }}<span class="sr-only"> {{ copy.unread.toLowerCase() }}</span></span>
           </NuxtLink>
         </nav>
 

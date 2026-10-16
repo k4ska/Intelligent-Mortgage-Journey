@@ -1,8 +1,43 @@
 <script setup lang="ts">
 import { useAdvisorStore } from '~/stores/advisor'
+import { useInboxStore } from '~/stores/inbox'
+import { useAuthStore } from '~/stores/auth'
+import { errorStatus } from '~/utils/errors'
 import { copy } from '~/utils/copy'
 
 const advisor = useAdvisorStore()
+const inbox = useInboxStore()
+const auth = useAuthStore()
+const selectedBankIds = ref<string[]>([])
+const submittingApplication = ref(false)
+const applicationError = ref('')
+
+watch(() => advisor.bankOptions, () => {
+  selectedBankIds.value = []
+  applicationError.value = ''
+})
+
+async function submitApplication() {
+  const bankIds = advisor.bankOptions
+    .filter(bank => selectedBankIds.value.includes(bank.id))
+    .map(bank => bank.id)
+  if (!bankIds.length || submittingApplication.value) return
+  submittingApplication.value = true
+  applicationError.value = ''
+  try {
+    await useApi().sendApplication(bankIds)
+    advisor.bankOptions = []
+    selectedBankIds.value = []
+    // #51 creates bank emails immediately; refresh the shared unread badge and list.
+    await inbox.load(true)
+  } catch (error) {
+    if (errorStatus(error) === 401) return void auth.expire()
+    applicationError.value = copy.applicationError
+  } finally {
+    submittingApplication.value = false
+  }
+}
+
 const draft = ref('')
 const list = ref<HTMLElement | null>(null)
 // Only the newest message changes while streaming, so the count and its text are enough.
@@ -44,6 +79,23 @@ function onKeydown(event: KeyboardEvent) {
         <div :class="['max-w-[87%] rounded-2xl px-4 py-3 text-sm leading-6 whitespace-pre-wrap break-words', message.role === 'user' ? 'rounded-br-sm bg-[var(--ui-primary)] text-white' : 'rounded-bl-sm bg-[var(--ui-bg-muted)] text-[var(--ui-text)]']">
           {{ message.text || (advisor.sending && message.role === 'advisor' ? '…' : '') }}
         </div>
+      </div>
+    </div>
+
+    <div v-if="advisor.bankOptions.length" class="shrink-0 border-t border-[var(--ui-border)] p-4">
+      <div class="max-h-64 overflow-y-auto rounded-xl border border-[var(--ui-border)] bg-[var(--ui-bg-muted)] p-4">
+        <h3 class="text-base font-semibold">{{ copy.bankPickerTitle }}</h3>
+        <p class="mt-1 text-sm text-[var(--ui-text-muted)]">{{ copy.bankPickerHint }}</p>
+        <form class="mt-3 space-y-3" @submit.prevent="submitApplication">
+          <label v-for="bank in advisor.bankOptions" :key="bank.id" class="flex cursor-pointer items-center gap-3 text-sm">
+            <input v-model="selectedBankIds" type="checkbox" :value="bank.id" :disabled="submittingApplication" class="size-4 accent-[var(--ui-primary)]" />
+            <span>{{ bank.name }}</span>
+          </label>
+          <p v-if="applicationError" class="text-sm text-red-600" role="alert">{{ applicationError }}</p>
+          <UButton type="submit" icon="i-lucide-send" :loading="submittingApplication" :disabled="!selectedBankIds.length || submittingApplication">
+            {{ submittingApplication ? copy.sendingApplication : copy.sendApplication }}
+          </UButton>
+        </form>
       </div>
     </div>
 
