@@ -48,7 +48,7 @@ export const useInboxStore = defineStore('inbox', {
       }
     },
     async open(threadId: string) {
-      if (this.opening) return
+      // The latest click wins: a slower earlier request is ignored when it returns.
       this.selectedThreadId = threadId
       this.activeThread = null
       this.opening = true
@@ -63,9 +63,9 @@ export const useInboxStore = defineStore('inbox', {
         if (thread) thread.unread = false
       } catch (error) {
         if (errorStatus(error) === 401) return void useAuthStore().expire()
-        this.threadError = copy.threadLoadError
+        if (this.selectedThreadId === threadId) this.threadError = copy.threadLoadError
       } finally {
-        this.opening = false
+        if (this.selectedThreadId === threadId) this.opening = false
       }
     },
   },
