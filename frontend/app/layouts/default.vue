@@ -28,7 +28,7 @@ watch(() => auth.isAuthenticated, (authenticated) => {
           </NuxtLink>
           <NuxtLink to="/inbox" class="app-nav-link" active-class="app-nav-link-active">
             <UIcon name="i-lucide-mail" />{{ copy.inboxTab }}
-            <span v-if="inbox.unreadCount" class="rounded-full bg-[var(--ui-primary)] px-1.5 text-xs font-semibold text-white" :aria-label="`${inbox.unreadCount} unread`">{{ inbox.unreadCount }}</span>
+            <span v-if="inbox.unreadCount" class="rounded-full bg-[var(--ui-primary)] px-1.5 text-xs font-semibold text-white">{{ inbox.unreadCount }}<span class="sr-only"> {{ copy.unread.toLowerCase() }}</span></span>
           </NuxtLink>
         </nav>
 
