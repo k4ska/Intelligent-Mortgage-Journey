@@ -1,5 +1,7 @@
 package com.seb.mortgage.auth;
 
+import java.util.Locale;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -23,7 +25,7 @@ public class SecurityConfig {
 
 	@Bean
 	UserDetailsService userDetailsService(UserRepository users) {
-		return email -> users.findByEmail(email.trim().toLowerCase())
+		return email -> users.findByEmail(email.trim().toLowerCase(Locale.ROOT))
 				.map(user -> new AuthUserDetails(user.getId(), user.getEmail(), user.getPasswordHash()))
 				.orElseThrow(() -> new org.springframework.security.core.userdetails.UsernameNotFoundException(email));
 	}

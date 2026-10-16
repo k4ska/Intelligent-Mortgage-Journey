@@ -33,12 +33,6 @@ public class AuthService {
 		}
 	}
 
-	public AuthUserDetails details(String email) {
-		User user = users.findByEmail(normalizeEmail(email))
-				.orElseThrow(() -> new IllegalArgumentException("unknown user"));
-		return new AuthUserDetails(user.getId(), user.getEmail(), user.getPasswordHash());
-	}
-
 	public UserView view(User user) { return new UserView(user.getId(), user.getEmail()); }
 	public UserView view(java.util.UUID id, String email) { return new UserView(id, email); }
 	private String normalizeEmail(String email) {
