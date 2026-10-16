@@ -3,6 +3,7 @@ package com.seb.mortgage.auth;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -43,9 +44,14 @@ public class AuthController {
 			HttpServletResponse response) {
 		var authentication = authenticationManager.authenticate(
 				new UsernamePasswordAuthenticationToken(credentials.email(), credentials.password()));
+		// New session id on login, so a session id planted before login can't be reused (session fixation).
+		if (request.getSession(false) != null) {
+			request.changeSessionId();
+		}
 		SecurityContextHolder.getContext().setAuthentication(authentication);
 		contextRepository.saveContext(SecurityContextHolder.getContext(), request, response);
-		return auth.view(((AuthUserDetails) authentication.getPrincipal()).id(), ((AuthUserDetails) authentication.getPrincipal()).email());
+		AuthUserDetails user = (AuthUserDetails) authentication.getPrincipal();
+		return auth.view(user.id(), user.email());
 	}
 
 	@PostMapping("/logout")
@@ -55,7 +61,7 @@ public class AuthController {
 	}
 
 	@GetMapping("/me")
-	public AuthService.UserView me(@org.springframework.security.core.annotation.AuthenticationPrincipal AuthUserDetails user) {
+	public AuthService.UserView me(@AuthenticationPrincipal AuthUserDetails user) {
 		return auth.view(user.id(), user.email());
 	}
 

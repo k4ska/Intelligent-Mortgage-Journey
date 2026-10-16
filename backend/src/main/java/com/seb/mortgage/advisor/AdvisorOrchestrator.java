@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 import com.seb.mortgage.agent.TokenBudgetExceededException;
 import com.seb.mortgage.conversation.ConversationService;
 import com.seb.mortgage.conversation.Message;
-import com.seb.mortgage.mockdata.BankCatalogService;
+import com.seb.mortgage.bank.BankCatalogService;
 import com.seb.mortgage.profile.ProfileService;
 
 import reactor.core.publisher.Flux;

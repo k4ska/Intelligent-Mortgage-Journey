@@ -12,7 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import com.seb.mortgage.advisor.AdvisorTools.FieldUpdate;
-import com.seb.mortgage.mockdata.BankCatalogService;
+import com.seb.mortgage.bank.BankCatalogService;
 import com.seb.mortgage.profile.ProfileField;
 import com.seb.mortgage.profile.ProfileFieldView;
 import com.seb.mortgage.profile.ProfileKey;

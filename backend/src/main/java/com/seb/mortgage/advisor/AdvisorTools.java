@@ -1,6 +1,6 @@
 package com.seb.mortgage.advisor;
 
-import com.seb.mortgage.mockdata.BankCatalogService;
+import com.seb.mortgage.bank.BankCatalogService;
 import com.seb.mortgage.profile.ProfileField;
 import com.seb.mortgage.profile.ProfileFieldView;
 import com.seb.mortgage.profile.ProfileKey;
