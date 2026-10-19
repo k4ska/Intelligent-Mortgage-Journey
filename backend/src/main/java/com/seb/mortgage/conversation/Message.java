@@ -7,7 +7,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
@@ -34,8 +33,7 @@ public class Message {
 	@Column(nullable = false)
 	private Role role;
 
-	@Lob
-	@Column(nullable = false, columnDefinition = "CLOB")
+	@Column(nullable = false, columnDefinition = "TEXT")
 	private String text;
 
 	@Column(nullable = false, updatable = false)

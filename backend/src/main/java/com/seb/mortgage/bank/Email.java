@@ -10,7 +10,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 @Entity
@@ -22,7 +21,7 @@ public class Email {
 	@Enumerated(EnumType.STRING) @Column(name = "email_from", nullable = false) private Sender from;
 	@Column(nullable = false) private String type;
 	@Column(nullable = false) private String subject;
-	@Lob @Column(nullable = false, columnDefinition = "CLOB") private String body;
+	@Column(nullable = false, columnDefinition = "TEXT") private String body;
 	@Column(nullable = false, updatable = false) private Instant createdAt;
 	protected Email() {}
 	public Email(UUID threadId, Sender from, String type, String subject, String body) {
