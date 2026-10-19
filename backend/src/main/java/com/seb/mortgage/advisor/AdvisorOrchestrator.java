@@ -67,11 +67,14 @@ public class AdvisorOrchestrator {
 
 		// Tools push their events here while the reply is still streaming.
 		Sinks.Many<StreamEvent> toolEvents = Sinks.many().unicast().onBackpressureBuffer();
-		AdvisorTools tools = new AdvisorTools(userId, profile, property, listings, banks,
+		List<Message> visible = visible(earlier);
+		UserStatements stated = UserStatements.from(visible.stream()
+				.filter(m -> m.getRole() == Message.Role.USER).map(Message::getText).toList(), userText);
+		AdvisorTools tools = new AdvisorTools(userId, profile, property, listings, banks, stated,
 				event -> toolEvents.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(1))));
 
 		StringBuilder reply = new StringBuilder();
-		Flux<StreamEvent> text = replyText(userId, earlier, userText, tools)
+		Flux<StreamEvent> text = replyText(userId, visible, userText, tools)
 				.doOnNext(reply::append)
 				.map(StreamEvent::text)
 				.doFinally(signal -> toolEvents.tryEmitComplete());
@@ -90,13 +93,17 @@ public class AdvisorOrchestrator {
 		if (agent == null) {
 			return Flux.just(OFFLINE_REPLY);
 		}
-		return Flux.defer(() -> agent.reply(toPrompt(earlier), userText, profileJson(userId), tools))
+		return Flux.defer(() -> agent.reply(toPrompt(earlier), userText, () -> profileJson(userId), tools))
 				.onErrorResume(TokenBudgetExceededException.class, e -> Flux.just(OFFLINE_REPLY));
+	}
+
+	/** The part of the conversation the advisor sees, to keep prompts bounded. */
+	private static List<Message> visible(List<Message> earlier) {
+		return earlier.subList(Math.max(0, earlier.size() - HISTORY_LIMIT), earlier.size());
 	}
 
 	private static List<org.springframework.ai.chat.messages.Message> toPrompt(List<Message> earlier) {
 		return earlier.stream()
-				.skip(Math.max(0, earlier.size() - HISTORY_LIMIT))
 				.<org.springframework.ai.chat.messages.Message>map(m -> m.getRole() == Message.Role.USER
 						? new UserMessage(m.getText())
 						: new AssistantMessage(m.getText()))

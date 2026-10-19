@@ -7,10 +7,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -20,6 +23,7 @@ import org.springframework.context.annotation.Primary;
 
 import com.seb.mortgage.conversation.ConversationService;
 import com.seb.mortgage.conversation.Message;
+import com.seb.mortgage.profile.ProfileService;
 
 import reactor.core.publisher.Flux;
 
@@ -68,19 +72,43 @@ class AdvisorOrchestratorTest {
 			}
 		}
 
-		/** Streams "Hello" + " there" and remembers the last prompt it got. */
+		/**
+		 * Plays the model in both steps of a turn. Act ({@code call}): answers "Hello there",
+		 * or, for a message ending in {@link #INVENTS}, replays #88: it writes a reply and
+		 * calls updateProfile with values the user never gave. Reply ({@code stream}): the
+		 * reply written after the tools ran. It remembers the prompt of each step.
+		 */
 		static class FakeChatModel implements ChatModel {
-			volatile Prompt lastPrompt;
+			static final String INVENTS = "only a house";
+			static final String INVENTED_TEXT = "Thanks, I've saved your savings as €0.";
+
+			volatile Prompt actPrompt;
+			volatile Prompt replyPrompt;
+
+			/** Like OpenAI's: options that can carry tools. */
+			@Override
+			public ChatOptions getOptions() {
+				return ToolCallingChatOptions.builder().build();
+			}
 
 			@Override
 			public ChatResponse call(Prompt prompt) {
-				throw new UnsupportedOperationException("the advisor streams");
+				actPrompt = prompt;
+				if (!prompt.getContents().endsWith(INVENTS)) {
+					return new ChatResponse(List.of(new Generation(new AssistantMessage("Hello there"))));
+				}
+				AssistantMessage toolCall = AssistantMessage.builder().content(INVENTED_TEXT)
+						.toolCalls(List.of(new AssistantMessage.ToolCall("call-1", "function", "updateProfile",
+								"{\"fields\":[{\"key\":\"savings\",\"value\":\"0\",\"quote\":\"only a house\"},"
+										+ "{\"key\":\"netIncome\",\"value\":\"3300\",\"quote\":\"only a house\"}]}")))
+						.build();
+				return new ChatResponse(List.of(new Generation(toolCall)));
 			}
 
 			@Override
 			public Flux<ChatResponse> stream(Prompt prompt) {
-				lastPrompt = prompt;
-				return Flux.just("Hello", " there").map(text ->
+				replyPrompt = prompt;
+				return Flux.just("Got it. ", "How much do you earn per month?").map(text ->
 						new ChatResponse(List.of(new Generation(new AssistantMessage(text)))));
 			}
 		}
@@ -88,15 +116,41 @@ class AdvisorOrchestratorTest {
 		@Autowired AdvisorOrchestrator orchestrator;
 		@Autowired ConversationService conversations;
 		@Autowired FakeChatModel model;
+		@Autowired ProfileService profile;
 
 		@Test
-		void streamsTheReplyThenSavesIt() {
+		void aTurnWithoutToolsIsOneCall() {
 			UUID userId = UUID.randomUUID();
 
 			List<StreamEvent> events = orchestrator.send(userId, "Hi").collectList().block();
 
-			assertThat(events).extracting(StreamEvent::type).containsExactly("text", "text", "done");
+			assertThat(events).extracting(StreamEvent::type).containsExactly("text", "done");
 			assertThat(conversations.history(userId)).last().extracting(Message::getText).isEqualTo("Hello there");
+		}
+
+		/** #88: act, then a separate reply call that sees what the tools did but no tools. */
+		@Test
+		void aTurnWithToolsActsThenRepliesWithoutTools() {
+			UUID userId = UUID.randomUUID();
+
+			List<StreamEvent> events = orchestrator.send(userId, "It's " + FakeChatModel.INVENTS).collectList().block();
+
+			// The invented values were refused, so nothing was saved and the panel wasn't told anything.
+			assertThat(events).extracting(StreamEvent::type).doesNotContain("profile_updated");
+			assertThat(profile.fields(userId)).isEmpty();
+			// Only the reply step's text reaches the user, streamed; the act step's text is dropped.
+			assertThat(events).filteredOn(e -> e.type().equals("text")).extracting(e -> e.data().get("delta"))
+					.containsExactly("Got it. ", "How much do you earn per month?");
+			assertThat(conversations.history(userId)).last().extracting(Message::getText)
+					.isEqualTo("Got it. How much do you earn per month?");
+			// The act step had the tools; the reply step has none, only a note of what they did.
+			assertThat(((ToolCallingChatOptions) model.actPrompt.getOptions()).getToolCallbacks()).isNotEmpty();
+			assertThat(((ToolCallingChatOptions) model.replyPrompt.getOptions()).getToolCallbacks()).isNullOrEmpty();
+			assertThat(model.replyPrompt.getInstructions()).extracting(m -> m.getMessageType())
+					.doesNotContain(MessageType.TOOL);
+			assertThat(model.replyPrompt.getContents())
+					.contains("savings=0 was not saved because the user never said it")
+					.doesNotContain(FakeChatModel.INVENTED_TEXT);
 		}
 
 		@Test
@@ -106,7 +160,7 @@ class AdvisorOrchestratorTest {
 
 			orchestrator.send(userId, "What do you know about me?").collectList().block();
 
-			String prompt = model.lastPrompt.getContents();
+			String prompt = model.actPrompt.getContents();
 			assertThat(prompt)
 					.contains(ConversationService.GREETING)
 					.contains("I earn 2350 a month")

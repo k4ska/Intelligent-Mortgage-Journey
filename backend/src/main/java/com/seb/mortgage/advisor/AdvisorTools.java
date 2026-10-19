@@ -37,7 +37,10 @@ class AdvisorTools {
 			- coApplicantNetIncome: the co-applicant's monthly net income, in euros
 			- dependants: number of children or other dependants in the household
 			Euro amounts are plain numbers like 2350, with no currency or thousands separators.
-			Only save what the user actually said; never guess a value.""";
+			For each fact, give in quote the user's own words that state it, copied exactly
+			(e.g. "I work at a bank" for employment=employed). Only save what the user actually
+			said; never guess a value. A fact without a real quote, or a number the user never
+			wrote, is refused.""";
 
 	static final String UPDATE_PROPERTY_DESCRIPTION = """
 			Save what the user told you about the home they have in mind. Allowed keys:
@@ -46,28 +49,36 @@ class AdvisorTools {
 			- location: the address, or at least the town and district
 			Euro amounts are plain numbers like 189000, with no currency or thousands separators.
 			Size, rooms and year built are only ever read from a listing; don't save them here.
+			For each value, give in quote the user's own words that state it, copied exactly from
+			their message (or from the listing text they pasted); without one it is refused.
 			Set fromPastedText to true when you picked the values out of listing text the user
 			pasted: they stay uncertain until the user says they're right, and then you save them
 			again with fromPastedText false. Set newProperty to true when the user now has a
 			different home in mind; the old one is forgotten.""";
 
-	/** A fact to save: one of the allowed keys and its value. */
-	record FieldUpdate(String key, String value) {}
+	/** A fact to save: one of the allowed keys, its value, and the user's words that state it. */
+	record FieldUpdate(
+			@ToolParam(description = "One of the allowed keys") String key,
+			@ToolParam(description = "The value to save") String value,
+			@ToolParam(description = "The user's own words that state this value, copied exactly from their message")
+			String quote) {}
 
 	private final UUID userId;
 	private final ProfileService profile;
 	private final PropertyService property;
 	private final ListingReader listings;
 	private final BankCatalogService banks;
+	private final UserStatements stated;
 	private final Consumer<StreamEvent> emit;
 
 	AdvisorTools(UUID userId, ProfileService profile, PropertyService property, ListingReader listings,
-			BankCatalogService banks, Consumer<StreamEvent> emit) {
+			BankCatalogService banks, UserStatements stated, Consumer<StreamEvent> emit) {
 		this.userId = userId;
 		this.profile = profile;
 		this.property = property;
 		this.listings = listings;
 		this.banks = banks;
+		this.stated = stated;
 		this.emit = emit;
 	}
 
@@ -82,9 +93,14 @@ class AdvisorTools {
 				continue;
 			}
 			try {
+				String value = key.normalize(field.value());
+				boolean number = key.type() == ProfileKey.Type.AMOUNT || key.type() == ProfileKey.Type.COUNT;
+				if (!stated.containsQuote(field.quote()) || number && !stated.containsNumber(value)) {
+					problems.add(notSaid(field.key(), value));
+					continue;
+				}
 				// What the user says about themselves needs no confirmation.
-				saved.add(profile.save(userId, key, key.normalize(field.value()),
-						ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED));
+				saved.add(profile.save(userId, key, value, ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED));
 			} catch (IllegalArgumentException e) {
 				problems.add(e.getMessage());
 			}
@@ -137,7 +153,12 @@ class AdvisorTools {
 				continue;
 			}
 			try {
-				values.put(key, key.normalize(field.value()));
+				String value = key.normalize(field.value());
+				if (!stated.containsQuote(field.quote()) || key == PropertyKey.PRICE && !stated.containsNumber(value)) {
+					problems.add(notSaid(field.key(), value));
+					continue;
+				}
+				values.put(key, value);
 			} catch (IllegalArgumentException e) {
 				problems.add(e.getMessage());
 			}
@@ -165,6 +186,12 @@ class AdvisorTools {
 			return "Nothing to save.";
 		}
 		return note.toString().trim() + stillMissing();
+	}
+
+	/** A value without the user's words behind it: the advisor guessed it, so it isn't saved (#88). */
+	private static String notSaid(String key, String value) {
+		return key + "=" + value + " was not saved because the user never said it (quote their exact words); "
+				+ "if they haven't told you, ask them instead";
 	}
 
 	private static String describe(PropertyView view) {
