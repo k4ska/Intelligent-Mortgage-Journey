@@ -1,7 +1,9 @@
 package com.seb.mortgage.advisor;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -16,6 +18,8 @@ import com.seb.mortgage.conversation.ConversationService;
 import com.seb.mortgage.conversation.Message;
 import com.seb.mortgage.bank.BankCatalogService;
 import com.seb.mortgage.profile.ProfileService;
+import com.seb.mortgage.property.ListingReader;
+import com.seb.mortgage.property.PropertyService;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -40,14 +44,19 @@ public class AdvisorOrchestrator {
 	private final ObjectProvider<AdvisorAgent> advisor;
 	private final ConversationService conversations;
 	private final ProfileService profile;
+	private final PropertyService property;
+	private final ListingReader listings;
 	private final BankCatalogService banks;
 	private final ObjectMapper objectMapper;
 
 	public AdvisorOrchestrator(ObjectProvider<AdvisorAgent> advisor, ConversationService conversations,
-			ProfileService profile, BankCatalogService banks, ObjectMapper objectMapper) {
+			ProfileService profile, PropertyService property, ListingReader listings, BankCatalogService banks,
+			ObjectMapper objectMapper) {
 		this.advisor = advisor;
 		this.conversations = conversations;
 		this.profile = profile;
+		this.property = property;
+		this.listings = listings;
 		this.banks = banks;
 		this.objectMapper = objectMapper;
 	}
@@ -58,7 +67,7 @@ public class AdvisorOrchestrator {
 
 		// Tools push their events here while the reply is still streaming.
 		Sinks.Many<StreamEvent> toolEvents = Sinks.many().unicast().onBackpressureBuffer();
-		AdvisorTools tools = new AdvisorTools(userId, profile, banks,
+		AdvisorTools tools = new AdvisorTools(userId, profile, property, listings, banks,
 				event -> toolEvents.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(1))));
 
 		StringBuilder reply = new StringBuilder();
@@ -95,6 +104,9 @@ public class AdvisorOrchestrator {
 	}
 
 	private String profileJson(UUID userId) {
-		return objectMapper.writeValueAsString(profile.fields(userId));
+		Map<String, Object> known = new LinkedHashMap<>();
+		known.put("fields", profile.fields(userId));
+		known.put("property", property.active(userId).orElse(null));
+		return objectMapper.writeValueAsString(known);
 	}
 }

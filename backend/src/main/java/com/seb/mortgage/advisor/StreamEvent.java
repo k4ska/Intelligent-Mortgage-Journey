@@ -1,6 +1,7 @@
 package com.seb.mortgage.advisor;
 
 import com.seb.mortgage.profile.ProfileFieldView;
+import com.seb.mortgage.property.PropertyView;
 
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,10 @@ public record StreamEvent(String type, Map<String, Object> data) {
 
 	public static StreamEvent profileUpdated(List<ProfileFieldView> fields) {
 		return new StreamEvent("profile_updated", Map.of("fields", fields));
+	}
+
+	public static StreamEvent propertyUpdated(PropertyView property) {
+		return new StreamEvent("property_updated", Map.of("property", property));
 	}
 
 	/** Shows the bank picker card under the chat. */

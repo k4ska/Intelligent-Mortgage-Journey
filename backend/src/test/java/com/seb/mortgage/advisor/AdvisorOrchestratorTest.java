@@ -111,7 +111,7 @@ class AdvisorOrchestratorTest {
 					.contains(ConversationService.GREETING)
 					.contains("I earn 2350 a month")
 					.contains("Hello there")
-					.contains("What the user's profile says so far")
+					.contains("What the user's profile and property say so far")
 					.endsWith("What do you know about me?");
 		}
 	}

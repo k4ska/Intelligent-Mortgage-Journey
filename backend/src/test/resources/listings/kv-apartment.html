@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<!--
+  A kv.ee-style listing page, made by hand for the tests: kv.ee's bot check answers our
+  honest requests with 403, so we have no real page to save. The structured data follows
+  schema.org the way listing sites commonly use it (a residence with an address, floor
+  size, rooms and year built, and an offer with the price).
+-->
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <title>Müüa 3-toaline korter, Tallinn, Kesklinna linnaosa, Pärnu mnt 41 | KV.EE</title>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Korterid", "item": "https://www.kv.ee/korterid" }
+        ]
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Müüa 3-toaline korter, Tallinn, Kesklinna linnaosa, Pärnu mnt 41",
+        "category": "Korter",
+        "offers": {
+            "@type": "Offer",
+            "price": "189000",
+            "priceCurrency": "EUR",
+            "itemOffered": {
+                "@type": "Apartment",
+                "address": {
+                    "@type": "PostalAddress",
+                    "streetAddress": "Pärnu mnt 41",
+                    "addressLocality": "Tallinn",
+                    "addressRegion": "Harju maakond"
+                },
+                "floorSize": { "@type": "QuantitativeValue", "value": "61.4", "unitCode": "MTK" },
+                "numberOfRooms": 3,
+                "yearBuilt": 1937
+            }
+        }
+    }
+    </script>
+</head>
+<body>
+    <h1>Müüa 3-toaline korter, Tallinn, Kesklinna linnaosa, Pärnu mnt 41</h1>
+    <p>Hind 189 000 €</p>
+</body>
+</html>

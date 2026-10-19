@@ -17,6 +17,8 @@ import com.seb.mortgage.profile.ProfileField;
 import com.seb.mortgage.profile.ProfileFieldView;
 import com.seb.mortgage.profile.ProfileKey;
 import com.seb.mortgage.profile.ProfileService;
+import com.seb.mortgage.property.ListingReader;
+import com.seb.mortgage.property.PropertyService;
 
 /** The advisor's tools, called directly: no LLM involved. */
 @SpringBootTest
@@ -24,12 +26,14 @@ class AdvisorToolsTest {
 
 	@Autowired ProfileService profile;
 	@Autowired BankCatalogService banks;
+	@Autowired PropertyService property;
+	@Autowired ListingReader listings;
 
 	private final UUID userId = UUID.randomUUID();
 	private final List<StreamEvent> events = new ArrayList<>();
 
 	private AdvisorTools tools() {
-		return new AdvisorTools(userId, profile, banks, events::add);
+		return new AdvisorTools(userId, profile, property, listings, banks, events::add);
 	}
 
 	@Test

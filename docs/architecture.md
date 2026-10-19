@@ -293,7 +293,9 @@ stream and code path.
 ```
 text              { delta }                                 a piece of the reply
 profile_updated   { fields: [{ key, value, source, status }] }
-property_updated  { property }
+property_updated  { property: { listingUrl, fields: [{ key, value, source, status }] } }
+                    keys: type (APARTMENT | HOUSE | PLOT | NEW_BUILD), price, location,
+                    size (m²), rooms, yearBuilt
 document_status   { type, status, whereToGet }
 chart             { chartType, title, data }
 bank_picker       { banks: [{ id, name }] }                 card under the chat
@@ -307,7 +309,7 @@ error             { message }
 ### Panels
 
 ```
-GET  /api/profile                     -> fields + active property
+GET  /api/profile                     -> fields + active property (null if none yet)
 GET  /api/documents                   -> checklist with statuses
 POST /api/documents/{type}  (file)    -> document; the frontend then sends the
                                          DOCUMENT_UPLOADED trigger to the chat
