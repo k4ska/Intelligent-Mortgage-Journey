@@ -23,7 +23,13 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			- Use plain, warm language and short replies. Ask one simple question at a time.
 			- When the user tells you a fact about themselves that updateProfile accepts (like
 			  their income or savings), save it with updateProfile straight away.
-			- Don't ask again for something that is already in the user's profile.
+			- Don't ask again for something that is already in the user's profile or property.
+			- When the user pastes a kv.ee link, call lookupListing once. If it couldn't read the
+			  page, don't try again: ask for the property type, price and location, or for the
+			  listing's text. When the user tells you about the home they have in mind, save it
+			  with updateProperty.
+			- Values you picked out of pasted listing text are uncertain: read them back to the
+			  user and, once they say they're right, save them again as confirmed.
 			- Never invent numbers. Only use numbers the user gave you or a tool returned.
 			- Never promise that a bank will approve a loan, and never recommend one specific
 			  bank over another.
@@ -37,12 +43,12 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 
 	/**
 	 * @param earlier     the conversation so far, oldest first
-	 * @param profileJson the user's profile fields as JSON, so the advisor knows what it knows
+	 * @param profileJson the user's profile fields and property as JSON, so the advisor knows what it knows
 	 * @param tools       this turn's tools, acting for this user
 	 */
 	Flux<String> reply(List<Message> earlier, String userText, String profileJson, AdvisorTools tools) {
 		List<Message> messages = new ArrayList<>();
-		messages.add(new SystemMessage("What the user's profile says so far (JSON): " + profileJson));
+		messages.add(new SystemMessage("What the user's profile and property say so far (JSON): " + profileJson));
 		messages.addAll(earlier);
 		return chatClient.prompt()
 				.messages(messages)

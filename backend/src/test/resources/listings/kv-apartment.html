@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<!--
+  A kv.ee-style listing page, made by hand for the tests: an apartment with the price in
+  an Offer that wraps the residence. kv-house-real.html is a real kv.ee page; this one
+  covers a different shape of the same schema.org data.
+-->
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <title>Müüa 3-toaline korter, Tallinn, Kesklinna linnaosa, Pärnu mnt 41 | KV.EE</title>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Korterid", "item": "https://www.kv.ee/korterid" }
+        ]
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Müüa 3-toaline korter, Tallinn, Kesklinna linnaosa, Pärnu mnt 41",
+        "category": "Korter",
+        "offers": {
+            "@type": "Offer",
+            "price": "189000",
+            "priceCurrency": "EUR",
+            "itemOffered": {
+                "@type": "Apartment",
+                "address": {
+                    "@type": "PostalAddress",
+                    "streetAddress": "Pärnu mnt 41",
+                    "addressLocality": "Tallinn",
+                    "addressRegion": "Harju maakond"
+                },
+                "floorSize": { "@type": "QuantitativeValue", "value": "61.4", "unitCode": "MTK" },
+                "numberOfRooms": 3,
+                "yearBuilt": 1937
+            }
+        }
+    }
+    </script>
+</head>
+<body>
+    <h1>Müüa 3-toaline korter, Tallinn, Kesklinna linnaosa, Pärnu mnt 41</h1>
+    <p>Hind 189 000 €</p>
+</body>
+</html>
