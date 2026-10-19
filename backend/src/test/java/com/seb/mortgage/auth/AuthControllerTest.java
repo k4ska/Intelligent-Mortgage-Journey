@@ -54,6 +54,23 @@ class AuthControllerTest {
 	}
 
 	@Test
+	void anyNonEmptyPasswordIsEnough() throws Exception {
+		mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"email\":\"short-password@example.com\",\"password\":\"a\"}"))
+				.andExpect(status().isCreated());
+	}
+
+	@Test
+	void anEmptyPasswordOrABadEmailIsABadRequest() throws Exception {
+		mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"email\":\"empty-password@example.com\",\"password\":\"\"}"))
+				.andExpect(status().isBadRequest());
+		mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"email\":\"not-an-email\",\"password\":\"a\"}"))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void aWrongPasswordIsUnauthorized() throws Exception {
 		mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
 						.content("{\"email\":\"wrong-password@example.com\",\"password\":\"password123\"}"))

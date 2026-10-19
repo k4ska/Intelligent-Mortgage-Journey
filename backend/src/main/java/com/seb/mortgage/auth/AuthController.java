@@ -1,5 +1,7 @@
 package com.seb.mortgage.auth;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -23,6 +25,8 @@ import jakarta.servlet.http.HttpServletResponse;
 @RequestMapping("/api/auth")
 public class AuthController {
 	public record Credentials(String email, String password) {}
+
+	private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
 	private final AuthService auth;
 	private final AuthenticationManager authenticationManager;
@@ -71,5 +75,8 @@ public class AuthController {
 
 	@ExceptionHandler(IllegalArgumentException.class)
 	@ResponseStatus(HttpStatus.BAD_REQUEST)
-	public void invalidCredentials() {}
+	public void invalidCredentials(IllegalArgumentException e) {
+		// The message names the rule that failed, never the email or password.
+		log.info("Registration rejected: {}", e.getMessage());
+	}
 }

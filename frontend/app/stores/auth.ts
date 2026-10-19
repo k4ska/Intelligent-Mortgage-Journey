@@ -47,7 +47,10 @@ export const useAuthStore = defineStore('auth', {
       try {
         await api.register(email, password)
       } catch (error) {
-        this.error = errorStatus(error) === 409 ? copy.emailExists : copy.registerError
+        const status = errorStatus(error)
+        this.error = status === 409 ? copy.emailExists
+          : status === 400 ? copy.registerInvalid
+            : copy.registerError
         this.busy = false
         return
       }
