@@ -62,6 +62,7 @@ export const copy = {
   fromYou: 'You',
   authError: 'Could not sign in. Please check your details and try again.',
   registerError: 'Could not create your account. Please try again.',
+  registerInvalid: 'Please enter a valid email address and a password.',
   emailExists: 'An account with that email already exists.',
   accountCreated: 'Your account was created. Please log in to continue.',
   sessionExpired: 'Your session has expired. Please log in again.',

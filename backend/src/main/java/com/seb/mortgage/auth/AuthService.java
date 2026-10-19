@@ -20,8 +20,9 @@ public class AuthService {
 
 	public UserView register(String email, String password) {
 		String normalized = normalizeEmail(email);
-		if (password == null || password.length() < 8) {
-			throw new IllegalArgumentException("password must be at least 8 characters");
+		// Prototype: any non-empty password, so testing stays quick (#87).
+		if (password == null || password.isEmpty()) {
+			throw new IllegalArgumentException("password is required");
 		}
 		if (users.existsByEmail(normalized)) {
 			throw new EmailAlreadyUsedException();
