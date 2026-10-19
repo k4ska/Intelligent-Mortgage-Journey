@@ -341,7 +341,8 @@ POST /api/inbox/{threadId}/assist  (SSE) { text } -> the advisor next to the thr
 **Look up a listing**
 1. The user pastes a kv.ee link → `lookupListing` makes one request with an honest user
    agent and a 5-second timeout. Only `kv.ee` links; no crawling, no other pages, no
-   image pages (`robots.txt` disallows those). Results are cached per link.
+   pages `robots.txt` disallows (images, history, print views, rentals, ...). Results are
+   cached per link.
 2. It worked → the type, price and location (plus size, rooms, year built) are saved with
    source `LISTING` → `property_updated`, and the advisor carries on.
 3. Blocked (kv.ee's bot check) or failed → the tool says so, and the advisor asks the user

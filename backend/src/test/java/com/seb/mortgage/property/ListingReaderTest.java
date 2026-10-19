@@ -71,6 +71,18 @@ class ListingReaderTest {
 	}
 
 	@Test
+	void pagesRobotsTxtDisallowsAreNeverFetched() {
+		ListingReader reader = answering(200, page("kv-apartment.html"));
+
+		for (String link : List.of("https://www.kv.ee/object/images/3612345", "https://www.kv.ee/en/object/history/3612345",
+				"https://www.kv.ee/printobj/3612345.html", "https://www.kv.ee/kuulutuse-ajalugu/3612345",
+				"https://www.kv.ee/rent/2-toaline-korter-3612345.html", "https://www.kv.ee/uusarendus/images/3612345")) {
+			assertThat(reader.read(link)).as(link).isInstanceOf(ListingReader.Lookup.NotRead.class);
+		}
+		assertThat(fetched).isEmpty();
+	}
+
+	@Test
 	void eachLinkIsFetchedOnceEvenWithTrackingParameters() {
 		ListingReader reader = answering(200, page("kv-apartment.html"));
 
