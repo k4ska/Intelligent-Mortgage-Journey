@@ -73,7 +73,7 @@ extras** split, and what is mocked and how.
 | Frontend   | Vue 3 + Nuxt (run as an SPA, `ssr: false`), Nuxt UI, Pinia for state  |
 | Backend    | Java + Spring Boot, REST + Server-Sent Events                        |
 | LLM        | OpenAI via [Spring AI](https://docs.spring.io/spring-ai/reference/) `ChatClient` (API key stays server-side) |
-| Database   | In-memory H2 by default; Postgres available via a `docker-compose` profile |
+| Database   | PostgreSQL in Docker with Flyway migrations; in-memory H2 for local development and tests |
 | Data       | Mock services: documents, interest rates, bank catalog; kv.ee listings read live (best effort) |
 | Email      | Stored in our own database at first; [agentmail.to](https://agentmail.to) later |
 
@@ -88,14 +88,18 @@ cp .env.example .env          # fill in OPENAI_API_KEY, or leave blank for the s
 docker compose up --build
 ```
 
-Frontend: http://localhost:3000 · Backend: http://localhost:8080. Everything (H2, both
-services) runs in containers — nothing else to install. Add `-d` to run detached; `docker
-compose down` to stop. Changed code needs a rebuild: `docker compose up -d --build`.
+Frontend: http://localhost:3000 · Backend: http://localhost:8080. PostgreSQL data is
+stored in the `mortgage_pgdata` Docker volume, so restarting the backend does not remove
+users or journey progress. Add `-d` to run detached; `docker compose down` to stop.
+Changed code needs a rebuild: `docker compose up -d --build`.
+
+To start from an empty database, use `docker compose down -v` (this deletes the local
+PostgreSQL volume). Flyway applies schema migrations when the backend starts.
 
 ### Option B — Local dev (hot reload)
 
 ```bash
-# 1. Backend — http://localhost:8080  (runs on in-memory H2, no DB setup needed)
+# 1. Backend — http://localhost:8080 (runs on in-memory H2, no DB setup needed)
 cd backend && ./gradlew bootRun
 
 # 2. Frontend — http://localhost:3000  (proxies /api to the backend)
@@ -168,7 +172,7 @@ backend DTOs and `frontend/app/types/api.ts` in sync when either changes.
 /frontend                   Nuxt 4 SPA (Vue 3, Nuxt UI, Pinia)
 /frontend/Dockerfile        multi-stage build -> Nitro node server
 /docs                       vision, decision log, agent architecture reference
-docker-compose.yml          backend + frontend services (+ optional Postgres profile)
+docker-compose.yml          backend + frontend + PostgreSQL services
 .env.example                copy to .env for the OpenAI API key
 ```
 

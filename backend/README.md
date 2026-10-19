@@ -1,13 +1,14 @@
 # Backend — Intelligent Mortgage Journey
 
-Spring Boot 4 (Java 25) REST API. In-memory H2, OpenAI via Spring AI.
+Spring Boot 4 (Java 25) REST API. PostgreSQL in Docker, in-memory H2 for local development
+and tests, OpenAI via Spring AI. Database schema is managed by Flyway migrations.
 
 ## Run
 
 ```bash
 ./gradlew bootRun
 # API on http://localhost:8080
-# H2 console on http://localhost:8080/h2-console  (JDBC URL: jdbc:h2:mem:mortgage, user: sa)
+# H2 console on http://localhost:8080/h2-console (local H2 profile only)
 ```
 
 The app runs **without** an API key, in stub mode (the agents give canned replies).
@@ -20,6 +21,10 @@ export OPENAI_MODEL=gpt-5-mini   # optional, this is the default
 ```
 
 `GET /api/agent/status` reports `{"mode":"stub"}` or `{"mode":"openai"}`.
+
+Docker enables the `postgres` Spring profile and connects to the `db` service. The
+default local profile continues to use H2. To reset the Docker database completely,
+run `docker compose down -v`; Flyway will recreate the schema on the next start.
 
 **Token usage:** every LLM call logs a `[tokens]` line in the backend's console (agent,
 model, input/output tokens, today's running total). `GET /api/agent/usage` returns today's

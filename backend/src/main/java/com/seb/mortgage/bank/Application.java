@@ -8,7 +8,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 @Entity
@@ -18,8 +17,8 @@ public class Application {
 	@Id @GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
 	@Column(nullable = false) private UUID userId;
-	@Lob @Column(nullable = false, columnDefinition = "CLOB") private String snapshotJson;
-	@Lob @Column(nullable = false, columnDefinition = "CLOB") private String bankIdsJson;
+	@Column(nullable = false, columnDefinition = "TEXT") private String snapshotJson;
+	@Column(nullable = false, columnDefinition = "TEXT") private String bankIdsJson;
 	@Column(nullable = false, updatable = false) private Instant createdAt;
 
 	protected Application() {}

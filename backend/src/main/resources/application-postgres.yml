@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://db:5432/mortgage}
+    username: ${SPRING_DATASOURCE_USERNAME:mortgage}
+    password: ${SPRING_DATASOURCE_PASSWORD:mortgage}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  h2:
+    console:
+      enabled: false

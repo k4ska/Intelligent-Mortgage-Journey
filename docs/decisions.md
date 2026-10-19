@@ -3,6 +3,16 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-19 - PostgreSQL persistence in Docker
+
+- Docker Compose uses PostgreSQL by default, with a named volume for users, conversations,
+  profiles, properties, applications and email threads to survive backend restarts.
+- Flyway owns the schema in every environment; Hibernate validates it instead of creating
+  or dropping tables. Local development and tests keep using in-memory H2 with the same
+  migrations.
+- `docker compose down -v` is the explicit clean-start operation and removes the local
+  PostgreSQL volume.
+
 ## 2026-10-16 - Session auth and prototype CSRF
 
 - Authentication uses Spring Security's server-side session cookie and BCrypt password

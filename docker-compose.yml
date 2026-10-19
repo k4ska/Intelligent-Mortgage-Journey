@@ -4,9 +4,8 @@
 # real OpenAI-backed agents; leave it unset and the backend falls back to the
 # deterministic stub agent, so the whole thing still runs without a key.
 #
-# Postgres is optional and off by default (the backend runs on in-memory H2). To use it:
-# `docker compose --profile postgres up -d db` then set SPRING_PROFILES_ACTIVE=postgres
-# on the backend service (needs an application-postgres.yml - not added yet).
+# Docker uses Postgres by default so user progress survives backend restarts. Local
+# development can still run the backend directly on in-memory H2.
 services:
   backend:
     build: ./backend
@@ -18,6 +17,10 @@ services:
       APP_DAILY_TOKEN_BUDGET: ${APP_DAILY_TOKEN_BUDGET:-4500000}
       AGENT_REASONING_ADVISOR: ${AGENT_REASONING_ADVISOR:-low}
       AGENT_REASONING_VERIFIER: ${AGENT_REASONING_VERIFIER:-low}
+      SPRING_PROFILES_ACTIVE: postgres
+    depends_on:
+      db:
+        condition: service_healthy
 
   frontend:
     build: ./frontend
@@ -30,7 +33,6 @@ services:
 
   db:
     image: postgres:17-alpine
-    profiles: ["postgres"]
     environment:
       POSTGRES_DB: mortgage
       POSTGRES_USER: mortgage
@@ -39,6 +41,11 @@ services:
       - "5432:5432"
     volumes:
       - mortgage_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mortgage -d mortgage"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
 volumes:
   mortgage_pgdata:
