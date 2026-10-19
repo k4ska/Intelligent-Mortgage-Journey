@@ -3,6 +3,20 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-19 - Prototype bank rules and offer terms
+
+- Bank terms are deterministic seed data, not real bank policy: SEB, Swedbank, LHV and
+  Luminor use 85% maximum LTV and 15% minimum down payment; Coop Pank uses 90% and 10%.
+- Base margins range from 1.65% to 1.85%, with negotiation floors from 1.35% to 1.55%.
+  Every bank allows two negotiation rounds. Swedbank and Coop are relaxed, SEB is
+  standard, and LHV and Luminor are strict; strictness affects bank-agent tone and is
+  not a hidden change to the calculator's numbers.
+- The calculator offers the requested property price minus savings when it passes the
+  bank's LTV and the shared affordability rules. It declines insufficient down payment,
+  LTV or affordability, and asks a question when required snapshot facts are missing.
+  Offers use the variable rate plus the bank's base margin, 25 years, annuity payments,
+  and a 30-day validity period. These are prototype values for the demo.
+
 ## 2026-10-19 - PostgreSQL persistence in Docker
 
 - Docker Compose uses PostgreSQL by default, with a named volume for users, conversations,
