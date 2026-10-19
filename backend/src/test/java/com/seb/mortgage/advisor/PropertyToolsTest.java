@@ -35,9 +35,12 @@ class PropertyToolsTest {
 
 	private final UUID userId = UUID.randomUUID();
 	private final List<StreamEvent> events = new ArrayList<>();
+	/** What the user wrote this turn; the price is only saved if it appears in it. */
+	private String userSaid = "It's 189000, they'd take 182000. Or the other one for 320 000";
 
 	private AdvisorTools tools(ListingReader listings) {
-		return new AdvisorTools(userId, profile, property, listings, banks, events::add);
+		return new AdvisorTools(userId, profile, property, listings, banks,
+				StatedNumbers.from(List.of(), userSaid), events::add);
 	}
 
 	private AdvisorTools tools() {
@@ -138,6 +141,17 @@ class PropertyToolsTest {
 				.contains("garden is not an allowed key").contains("type must be one of").contains("price must be");
 		assertThat(property.active(userId)).isEmpty();
 		assertThat(events).isEmpty();
+	}
+
+	@Test
+	void aPriceTheUserNeverWroteIsNotSaved() {
+		userSaid = "It's an apartment in Tartu";
+
+		String note = tools().updateProperty(List.of(new FieldUpdate("type", "apartment"),
+				new FieldUpdate("price", "150000")), null, null);
+
+		assertThat(note).contains("price=150000 was not saved because the user never said it");
+		assertThat(property.active(userId).orElseThrow().fields()).extracting(ProfileFieldView::key).containsExactly("type");
 	}
 
 	@Test

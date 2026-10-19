@@ -35,6 +35,10 @@ public enum ProfileKey {
 		return key;
 	}
 
+	public Type type() {
+		return type;
+	}
+
 	public static Optional<ProfileKey> fromKey(String key) {
 		return Arrays.stream(values()).filter(k -> k.key.equals(key)).findFirst();
 	}

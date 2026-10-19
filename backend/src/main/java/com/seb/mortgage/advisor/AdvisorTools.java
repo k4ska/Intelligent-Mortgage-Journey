@@ -37,7 +37,8 @@ class AdvisorTools {
 			- coApplicantNetIncome: the co-applicant's monthly net income, in euros
 			- dependants: number of children or other dependants in the household
 			Euro amounts are plain numbers like 2350, with no currency or thousands separators.
-			Only save what the user actually said; never guess a value.""";
+			Only save what the user actually said; never guess a value. A number the user never
+			wrote is refused.""";
 
 	static final String UPDATE_PROPERTY_DESCRIPTION = """
 			Save what the user told you about the home they have in mind. Allowed keys:
@@ -59,15 +60,17 @@ class AdvisorTools {
 	private final PropertyService property;
 	private final ListingReader listings;
 	private final BankCatalogService banks;
+	private final StatedNumbers stated;
 	private final Consumer<StreamEvent> emit;
 
 	AdvisorTools(UUID userId, ProfileService profile, PropertyService property, ListingReader listings,
-			BankCatalogService banks, Consumer<StreamEvent> emit) {
+			BankCatalogService banks, StatedNumbers stated, Consumer<StreamEvent> emit) {
 		this.userId = userId;
 		this.profile = profile;
 		this.property = property;
 		this.listings = listings;
 		this.banks = banks;
+		this.stated = stated;
 		this.emit = emit;
 	}
 
@@ -82,9 +85,14 @@ class AdvisorTools {
 				continue;
 			}
 			try {
+				String value = key.normalize(field.value());
+				boolean number = key.type() == ProfileKey.Type.AMOUNT || key.type() == ProfileKey.Type.COUNT;
+				if (number && !stated.contains(value)) {
+					problems.add(notSaid(field.key(), value));
+					continue;
+				}
 				// What the user says about themselves needs no confirmation.
-				saved.add(profile.save(userId, key, key.normalize(field.value()),
-						ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED));
+				saved.add(profile.save(userId, key, value, ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED));
 			} catch (IllegalArgumentException e) {
 				problems.add(e.getMessage());
 			}
@@ -137,7 +145,12 @@ class AdvisorTools {
 				continue;
 			}
 			try {
-				values.put(key, key.normalize(field.value()));
+				String value = key.normalize(field.value());
+				if (key == PropertyKey.PRICE && !stated.contains(value)) {
+					problems.add(notSaid(field.key(), value));
+					continue;
+				}
+				values.put(key, value);
 			} catch (IllegalArgumentException e) {
 				problems.add(e.getMessage());
 			}
@@ -165,6 +178,11 @@ class AdvisorTools {
 			return "Nothing to save.";
 		}
 		return note.toString().trim() + stillMissing();
+	}
+
+	/** A number the user never wrote: the advisor guessed it, so it isn't saved (#88). */
+	private static String notSaid(String key, String value) {
+		return key + "=" + value + " was not saved because the user never said it; ask them instead";
 	}
 
 	private static String describe(PropertyView view) {

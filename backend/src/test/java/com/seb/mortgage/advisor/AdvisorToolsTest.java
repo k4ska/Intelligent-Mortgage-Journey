@@ -31,9 +31,12 @@ class AdvisorToolsTest {
 
 	private final UUID userId = UUID.randomUUID();
 	private final List<StreamEvent> events = new ArrayList<>();
+	/** What the user wrote this turn; tools only save numbers that appear in it. */
+	private String userSaid = "I earn 2350 a month, soon 2400, and we have 2 kids";
 
 	private AdvisorTools tools() {
-		return new AdvisorTools(userId, profile, property, listings, banks, events::add);
+		return new AdvisorTools(userId, profile, property, listings, banks,
+				StatedNumbers.from(List.of(), userSaid), events::add);
 	}
 
 	@Test
@@ -66,6 +69,34 @@ class AdvisorToolsTest {
 		assertThat(note).startsWith("Saved: dependants=2.")
 				.contains("salary is not an allowed key")
 				.contains("savings must be a plain number");
+	}
+
+	/** #88: the advisor saved savings=0 and netIncome=3300 when the user had only described a house. */
+	@Test
+	void numbersTheUserNeverWroteAreNotSaved() {
+		userSaid = "It's a house at Kaare tn 3, Rae vald, for 478000";
+
+		String note = tools().updateProfile(List.of(new FieldUpdate("savings", "0"), new FieldUpdate("netIncome", "3300")));
+
+		assertThat(profile.fields(userId)).isEmpty();
+		assertThat(events).isEmpty();
+		assertThat(note).startsWith("Not saved:")
+				.contains("savings=0 was not saved because the user never said it")
+				.contains("netIncome=3300 was not saved");
+	}
+
+	@Test
+	void aNoAnswerCountsAsZeroOnlyRightAfterTheQuestion() {
+		userSaid = "No, I don't have any other loans";
+
+		assertThat(tools().updateProfile(List.of(new FieldUpdate("monthlyDebtPayments", "0")))).startsWith("Saved:");
+	}
+
+	@Test
+	void textValuesAreNotChecked() {
+		userSaid = "I work at a bank";
+
+		assertThat(tools().updateProfile(List.of(new FieldUpdate("employment", "employed")))).startsWith("Saved:");
 	}
 
 	@Test
