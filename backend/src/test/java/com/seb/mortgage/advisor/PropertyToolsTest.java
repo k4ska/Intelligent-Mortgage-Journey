@@ -40,7 +40,12 @@ class PropertyToolsTest {
 
 	private AdvisorTools tools(ListingReader listings) {
 		return new AdvisorTools(userId, profile, property, listings, banks,
-				StatedNumbers.from(List.of(), userSaid), events::add);
+				UserStatements.from(List.of(), userSaid), events::add);
+	}
+
+	/** A fact the user stated in {@link #userSaid}, quoting their whole message. */
+	private FieldUpdate field(String key, String value) {
+		return new FieldUpdate(key, value, userSaid);
 	}
 
 	private AdvisorTools tools() {
@@ -83,8 +88,8 @@ class PropertyToolsTest {
 
 	@Test
 	void whatTheUserSaysIsConfirmed() {
-		String note = tools().updateProperty(List.of(new FieldUpdate("type", "apartment"),
-				new FieldUpdate("price", "189000")), null, null);
+		String note = tools().updateProperty(List.of(field("type", "apartment"),
+				field("price", "189000")), null, null);
 
 		assertThat(property.active(userId).orElseThrow().fields()).containsExactly(
 				new ProfileFieldView("type", "APARTMENT", Source.CHAT, Status.CONFIRMED),
@@ -95,14 +100,14 @@ class PropertyToolsTest {
 
 	@Test
 	void pastedTextIsUncertainUntilTheUserConfirmsIt() {
-		String note = tools().updateProperty(List.of(new FieldUpdate("price", "189000"),
-				new FieldUpdate("location", "Pärnu mnt 41, Tallinn")), true, false);
+		String note = tools().updateProperty(List.of(field("price", "189000"),
+				field("location", "Pärnu mnt 41, Tallinn")), true, false);
 
 		assertThat(note).startsWith("Saved as uncertain:").contains("ask if they're right");
 		assertThat(property.active(userId).orElseThrow().fields()).allMatch(f -> f.status() == Status.UNCERTAIN);
 
-		tools().updateProperty(List.of(new FieldUpdate("price", "189000"),
-				new FieldUpdate("location", "Pärnu mnt 41, Tallinn")), false, false);
+		tools().updateProperty(List.of(field("price", "189000"),
+				field("location", "Pärnu mnt 41, Tallinn")), false, false);
 
 		assertThat(property.active(userId).orElseThrow().fields())
 				.allMatch(f -> f.status() == Status.CONFIRMED && f.source() == Source.CHAT);
@@ -112,7 +117,7 @@ class PropertyToolsTest {
 	void aCorrectionKeepsTheRestOfTheListing() {
 		tools(kvEeAnswering(200, page("kv-apartment.html"))).lookupListing(LINK);
 
-		tools().updateProperty(List.of(new FieldUpdate("price", "182000")), false, false);
+		tools().updateProperty(List.of(field("price", "182000")), false, false);
 
 		PropertyView saved = property.active(userId).orElseThrow();
 		assertThat(saved.listingUrl()).isEqualTo(LINK);
@@ -124,8 +129,8 @@ class PropertyToolsTest {
 	void aNewPropertyReplacesTheOldOne() {
 		tools(kvEeAnswering(200, page("kv-apartment.html"))).lookupListing(LINK);
 
-		tools().updateProperty(List.of(new FieldUpdate("type", "house"), new FieldUpdate("price", "320000"),
-				new FieldUpdate("location", "Saue")), false, true);
+		tools().updateProperty(List.of(field("type", "house"), field("price", "320000"),
+				field("location", "Saue")), false, true);
 
 		PropertyView saved = property.active(userId).orElseThrow();
 		assertThat(saved.listingUrl()).isNull();
@@ -134,8 +139,8 @@ class PropertyToolsTest {
 
 	@Test
 	void listingOnlyValuesUnknownKeysAndBadValuesAreRejected() {
-		String note = tools().updateProperty(List.of(new FieldUpdate("rooms", "3"), new FieldUpdate("garden", "yes"),
-				new FieldUpdate("type", "castle"), new FieldUpdate("price", "lots")), null, null);
+		String note = tools().updateProperty(List.of(field("rooms", "3"), field("garden", "yes"),
+				field("type", "castle"), field("price", "lots")), null, null);
 
 		assertThat(note).startsWith("Not saved:").contains("rooms is only read from a listing")
 				.contains("garden is not an allowed key").contains("type must be one of").contains("price must be");
@@ -147,8 +152,8 @@ class PropertyToolsTest {
 	void aPriceTheUserNeverWroteIsNotSaved() {
 		userSaid = "It's an apartment in Tartu";
 
-		String note = tools().updateProperty(List.of(new FieldUpdate("type", "apartment"),
-				new FieldUpdate("price", "150000")), null, null);
+		String note = tools().updateProperty(List.of(field("type", "apartment"),
+				field("price", "150000")), null, null);
 
 		assertThat(note).contains("price=150000 was not saved because the user never said it");
 		assertThat(property.active(userId).orElseThrow().fields()).extracting(ProfileFieldView::key).containsExactly("type");
@@ -156,7 +161,7 @@ class PropertyToolsTest {
 
 	@Test
 	void eachToolActsOnlyForItsOwnUser() {
-		tools().updateProperty(List.of(new FieldUpdate("price", "189000")), null, null);
+		tools().updateProperty(List.of(field("price", "189000")), null, null);
 
 		assertThat(property.active(UUID.randomUUID())).isEmpty();
 	}

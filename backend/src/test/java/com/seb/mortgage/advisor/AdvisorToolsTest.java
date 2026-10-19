@@ -36,12 +36,17 @@ class AdvisorToolsTest {
 
 	private AdvisorTools tools() {
 		return new AdvisorTools(userId, profile, property, listings, banks,
-				StatedNumbers.from(List.of(), userSaid), events::add);
+				UserStatements.from(List.of(), userSaid), events::add);
+	}
+
+	/** A fact the user stated in {@link #userSaid}, quoting their whole message. */
+	private FieldUpdate field(String key, String value) {
+		return new FieldUpdate(key, value, userSaid);
 	}
 
 	@Test
 	void updateProfileSavesWhatTheUserSaidAndTellsThePanel() {
-		String note = tools().updateProfile(List.of(new FieldUpdate("netIncome", "2350")));
+		String note = tools().updateProfile(List.of(field("netIncome", "2350")));
 
 		ProfileFieldView expected = new ProfileFieldView("netIncome", "2350",
 				ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED);
@@ -52,8 +57,8 @@ class AdvisorToolsTest {
 
 	@Test
 	void aNewValueReplacesTheOldOne() {
-		tools().updateProfile(List.of(new FieldUpdate("netIncome", "2350")));
-		tools().updateProfile(List.of(new FieldUpdate("netIncome", "2400")));
+		tools().updateProfile(List.of(field("netIncome", "2350")));
+		tools().updateProfile(List.of(field("netIncome", "2400")));
 
 		assertThat(profile.fields(userId)).extracting(ProfileFieldView::value).containsExactly("2400");
 	}
@@ -61,9 +66,9 @@ class AdvisorToolsTest {
 	@Test
 	void unknownKeysAndBadValuesAreRejectedWithAReason() {
 		String note = tools().updateProfile(List.of(
-				new FieldUpdate("salary", "2350"),
-				new FieldUpdate("savings", "lots"),
-				new FieldUpdate("dependants", "2")));
+				field("salary", "2350"),
+				field("savings", "lots"),
+				field("dependants", "2")));
 
 		assertThat(profile.fields(userId)).extracting(ProfileFieldView::key).containsExactly("dependants");
 		assertThat(note).startsWith("Saved: dependants=2.")
@@ -76,7 +81,7 @@ class AdvisorToolsTest {
 	void numbersTheUserNeverWroteAreNotSaved() {
 		userSaid = "It's a house at Kaare tn 3, Rae vald, for 478000";
 
-		String note = tools().updateProfile(List.of(new FieldUpdate("savings", "0"), new FieldUpdate("netIncome", "3300")));
+		String note = tools().updateProfile(List.of(field("savings", "0"), field("netIncome", "3300")));
 
 		assertThat(profile.fields(userId)).isEmpty();
 		assertThat(events).isEmpty();
@@ -89,19 +94,33 @@ class AdvisorToolsTest {
 	void aNoAnswerCountsAsZeroOnlyRightAfterTheQuestion() {
 		userSaid = "No, I don't have any other loans";
 
-		assertThat(tools().updateProfile(List.of(new FieldUpdate("monthlyDebtPayments", "0")))).startsWith("Saved:");
+		assertThat(tools().updateProfile(List.of(field("monthlyDebtPayments", "0")))).startsWith("Saved:");
 	}
 
 	@Test
-	void textValuesAreNotChecked() {
+	void aTextValueIsSavedWithTheUsersOwnWords() {
 		userSaid = "I work at a bank";
 
-		assertThat(tools().updateProfile(List.of(new FieldUpdate("employment", "employed")))).startsWith("Saved:");
+		assertThat(tools().updateProfile(List.of(new FieldUpdate("employment", "employed", "I work at a bank!"))))
+				.startsWith("Saved:");
+	}
+
+	/** Testing #90: "a house for 690 000" made the advisor save employment=employed. */
+	@Test
+	void aTextValueWithAMadeUpOrMissingQuoteIsNotSaved() {
+		userSaid = "It's a house with a price of 690 000";
+
+		String note = tools().updateProfile(List.of(new FieldUpdate("employment", "employed", "I'm employed"),
+				new FieldUpdate("hasCoApplicant", "no", null)));
+
+		assertThat(note).startsWith("Not saved:").contains("employment=employed was not saved")
+				.contains("hasCoApplicant=no was not saved");
+		assertThat(profile.fields(userId)).isEmpty();
 	}
 
 	@Test
 	void nothingValidMeansNoEvent() {
-		assertThat(tools().updateProfile(List.of(new FieldUpdate("salary", "1")))).startsWith("Not saved:");
+		assertThat(tools().updateProfile(List.of(field("salary", "1")))).startsWith("Not saved:");
 		assertThat(tools().updateProfile(null)).isEqualTo("Nothing to save.");
 		assertThat(events).isEmpty();
 	}
@@ -128,7 +147,7 @@ class AdvisorToolsTest {
 
 	@Test
 	void eachToolActsOnlyForItsOwnUser() {
-		tools().updateProfile(List.of(new FieldUpdate("netIncome", "2350")));
+		tools().updateProfile(List.of(field("netIncome", "2350")));
 
 		assertThat(profile.fields(UUID.randomUUID())).isEmpty();
 	}

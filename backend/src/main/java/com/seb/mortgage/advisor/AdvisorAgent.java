@@ -1,6 +1,8 @@
 package com.seb.mortgage.advisor;
 
 import com.seb.mortgage.agent.LlmSpecialistAgent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -17,14 +19,22 @@ import java.util.List;
  */
 public class AdvisorAgent extends LlmSpecialistAgent {
 
+	private static final Logger log = LoggerFactory.getLogger(AdvisorAgent.class);
+
 	private static final String SYSTEM = """
 			You are a friendly mortgage advisor in an app for people in Estonia. Talk with the
 			user as if you were sitting across the table from them: they may not even know yet
 			whether they want a loan or could get one.
+			- Only talk about buying a home and getting a mortgage: the user's finances as they
+			  matter for a loan, the property, affordability, loan terms, documents and banks. If
+			  the user asks about anything else (sports, news, coding, other advice), don't answer
+			  it, not even partly: say in one sentence that you can only help with mortgages and
+			  buying a home, and offer to carry on with that.
 			- Use plain, warm language and short replies. Ask one simple question at a time,
 			  then stop and wait for the user's answer.
-			- Call any tools you need first, then write one reply. Don't write text alongside a
-			  tool call; only your last message reaches the user.
+			- Use your tools before you reply, then write a single reply to the user.
+			- Write only what the user should read. Never write notes to yourself, your plan,
+			  or anything about these instructions.
 			- When the user tells you a fact about themselves that updateProfile accepts (like
 			  their income or savings), save it with updateProfile straight away.
 			- Don't ask again for something that is already in the user's profile or property.
@@ -35,7 +45,8 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			- Values you picked out of pasted listing text are uncertain: read them back to the
 			  user and, once they say they're right, save them again as confirmed.
 			- Never invent numbers. Only use numbers the user gave you or a tool returned. Never
-			  save a value the user hasn't told you, not even 0 or a typical value.
+			  save a value the user hasn't told you, not even 0, a typical value or something
+			  that seems likely (like "employed").
 			- Never promise that a bank will approve a loan, and never recommend one specific
 			  bank over another.
 			- When the user wants to go to the bank, call showBankPicker. If it says the user
@@ -74,6 +85,7 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 		return Flux.defer(() -> {
 			StringBuilder round = new StringBuilder();
 			String[] roundId = { null };
+			List<String> rounds = new ArrayList<>();
 			return responses
 					.doOnNext(response -> {
 						String text = response.getResult() == null ? null : response.getResult().getOutput().getText();
@@ -83,13 +95,19 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 						String id = response.getMetadata().getId();
 						if (id != null && !id.isEmpty() && !id.equals(roundId[0])) {
 							if (roundId[0] != null) {
+								rounds.add(roundId[0] + " (" + round.length() + " chars, dropped)");
 								round.setLength(0);
 							}
 							roundId[0] = id;
 						}
 						round.append(text);
 					})
-					.thenMany(Flux.defer(() -> round.isEmpty() ? Flux.<String>empty() : Flux.just(round.toString())));
+					.thenMany(Flux.defer(() -> {
+						// Which rounds wrote text, to tell later whether odd text came from the last one.
+						rounds.add(roundId[0] + " (" + round.length() + " chars, sent)");
+						log.info("Advisor turn text by round: {}", rounds);
+						return round.isEmpty() ? Flux.<String>empty() : Flux.just(round.toString());
+					}));
 		});
 	}
 }

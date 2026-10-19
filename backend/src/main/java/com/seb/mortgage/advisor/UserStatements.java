@@ -11,11 +11,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The numbers the user has actually written in the conversation, so a tool can refuse a
- * value the advisor made up (#88). Generous on format ("3300", "3 300", "3,300", "3.3k",
- * "two") and strict on substance: a number the user never wrote is never accepted.
+ * What the user has actually written in the conversation, so a tool can refuse a value the
+ * advisor made up (#88): the numbers in it, and whether a quote really is the user's words.
+ * Generous on format ("3300", "3 300", "3,300", "3.3k", "two") and strict on substance: a
+ * number the user never wrote, or a quote they never said, is never accepted.
  */
-final class StatedNumbers {
+final class UserStatements {
 
 	/** A number as people type it: digits with optional thousands or decimal separators, and "k". */
 	private static final Pattern NUMBER = Pattern.compile(
@@ -35,20 +36,25 @@ final class StatedNumbers {
 			"\\b(no|none|nothing|zero|don't have|do not have|haven't got|ei ole|pole|puudub|mitte midagi)\\b",
 			Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
 
-	private final Set<BigDecimal> numbers = new HashSet<>();
+	private static final Pattern NOT_A_WORD = Pattern.compile("[^\\p{L}\\p{N}]+", Pattern.UNICODE_CHARACTER_CLASS);
 
-	private StatedNumbers() {
+	private final Set<BigDecimal> numbers = new HashSet<>();
+	/** All the user's messages, simplified for quote matching. */
+	private final StringBuilder words = new StringBuilder(" ");
+
+	private UserStatements() {
 	}
 
 	/**
 	 * @param earlier the user's earlier messages the advisor can see
 	 * @param current the message the advisor is answering now
 	 */
-	static StatedNumbers from(List<String> earlier, String current) {
-		StatedNumbers stated = new StatedNumbers();
+	static UserStatements from(List<String> earlier, String current) {
+		UserStatements stated = new UserStatements();
 		List<String> texts = new ArrayList<>(earlier);
 		texts.add(current == null ? "" : current);
 		texts.forEach(stated::read);
+		texts.forEach(text -> stated.words.append(simplify(text)).append(' '));
 		// "No" only counts as 0 right after the advisor asked, not anywhere in the conversation.
 		if (current != null && NONE.matcher(current).find()) {
 			stated.numbers.add(BigDecimal.ZERO);
@@ -56,8 +62,21 @@ final class StatedNumbers {
 		return stated;
 	}
 
+	/**
+	 * Whether the user said this, word for word, ignoring case and punctuation ("I work at
+	 * a bank" matches "i work at a bank!"). Only whole words count, so "a" doesn't match "bank".
+	 */
+	boolean containsQuote(String quote) {
+		String simplified = quote == null ? "" : simplify(quote);
+		return !simplified.isEmpty() && words.indexOf(" " + simplified + " ") >= 0;
+	}
+
+	private static String simplify(String text) {
+		return NOT_A_WORD.matcher(text.toLowerCase(Locale.ROOT)).replaceAll(" ").trim();
+	}
+
 	/** Whether the user wrote this (already normalized) number. */
-	boolean contains(String value) {
+	boolean containsNumber(String value) {
 		try {
 			BigDecimal number = new BigDecimal(value).stripTrailingZeros();
 			return numbers.contains(number);

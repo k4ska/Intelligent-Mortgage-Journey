@@ -68,7 +68,7 @@ public class AdvisorOrchestrator {
 		// Tools push their events here while the reply is still streaming.
 		Sinks.Many<StreamEvent> toolEvents = Sinks.many().unicast().onBackpressureBuffer();
 		List<Message> visible = visible(earlier);
-		StatedNumbers stated = StatedNumbers.from(visible.stream()
+		UserStatements stated = UserStatements.from(visible.stream()
 				.filter(m -> m.getRole() == Message.Role.USER).map(Message::getText).toList(), userText);
 		AdvisorTools tools = new AdvisorTools(userId, profile, property, listings, banks, stated,
 				event -> toolEvents.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(1))));

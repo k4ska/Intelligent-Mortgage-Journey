@@ -105,8 +105,8 @@ class AdvisorOrchestratorTest {
 				if (prompt.getContents().endsWith(INVENTS)) {
 					AssistantMessage toolCall = AssistantMessage.builder().content("")
 							.toolCalls(List.of(new AssistantMessage.ToolCall("call-1", "function", "updateProfile",
-									"{\"fields\":[{\"key\":\"savings\",\"value\":\"0\"},"
-											+ "{\"key\":\"netIncome\",\"value\":\"3300\"}]}")))
+									"{\"fields\":[{\"key\":\"savings\",\"value\":\"0\",\"quote\":\"only a house\"},"
+											+ "{\"key\":\"netIncome\",\"value\":\"3300\",\"quote\":\"only a house\"}]}")))
 							.build();
 					return Flux.just(chunk("round-1", "Thanks, I've saved your savings as €0."),
 							new ChatResponse(List.of(new Generation(toolCall)),
