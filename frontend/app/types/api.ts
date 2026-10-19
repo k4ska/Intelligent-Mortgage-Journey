@@ -1,4 +1,5 @@
-// TypeScript mirror of the backend API. The full set of contracts for the chat-based
+
+ // TypeScript mirror of the backend API. The full set of contracts for the chat-based
 // advisor (auth, chat, stream events, profile, documents, banks, inbox) is in
 // docs/architecture.md §5; add types here as each endpoint is built, and keep them in
 // sync with the backend DTOs.
@@ -19,7 +20,7 @@ export interface ChatMessage {
   createdAt: string
 }
 
-// ---- Profile (GET /api/profile) ----
+// ---- Profile and property (GET /api/profile) ----
 
 export type ProfileFieldSource = 'CHAT' | 'LISTING' | 'DOCUMENT'
 export type ProfileFieldStatus = 'UNCERTAIN' | 'CONFIRMED'
@@ -44,10 +45,25 @@ export interface ProfileField {
   status: ProfileFieldStatus
 }
 
+/** Matches backend PropertyKey and PropertyView. Only known fields are included. */
+export type PropertyFieldKey = 'type' | 'price' | 'location' | 'size' | 'rooms' | 'yearBuilt'
+
+export interface PropertyField {
+  key: PropertyFieldKey
+  value: string
+  source: 'LISTING' | 'CHAT'
+  status: ProfileFieldStatus
+}
+
+export interface Property {
+  listingUrl: string | null
+  fields: PropertyField[]
+}
+
 export interface Profile {
   fields: ProfileField[]
-  /** Null until listings are added. */
-  property: null
+  /** Null until the user has a property in mind. */
+  property: Property | null
 }
 
 // ---- Stream events of one advisor turn (SSE event name = type) ----
@@ -60,6 +76,7 @@ export interface BankOption {
 export type StreamEvent =
   | { type: 'text', data: { delta: string } }
   | { type: 'profile_updated', data: { fields: ProfileField[] } }
+  | { type: 'property_updated', data: { property: Property } }
   | { type: 'bank_picker', data: { banks: BankOption[] } }
   | { type: 'done', data: { messageId: number } }
   | { type: 'error', data: { message: string } }
