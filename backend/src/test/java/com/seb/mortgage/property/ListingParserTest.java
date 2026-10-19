@@ -33,6 +33,31 @@ class ListingParserTest {
 				entry(PropertyKey.YEAR_BUILT, "1937"));
 	}
 
+	/** A real kv.ee page (trimmed), so we know the parser fits what kv.ee actually publishes. */
+	@Test
+	void readsARealKvEeListing() {
+		String url = "https://www.kv.ee/hei-valmimas-on-rahulikus-peresobralikus-rajoonis-3533251";
+
+		assertThat(ListingReader.listingUri(url)).isNotNull();
+		assertThat(ListingParser.parse(page("kv-house-real.html"), url)).containsOnly(
+				// Built in 2026 and listed in 2026 ("valmimas", being completed): a new build.
+				entry(PropertyKey.TYPE, "NEW_BUILD"),
+				entry(PropertyKey.PRICE, "478000"),
+				entry(PropertyKey.LOCATION, "Kaare tn 3, Kopli, Rae vald"),
+				entry(PropertyKey.SIZE, "161"),
+				entry(PropertyKey.ROOMS, "5"),
+				entry(PropertyKey.YEAR_BUILT, "2026"));
+	}
+
+	@Test
+	void anOlderHouseStaysAHouse() {
+		String html = ldJson("""
+				{ "@type": "RealEstateListing", "datePosted": "2026-09-26",
+				  "mainEntity": { "@type": "House", "yearBuilt": 2001 } }""");
+
+		assertThat(ListingParser.parse(html, "https://www.kv.ee/3600005")).containsEntry(PropertyKey.TYPE, "HOUSE");
+	}
+
 	@Test
 	void theBotCheckPageHasNothingToRead() {
 		assertThat(ListingParser.parse(page("kv-bot-check.html"), APARTMENT_URL)).isEmpty();

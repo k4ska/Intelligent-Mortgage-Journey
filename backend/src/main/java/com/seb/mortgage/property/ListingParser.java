@@ -60,7 +60,24 @@ final class ListingParser {
 		put(values, PropertyKey.SIZE, find(root, "floorSize").map(ListingParser::quantity).orElse(null));
 		put(values, PropertyKey.ROOMS, find(root, "numberOfRooms").map(ListingParser::quantity).orElse(null));
 		put(values, PropertyKey.YEAR_BUILT, find(root, "yearBuilt").map(ListingParser::scalar).orElse(null));
+		if (builtWhenPosted(values, root)) {
+			values.put(PropertyKey.TYPE, PropertyKey.Type.NEW_BUILD.name());
+		}
 		return values;
+	}
+
+	/**
+	 * A home built in the year it's listed (or later) is still being finished or brand new,
+	 * which banks treat as a new build, even if the listing just calls it a house. kv.ee
+	 * doesn't always say "uusarendus" for these (e.g. "valmimas", being completed).
+	 */
+	private static boolean builtWhenPosted(Map<PropertyKey, String> values, JsonNode root) {
+		String built = values.get(PropertyKey.YEAR_BUILT);
+		String posted = find(root, "datePosted").map(ListingParser::scalar).orElse(null);
+		if (built == null || posted == null || !posted.matches("\\d{4}.*")) {
+			return false;
+		}
+		return Integer.parseInt(built) >= Integer.parseInt(posted.substring(0, 4));
 	}
 
 	private static void put(Map<PropertyKey, String> values, PropertyKey key, String raw) {
