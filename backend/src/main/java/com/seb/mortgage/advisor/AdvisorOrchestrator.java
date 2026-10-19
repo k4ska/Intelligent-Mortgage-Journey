@@ -93,7 +93,7 @@ public class AdvisorOrchestrator {
 		if (agent == null) {
 			return Flux.just(OFFLINE_REPLY);
 		}
-		return Flux.defer(() -> agent.reply(toPrompt(earlier), userText, profileJson(userId), tools))
+		return Flux.defer(() -> agent.reply(toPrompt(earlier), userText, () -> profileJson(userId), tools))
 				.onErrorResume(TokenBudgetExceededException.class, e -> Flux.just(OFFLINE_REPLY));
 	}
 

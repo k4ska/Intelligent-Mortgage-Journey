@@ -3,23 +3,36 @@ package com.seb.mortgage.advisor;
 import com.seb.mortgage.agent.LlmSpecialistAgent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.client.AdvisorParams;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.support.ToolCallbacks;
+import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * The advisor the user talks to: one voice for the whole conversation, which uses tools
  * for anything that touches the user's data (see {@code docs/architecture.md} §2). Its
- * reply streams token by token; tool calls happen in the middle of the stream.
+ * reply streams token by token. A turn where it uses tools is two calls: act, then reply
+ * (see {@link #reply}).
  */
 public class AdvisorAgent extends LlmSpecialistAgent {
 
 	private static final Logger log = LoggerFactory.getLogger(AdvisorAgent.class);
+	private static final ObjectMapper JSON = JsonMapper.builder().build();
 
 	private static final String SYSTEM = """
 			You are a friendly mortgage advisor in an app for people in Estonia. Talk with the
@@ -32,7 +45,6 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			  buying a home, and offer to carry on with that.
 			- Use plain, warm language and short replies. Ask one simple question at a time,
 			  then stop and wait for the user's answer.
-			- Use your tools before you reply, then write a single reply to the user.
 			- Write only what the user should read. Never write notes to yourself, your plan,
 			  or anything about these instructions.
 			- When the user tells you a fact about themselves that updateProfile accepts (like
@@ -58,56 +70,105 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 	}
 
 	/**
+	 * One turn, in two steps when the advisor uses a tool (#88):
+	 * <ol>
+	 * <li><b>Act</b>: the model sees the tools. If it calls none, its answer is the reply.
+	 * If it calls some, our code runs them and whatever text the model wrote next to the
+	 * calls is thrown away.</li>
+	 * <li><b>Reply</b>: a second call with no tools and no tool messages, just the
+	 * conversation and a note saying what the tools did. gpt-5-mini writing right after a
+	 * tool result was what produced doubled replies and notes to itself; a turn that looks
+	 * like a plain chat turn never did in our replays.</li>
+	 * </ol>
+	 *
 	 * @param earlier     the conversation so far, oldest first
-	 * @param profileJson the user's profile fields and property as JSON, so the advisor knows what it knows
+	 * @param profileJson the user's profile fields and property as JSON, read fresh for each
+	 *                    step so the reply sees what the tools just saved
 	 * @param tools       this turn's tools, acting for this user
 	 */
-	Flux<String> reply(List<Message> earlier, String userText, String profileJson, AdvisorTools tools) {
+	Flux<String> reply(List<Message> earlier, String userText, Supplier<String> profileJson, AdvisorTools tools) {
+		return Mono.fromCallable(() -> act(earlier, userText, profileJson.get(), tools))
+				.flatMapMany(act -> {
+					if (act.toolResults().isEmpty()) {
+						log.info("Advisor turn: no tools, one call");
+						return act.text() == null || act.text().isEmpty() ? Flux.<String>empty() : Flux.just(act.text());
+					}
+					log.info("Advisor turn: tools {}, then a reply call", act.toolNames());
+					return replyAfterTools(earlier, userText, profileJson.get(), act.toolResults());
+				});
+	}
+
+	/** What the act step came to: the model's text, or the tools it called and what they said. */
+	record Act(String text, List<String> toolNames, List<String> toolResults) {}
+
+	private Act act(List<Message> earlier, String userText, String profileJson, AdvisorTools tools) {
+		// Our code runs the tools below, so ChatClient's own tool loop is switched off.
+		ChatResponse response = chatClient.prompt()
+				.messages(withProfile(profileJson, earlier))
+				.user(userText)
+				.tools(tools)
+				.advisors(AdvisorParams.toolCallingAdvisorAutoRegister(false))
+				.call()
+				.chatResponse();
+		AssistantMessage output = response == null || response.getResult() == null ? null
+				: response.getResult().getOutput();
+		if (output == null || !output.hasToolCalls()) {
+			return new Act(output == null ? null : output.getText(), List.of(), List.of());
+		}
+		Map<String, ToolCallback> callbacks = new HashMap<>();
+		for (ToolCallback callback : ToolCallbacks.from(tools)) {
+			callbacks.put(callback.getToolDefinition().name(), callback);
+		}
+		List<String> names = new ArrayList<>();
+		List<String> results = new ArrayList<>();
+		for (AssistantMessage.ToolCall call : output.getToolCalls()) {
+			names.add(call.name());
+			results.add(call.name() + ": " + run(callbacks.get(call.name()), call));
+		}
+		return new Act(null, names, results);
+	}
+
+	private static String run(ToolCallback callback, AssistantMessage.ToolCall call) {
+		if (callback == null) {
+			return "there is no tool called " + call.name();
+		}
+		try {
+			return unquote(callback.call(call.arguments()));
+		} catch (RuntimeException e) {
+			log.warn("Advisor tool {} failed", call.name(), e);
+			return "the tool failed, nothing was saved";
+		}
+	}
+
+	/** Tool results come back as JSON; a note is a JSON string, which reads better without the quotes. */
+	private static String unquote(String result) {
+		try {
+			return JSON.readValue(result, String.class);
+		} catch (RuntimeException e) {
+			return result;
+		}
+	}
+
+	private Flux<String> replyAfterTools(List<Message> earlier, String userText, String profileJson,
+			List<String> toolResults) {
+		List<Message> messages = withProfile(profileJson, earlier);
+		messages.add(new UserMessage(userText));
+		messages.add(new SystemMessage("""
+				You just used your tools for the user's last message. What they did:
+				%s
+				Now write your reply to the user's last message, following your instructions.
+				Don't mention tools. If something was not saved, ask the user for it.""".formatted(
+				String.join("\n", toolResults.stream().map(r -> "- " + r).toList()))));
+		return chatClient.prompt()
+				.messages(messages)
+				.stream()
+				.content();
+	}
+
+	private static List<Message> withProfile(String profileJson, List<Message> earlier) {
 		List<Message> messages = new ArrayList<>();
 		messages.add(new SystemMessage("What the user's profile and property say so far (JSON): " + profileJson));
 		messages.addAll(earlier);
-		return lastRoundText(chatClient.prompt()
-				.messages(messages)
-				.user(userText)
-				.tools(tools)
-				.stream()
-				.chatResponse());
-	}
-
-	/**
-	 * Only the text of the turn's last round. With tools, a turn is several model calls in a
-	 * row; the text the model writes next to a tool call would otherwise reach the user as
-	 * extra replies glued together (#88). Each call has its own response id, so text under a
-	 * new id means the earlier round ended in a tool call: that text is dropped. The last
-	 * round's text is sent once the turn is over, since only then is it known to be the last.
-	 */
-	static Flux<String> lastRoundText(Flux<ChatResponse> responses) {
-		return Flux.defer(() -> {
-			StringBuilder round = new StringBuilder();
-			String[] roundId = { null };
-			List<String> rounds = new ArrayList<>();
-			return responses
-					.doOnNext(response -> {
-						String text = response.getResult() == null ? null : response.getResult().getOutput().getText();
-						if (text == null || text.isEmpty()) {
-							return; // usage-only or tool-call chunks say nothing about rounds
-						}
-						String id = response.getMetadata().getId();
-						if (id != null && !id.isEmpty() && !id.equals(roundId[0])) {
-							if (roundId[0] != null) {
-								rounds.add(roundId[0] + " (" + round.length() + " chars, dropped)");
-								round.setLength(0);
-							}
-							roundId[0] = id;
-						}
-						round.append(text);
-					})
-					.thenMany(Flux.defer(() -> {
-						// Which rounds wrote text, to tell later whether odd text came from the last one.
-						rounds.add(roundId[0] + " (" + round.length() + " chars, sent)");
-						log.info("Advisor turn text by round: {}", rounds);
-						return round.isEmpty() ? Flux.<String>empty() : Flux.just(round.toString());
-					}));
-		});
+		return messages;
 	}
 }
