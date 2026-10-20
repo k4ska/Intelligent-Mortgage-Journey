@@ -6,4 +6,6 @@ import java.util.UUID;
 
 public interface ApplicationRepository extends JpaRepository<Application, UUID> {
 	Optional<Application> findByIdAndUserId(UUID id, UUID userId);
+
+	void deleteByUserId(UUID userId);
 }

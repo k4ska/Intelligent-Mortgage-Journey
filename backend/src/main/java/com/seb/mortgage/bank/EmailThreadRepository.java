@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface EmailThreadRepository extends JpaRepository<EmailThread, UUID> {
 	List<EmailThread> findByUserIdOrderByCreatedAtDesc(UUID userId);
 	Optional<EmailThread> findByIdAndUserId(UUID id, UUID userId);
+
+	void deleteByUserId(UUID userId);
 }

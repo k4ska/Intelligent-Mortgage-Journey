@@ -11,4 +11,6 @@ public interface ProfileFieldRepository extends JpaRepository<ProfileField, UUID
 	List<ProfileField> findByUserId(UUID userId);
 
 	Optional<ProfileField> findByUserIdAndKey(UUID userId, ProfileKey key);
+
+	void deleteByUserId(UUID userId);
 }

@@ -34,6 +34,15 @@ public class ConversationService {
 		return messages.save(new Message(conversationFor(userId).getId(), role, text));
 	}
 
+	/** Deletes the conversation; the next {@link #history} starts again with the greeting. */
+	@Transactional
+	public void delete(UUID userId) {
+		conversations.findByUserId(userId).ifPresent(conversation -> {
+			messages.deleteByConversationId(conversation.getId());
+			conversations.delete(conversation);
+		});
+	}
+
 	/** Saves the verifier's safe version of a reply in place of the original (#67). */
 	@Transactional
 	public void correct(Long messageId, String text) {

@@ -28,12 +28,14 @@ public class ChatController {
 
 	private final ConversationService conversations;
 	private final AdvisorOrchestrator orchestrator;
+	private final StartOverService startOver;
 	private final CurrentUser currentUser;
 
 	public ChatController(ConversationService conversations, AdvisorOrchestrator orchestrator,
-			CurrentUser currentUser) {
+			StartOverService startOver, CurrentUser currentUser) {
 		this.conversations = conversations;
 		this.orchestrator = orchestrator;
+		this.startOver = startOver;
 		this.currentUser = currentUser;
 	}
 
@@ -44,6 +46,16 @@ public class ChatController {
 				.map(m -> new MessageView(m.getId(), m.getRole().name().toLowerCase(Locale.ROOT),
 						m.getText(), m.getCreatedAt()))
 				.toList();
+	}
+
+	/**
+	 * Start over (#70): wipes everything the user has told us and sent, keeps the account,
+	 * and returns the new conversation, which is just the greeting.
+	 */
+	@PostMapping("/reset")
+	public List<MessageView> reset() {
+		startOver.wipe(currentUser.id());
+		return history();
 	}
 
 	/** One advisor turn, streamed as server-sent events (see {@link StreamEvent}). */
