@@ -79,6 +79,12 @@ export const useAdvisorStore = defineStore('advisor', {
             case 'bank_picker':
               this.bankOptions = event.data.banks
               break
+            case 'corrected': {
+              // Showing that the reply was corrected is #69; for now it is just replaced.
+              const reply = this.messages.find(message => message.id === replyId)
+              if (reply) reply.text = event.data.text
+              break
+            }
             case 'done': {
               const reply = this.messages.find(message => message.id === replyId)
               if (reply) reply.id = event.data.messageId

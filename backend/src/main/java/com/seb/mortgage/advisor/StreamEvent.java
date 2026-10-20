@@ -32,6 +32,11 @@ public record StreamEvent(String type, Map<String, Object> data) {
 		return new StreamEvent("bank_picker", Map.of("banks", banks));
 	}
 
+	/** The verifier replaced the reply that just streamed with a safe version (#67). */
+	public static StreamEvent corrected(Long messageId, String text) {
+		return new StreamEvent("corrected", Map.of("messageId", messageId, "text", text));
+	}
+
 	/** The turn is over; {@code messageId} is the saved advisor message. */
 	public static StreamEvent done(Long messageId) {
 		return new StreamEvent("done", Map.of("messageId", messageId));

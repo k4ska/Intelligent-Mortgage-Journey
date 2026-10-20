@@ -49,6 +49,11 @@ public class Message {
 		this.createdAt = Instant.now();
 	}
 
+	/** Replaces an advisor reply with the verifier's safe version (#67). */
+	public void correct(String text) {
+		this.text = text;
+	}
+
 	public Long getId() {
 		return id;
 	}

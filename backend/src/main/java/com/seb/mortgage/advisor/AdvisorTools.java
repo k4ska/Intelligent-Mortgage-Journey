@@ -22,6 +22,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 /**
@@ -79,6 +80,10 @@ class AdvisorTools {
 	private final LoanProfileAssembler loans;
 	private final UserStatements stated;
 	private final Consumer<StreamEvent> emit;
+	/** Every tool call this turn and what it returned, for the number check (#67). */
+	private final List<ToolUse> used = new CopyOnWriteArrayList<>();
+
+	record ToolUse(String name, String result) {}
 
 	AdvisorTools(UUID userId, ProfileService profile, PropertyService property, ListingReader listings,
 			BankCatalogService banks, LoanProfileAssembler loans, UserStatements stated, Consumer<StreamEvent> emit) {
@@ -90,6 +95,15 @@ class AdvisorTools {
 		this.loans = loans;
 		this.stated = stated;
 		this.emit = emit;
+	}
+
+	/** Called by the advisor for each tool it ran this turn. */
+	void record(String name, String result) {
+		used.add(new ToolUse(name, result));
+	}
+
+	List<ToolUse> used() {
+		return List.copyOf(used);
 	}
 
 	@Tool(name = "updateProfile", description = UPDATE_PROFILE_DESCRIPTION)

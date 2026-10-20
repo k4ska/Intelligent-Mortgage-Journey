@@ -185,8 +185,9 @@ message).
 
 When the advisor's reply finishes, code pulls every € amount and % out of the text and
 checks that each one appeared in that turn's tool results, the profile, the property, the
-user's own messages, or the user's bank emails (rounding within 1% allowed, so "about
-€210,000" passes for €209,734). It's deterministic, free and instant.
+user's own messages, the advisor's earlier replies, or (once the advisor sees the inbox,
+#80) the user's bank emails. Rounding within 1% is allowed, so "about €210,000" passes for
+€209,734. It's deterministic, free and instant (`NumberCheck`).
 
 ### Layer 3: the verifier on flagged turns
 

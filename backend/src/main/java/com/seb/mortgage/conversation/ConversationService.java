@@ -34,6 +34,12 @@ public class ConversationService {
 		return messages.save(new Message(conversationFor(userId).getId(), role, text));
 	}
 
+	/** Saves the verifier's safe version of a reply in place of the original (#67). */
+	@Transactional
+	public void correct(Long messageId, String text) {
+		messages.findById(messageId).ifPresent(message -> message.correct(text));
+	}
+
 	private Conversation conversationFor(UUID userId) {
 		return conversations.findByUserId(userId).orElseGet(() -> {
 			Conversation conversation = conversations.save(new Conversation(userId));

@@ -161,6 +161,7 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 				String result = run(callbacks.get(call.name()), call);
 				names.add(call.name());
 				results.add(call.name() + ": " + result);
+				tools.record(call.name(), result);
 				responses.add(new ToolResponseMessage.ToolResponse(call.id(), call.name(), result));
 			}
 			// The next round sees the calls and their results, never the text written next to them.
