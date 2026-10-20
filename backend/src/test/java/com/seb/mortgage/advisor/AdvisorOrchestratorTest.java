@@ -1,11 +1,13 @@
 package com.seb.mortgage.advisor;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -29,6 +31,12 @@ import org.springframework.context.annotation.Primary;
 
 import com.seb.mortgage.conversation.ConversationService;
 import com.seb.mortgage.conversation.Message;
+import com.seb.mortgage.documents.Document;
+import com.seb.mortgage.documents.DocumentService;
+import com.seb.mortgage.documents.DocumentType;
+import com.seb.mortgage.profile.ProfileField;
+import com.seb.mortgage.profile.ProfileFieldView;
+import com.seb.mortgage.profile.ProfileKey;
 import com.seb.mortgage.profile.ProfileService;
 
 import reactor.core.publisher.Flux;
@@ -59,6 +67,28 @@ class AdvisorOrchestratorTest {
 			assertThat(history).extracting(Message::getText).containsExactly(
 					ConversationService.GREETING, "Could I get a loan?", AdvisorOrchestrator.OFFLINE_REPLY);
 			assertThat(events.get(1)).isEqualTo(StreamEvent.done(history.get(2).getId()));
+		}
+
+		@Autowired DocumentService documents;
+		@Autowired ProfileService profile;
+
+		/** #72: without a key the upload turn gives the canned reply, and nothing is read or invented. */
+		@Test
+		void anUploadReadsNothing() {
+			UUID userId = UUID.randomUUID();
+			profile.save(userId, ProfileKey.NET_INCOME, "2300", ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED);
+			UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
+
+			List<StreamEvent> events = orchestrator.documentUploaded(userId, payslip).collectList().block();
+
+			assertThat(events).extracting(StreamEvent::type).containsExactly("document_status", "text", "done");
+			assertThat(events.get(1)).isEqualTo(StreamEvent.text(AdvisorOrchestrator.OFFLINE_REPLY));
+			assertThat(profile.fields(userId)).extracting(ProfileFieldView::source)
+					.containsExactly(ProfileField.Source.CHAT);
+			assertThat(conversations.history(userId)).extracting(Message::getRole)
+					.containsExactly(Message.Role.ADVISOR, Message.Role.SYSTEM, Message.Role.ADVISOR);
+			assertThat(conversations.history(userId).get(1).getText())
+					.isEqualTo("Uploaded payslip.pdf as: " + DocumentType.PAYSLIP.label());
 		}
 	}
 
@@ -101,6 +131,10 @@ class AdvisorOrchestratorTest {
 			static final String REJECT = "{\"approved\":false,\"rewrite\":\"" + SAFE_REPLY + "\"}";
 			/** Makes the verifier's call fail. */
 			static final String BROKEN = "broken";
+			static final String READ = "{\"values\":[{\"key\":\"netIncome\",\"value\":\"2350\"}]}";
+			static final String READ_BACK = "I read €2,350 net from your payslip. Is that right?";
+			static final String CONFIRMS = "Yes, that's right";
+			static final String CORRECTS = "No, it's 2,400";
 
 			volatile String verdict = APPROVE;
 			final AtomicInteger verifierCalls = new AtomicInteger();
@@ -126,6 +160,14 @@ class AdvisorOrchestratorTest {
 						throw new IllegalStateException("verifier down");
 					}
 					return new ChatResponse(List.of(new Generation(new AssistantMessage(verdict))));
+				}
+				if (messages.stream().anyMatch(m -> m instanceof SystemMessage
+						&& m.getText().contains("document reader in a prototype"))) {
+					return new ChatResponse(List.of(new Generation(new AssistantMessage(READ))));
+				}
+				if (messages.getLast() instanceof SystemMessage note && note.getText().startsWith("The user just uploaded")) {
+					actPrompt = prompt;
+					return new ChatResponse(List.of(new Generation(new AssistantMessage(READ_BACK))));
 				}
 				int lastUser = 0;
 				for (int i = 0; i < messages.size(); i++) {
@@ -155,6 +197,13 @@ class AdvisorOrchestratorTest {
 				if (user.equals(SAVES_THEN_CHECKS) && round == 2) {
 					return toolCall("Now checking.", "checkAffordability", "{}");
 				}
+				if (user.equals(CONFIRMS) && round == 1) {
+					return toolCall("", "confirmDocument", "{\"type\":\"PAYSLIP\",\"quote\":\"Yes, that's right\"}");
+				}
+				if (user.equals(CORRECTS) && round == 1) {
+					return toolCall("", "updateProfile",
+							"{\"fields\":[{\"key\":\"netIncome\",\"value\":\"2400\",\"quote\":\"it's 2,400\"}]}");
+				}
 				if (user.equals(MAKES_UP)) {
 					return new ChatResponse(List.of(new Generation(new AssistantMessage(MADE_UP_REPLY))));
 				}
@@ -183,6 +232,7 @@ class AdvisorOrchestratorTest {
 		@Autowired ConversationService conversations;
 		@Autowired FakeChatModel model;
 		@Autowired ProfileService profile;
+		@Autowired DocumentService documents;
 
 		@BeforeEach
 		void approveByDefault() {
@@ -315,6 +365,64 @@ class AdvisorOrchestratorTest {
 			assertThat(events).extracting(StreamEvent::type).containsSubsequence("text", "done");
 			assertThat(model.replyPrompt.getContents().split("- checkAffordability:", -1))
 					.hasSize(AdvisorAgent.MAX_ACT_ROUNDS + 1);
+		}
+
+		/** #72: the upload is read, the advisor asks to confirm, and "yes" confirms it all. */
+		@Test
+		void anUploadIsReadThenConfirmed() {
+			UUID userId = UUID.randomUUID();
+			UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
+
+			List<StreamEvent> events = orchestrator.documentUploaded(userId, payslip).collectList().block();
+
+			assertThat(events).extracting(StreamEvent::type)
+					.containsExactly("profile_updated", "document_status", "text", "done");
+			assertThat(profile.fields(userId)).containsExactly(new ProfileFieldView("netIncome", "2350",
+					ProfileField.Source.DOCUMENT, ProfileField.Status.UNCERTAIN, "PAYSLIP"));
+			assertThat(events.get(2)).isEqualTo(StreamEvent.text(FakeChatModel.READ_BACK));
+			assertThat(model.actPrompt.getInstructions().getLast().getText())
+					.contains("netIncome=2350").contains("ask whether it's right");
+			// The figure is in the profile, so the number check passes without the verifier.
+			assertThat(model.verifierCalls).hasValue(0);
+
+			List<StreamEvent> confirmed = orchestrator.send(userId, FakeChatModel.CONFIRMS).collectList().block();
+
+			assertThat(confirmed).extracting(StreamEvent::type).contains("profile_updated", "document_status");
+			assertThat(profile.fields(userId)).extracting(ProfileFieldView::status)
+					.containsExactly(ProfileField.Status.CONFIRMED);
+			assertThat(status(userId)).isEqualTo(Document.Status.CONFIRMED);
+			// Later turns see the upload as a note in the conversation.
+			assertThat(model.actPrompt.getContents()).contains("Uploaded payslip.pdf as:");
+		}
+
+		@Test
+		void aCorrectionAfterAnUploadSavesTheUsersValue() {
+			UUID userId = UUID.randomUUID();
+			UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
+			orchestrator.documentUploaded(userId, payslip).collectList().block();
+
+			orchestrator.send(userId, FakeChatModel.CORRECTS).collectList().block();
+
+			assertThat(profile.fields(userId)).containsExactly(new ProfileFieldView("netIncome", "2400",
+					ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED, null));
+			assertThat(status(userId)).isEqualTo(Document.Status.CONFIRMED);
+		}
+
+		@Test
+		void aDocumentIsReadOnceAndOnlyForItsOwner() {
+			UUID userId = UUID.randomUUID();
+			UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
+			orchestrator.documentUploaded(userId, payslip).collectList().block();
+
+			assertThatThrownBy(() -> orchestrator.documentUploaded(userId, payslip))
+					.isInstanceOf(IllegalStateException.class);
+			assertThatThrownBy(() -> orchestrator.documentUploaded(UUID.randomUUID(), payslip))
+					.isInstanceOf(NoSuchElementException.class);
+		}
+
+		private Document.Status status(UUID userId) {
+			return documents.checklist(userId).stream().filter(d -> d.type() == DocumentType.PAYSLIP).findFirst()
+					.orElseThrow().status();
 		}
 
 		@Test

@@ -15,6 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import com.seb.mortgage.advisor.AdvisorTools.FieldUpdate;
 import com.seb.mortgage.bank.BankCatalogService;
+import com.seb.mortgage.documents.DocumentService;
 import com.seb.mortgage.profile.ProfileField.Source;
 import com.seb.mortgage.profile.ProfileField.Status;
 import com.seb.mortgage.profile.LoanProfileAssembler;
@@ -34,6 +35,7 @@ class PropertyToolsTest {
 	@Autowired PropertyService property;
 	@Autowired BankCatalogService banks;
 	@Autowired LoanProfileAssembler loans;
+	@Autowired DocumentService documents;
 
 	private final UUID userId = UUID.randomUUID();
 	private final List<StreamEvent> events = new ArrayList<>();
@@ -41,7 +43,7 @@ class PropertyToolsTest {
 	private String userSaid = "It's 189000, they'd take 182000. Or the other one for 320 000";
 
 	private AdvisorTools tools(ListingReader listings) {
-		return new AdvisorTools(userId, profile, property, listings, banks, loans,
+		return new AdvisorTools(userId, profile, property, listings, banks, loans, documents,
 				UserStatements.from(List.of(), userSaid), events::add);
 	}
 

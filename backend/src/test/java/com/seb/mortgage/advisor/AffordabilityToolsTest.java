@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import com.seb.mortgage.bank.BankCatalogService;
+import com.seb.mortgage.documents.DocumentService;
 import com.seb.mortgage.mockdata.AffordabilityCalculator;
 import com.seb.mortgage.profile.LoanProfileAssembler;
 import com.seb.mortgage.profile.ProfileField.Source;
@@ -31,13 +32,14 @@ class AffordabilityToolsTest {
 	@Autowired BankCatalogService banks;
 	@Autowired ListingReader listings;
 	@Autowired LoanProfileAssembler loans;
+	@Autowired DocumentService documents;
 	@Autowired AffordabilityCalculator calculator;
 
 	private final UUID userId = UUID.randomUUID();
 	private final List<StreamEvent> events = new ArrayList<>();
 
 	private AdvisorTools tools() {
-		return new AdvisorTools(userId, profile, property, listings, banks, loans,
+		return new AdvisorTools(userId, profile, property, listings, banks, loans, documents,
 				UserStatements.from(List.of(), ""), events::add);
 	}
 

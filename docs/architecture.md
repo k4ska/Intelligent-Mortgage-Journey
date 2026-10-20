@@ -86,7 +86,8 @@ and next to an email thread in the inbox. Both write to the **same conversation*
 | `checkAffordability()` | Runs `AffordabilityCalculator` on the profile and property | — |
 | `suggestAffordableRange()` | What price range the user could afford instead | — |
 | `showChart(type, params)` | Calculates chart data (e.g. rate vs. monthly payment) | `chart` |
-| `requestDocument(type)` | Marks a document as needed, with where to get it in real life | `document_status` |
+| `requestDocument(types)` | Marks the documents the user needs as needed (all in one call), with where to get each in real life | `document_status` |
+| `confirmDocument(type, quote)` | The user said the values read from a document are right (quoting their latest message): those fields and the document become `CONFIRMED` | `profile_updated`, `document_status` |
 | `explainTerm(topic)` | Looks up the `Explanations` glossary (the old `ExplainAgent`'s job) | — |
 | `checkReadiness()` | Plain-code check: are all required fields and documents confirmed? Returns what's missing | — |
 | `showBankPicker()` | Only allowed when `checkReadiness()` passes | `bank_picker` |
@@ -238,8 +239,10 @@ User ─────────── email, password (hashed)
  │                 a source (LISTING | CHAT) and status (UNCERTAIN | CONFIRMED)
  │
  ├─ Document ───── type (ID, PAYSLIP, BANK_STATEMENT, DOWN_PAYMENT_PROOF, VALUATION,
- │                 PURCHASE_AGREEMENT, ...), status (NEEDED | UPLOADED | CONFIRMED),
- │                 file name only (the file itself isn't stored), values read from it
+ │                 PURCHASE_AGREEMENT, CO_APPLICANT_ID, CO_APPLICANT_PAYSLIP), status
+ │                 (NEEDED | UPLOADED | CONFIRMED; the checklist shows NOT_NEEDED_YET for
+ │                 the rest), file name only (the file itself isn't stored), values read
+ │                 from it
  │
  └─ Application ── a FROZEN snapshot of profile + property + document list at the
       │            moment of sending, plus the chosen banks. No updated re-sends.
@@ -299,7 +302,7 @@ profile_updated   { fields: [{ key, value, source, status }] }
 property_updated  { property: { listingUrl, fields: [{ key, value, source, status }] } }
                     keys: type (APARTMENT | HOUSE | PLOT | NEW_BUILD), price, location,
                     size (m²), rooms, yearBuilt
-document_status   { type, status, whereToGet }
+document_status   { type, label, status, whereToGet, fileName }
 chart             { chartType, title, data }
 bank_picker       { banks: [{ id, name }] }                 card under the chat
 draft_reply       { threadId, body }                        fills the inbox reply box
@@ -313,8 +316,11 @@ error             { message }
 
 ```
 GET  /api/profile                     -> fields + active property (null if none yet)
-GET  /api/documents                   -> checklist with statuses
-POST /api/documents/{type}  (file)    -> document; the frontend then sends the
+GET  /api/documents                   -> checklist: [{ id, type, label, status, whereToGet,
+                                         fileName, values }], co-applicant documents
+                                         only with a co-applicant
+POST /api/documents/{type}  (file)    -> document (multipart field "file", any file);
+                                         the frontend then sends the
                                          DOCUMENT_UPLOADED trigger to the chat
 ```
 
@@ -355,12 +361,15 @@ POST /api/inbox/{threadId}/assist  (SSE) { text } -> the advisor next to the thr
 
 **Upload a document**
 1. The user uploads a payslip → `POST /api/documents/PAYSLIP` → status `UPLOADED`.
-2. The frontend sends `{ trigger: "DOCUMENT_UPLOADED" }` to the chat.
+2. The frontend sends `{ trigger: "DOCUMENT_UPLOADED", documentId }` to the chat. The
+   conversation gets a `system` note ("Uploaded payslip.pdf as: ...").
 3. The document reader returns `netIncome: 2350` → saved as `DOCUMENT`, `UNCERTAIN` →
-   `profile_updated` (the field shows a "?").
+   `profile_updated` (the field shows a "?"), then `document_status`. A value the user
+   already gave is read exactly as they gave it; only missing ones are made up.
 4. The advisor: "I read €2,350 net from your payslip, is that right?"
-5. The user says "yes" → `updateProfile` sets it `CONFIRMED` → `profile_updated`, and the
-   document is `CONFIRMED`.
+5. The user says "yes" → `confirmDocument` sets the field and the document `CONFIRMED` →
+   `profile_updated`, `document_status`. "No, it's 2,400" → `updateProfile` saves 2400 as
+   `CHAT`, `CONFIRMED`, and the document is `CONFIRMED` too.
 
 **Go to the banks**
 1. `checkReadiness()` passes → the advisor says the user is ready and calls

@@ -19,6 +19,12 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  servlet:
+    multipart:
+      # Uploaded documents are never stored, only their names (#72); this just caps the upload.
+      max-file-size: 10MB
+      max-request-size: 10MB
+
   h2:
     console:
       enabled: true          # http://localhost:8080/h2-console (dev convenience)
@@ -54,6 +60,7 @@ app:
     reasoning-effort:
       advisor: ${AGENT_REASONING_ADVISOR:low}
       verifier: ${AGENT_REASONING_VERIFIER:low}
+      document-reader: ${AGENT_REASONING_DOCUMENT_READER:low}
   token-budget:
     # Daily LLM token budget. Once spent, the agents answer with the stub until midnight.
     # Default leaves ~10% headroom under the 5M/day gpt-5-mini limit, since the in-memory

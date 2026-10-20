@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -11,6 +12,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -20,7 +22,12 @@ import com.seb.mortgage.agent.VerifierAgent;
 import com.seb.mortgage.conversation.ConversationService;
 import com.seb.mortgage.conversation.Message;
 import com.seb.mortgage.bank.BankCatalogService;
+import com.seb.mortgage.documents.Document;
+import com.seb.mortgage.documents.DocumentReader;
+import com.seb.mortgage.documents.DocumentService;
+import com.seb.mortgage.documents.DocumentView;
 import com.seb.mortgage.profile.LoanProfileAssembler;
+import com.seb.mortgage.profile.ProfileKey;
 import com.seb.mortgage.profile.ProfileService;
 import com.seb.mortgage.property.ListingReader;
 import com.seb.mortgage.property.PropertyService;
@@ -57,12 +64,14 @@ public class AdvisorOrchestrator {
 	private final ListingReader listings;
 	private final BankCatalogService banks;
 	private final LoanProfileAssembler loans;
+	private final DocumentService documents;
+	private final DocumentReader reader;
 	private final ObjectMapper objectMapper;
 
 	public AdvisorOrchestrator(ObjectProvider<AdvisorAgent> advisor, ObjectProvider<VerifierAgent> verifier,
 			ConversationService conversations,
 			ProfileService profile, PropertyService property, ListingReader listings, BankCatalogService banks,
-			LoanProfileAssembler loans, ObjectMapper objectMapper) {
+			LoanProfileAssembler loans, DocumentService documents, DocumentReader reader, ObjectMapper objectMapper) {
 		this.advisor = advisor;
 		this.verifier = verifier;
 		this.conversations = conversations;
@@ -71,35 +80,108 @@ public class AdvisorOrchestrator {
 		this.listings = listings;
 		this.banks = banks;
 		this.loans = loans;
+		this.documents = documents;
+		this.reader = reader;
 		this.objectMapper = objectMapper;
 	}
 
 	public Flux<StreamEvent> send(UUID userId, String userText) {
 		List<Message> earlier = conversations.history(userId);
 		conversations.append(userId, Message.Role.USER, userText);
+		List<Message> visible = visible(earlier);
+		UserStatements stated = UserStatements.from(userTexts(visible), userText);
+		return turn(userId, visible, new UserMessage(userText), userText, stated);
+	}
 
+	/**
+	 * The {@code DOCUMENT_UPLOADED} trigger (#72): the document reader reads the upload, its
+	 * values go to the profile as uncertain, and the advisor asks the user to confirm them.
+	 * Nothing the reader made up counts as the user's words, so the advisor can't confirm
+	 * them itself.
+	 *
+	 * @throws java.util.NoSuchElementException if the user has no such document
+	 * @throws IllegalStateException            if the document isn't waiting to be read
+	 */
+	public Flux<StreamEvent> documentUploaded(UUID userId, UUID documentId) {
+		DocumentView document = documents.find(userId, documentId).orElseThrow();
+		if (document.status() != Document.Status.UPLOADED || !document.values().isEmpty()) {
+			throw new IllegalStateException("This document was already read");
+		}
+		List<Message> earlier = conversations.history(userId);
+		conversations.append(userId, Message.Role.SYSTEM, "Uploaded " + document.fileName() + " as: " + document.label());
+		List<Message> visible = visible(earlier);
+		List<String> said = userTexts(visible);
+		UserStatements stated = UserStatements.from(said, "");
+
+		// The reader may call the LLM, so it runs off the request thread.
+		return Flux.defer(() -> {
+			DocumentReader.Reading reading = reader.read(userId, documentId, said);
+			List<StreamEvent> events = new ArrayList<>();
+			if (!reading.fields().isEmpty()) {
+				events.add(StreamEvent.profileUpdated(reading.fields()));
+			}
+			events.add(StreamEvent.documentStatus(reading.document()));
+			String note = uploadNote(reading);
+			return Flux.fromIterable(events).concatWith(turn(userId, visible, new SystemMessage(note), note, stated));
+		}).subscribeOn(Schedulers.boundedElastic())
+				.onErrorResume(e -> {
+					log.warn("Reading the uploaded document failed", e);
+					return Flux.just(StreamEvent.error("Something went wrong. Please try again."));
+				});
+	}
+
+	/** What the advisor is told about the upload, in place of a user message. */
+	private static String uploadNote(DocumentReader.Reading reading) {
+		DocumentView document = reading.document();
+		String uploaded = "The user just uploaded their " + document.label().toLowerCase(Locale.ROOT) + " (file "
+				+ document.fileName() + ", type " + document.type() + ").";
+		if (!reading.read()) {
+			return uploaded + " Its values couldn't be read. Tell the user, and ask them for "
+					+ String.join(", ", document.type().reads().stream().map(ProfileKey::key).toList())
+					+ " instead, one at a time.";
+		}
+		if (reading.fields().isEmpty()) {
+			return uploaded + " There is nothing in it to confirm, so it is marked as confirmed. Thank them in one "
+					+ "sentence and carry on.";
+		}
+		return uploaded + " The document reader read these values from it, now saved as uncertain: "
+				+ String.join(", ", reading.fields().stream().map(f -> f.key() + "=" + f.value()).toList())
+				+ ". Tell the user in plain words what you read and ask whether it's right. Don't confirm anything "
+				+ "until they answer.";
+	}
+
+	/**
+	 * One advisor turn: streams the reply with the events its tools push in between, then
+	 * saves and checks it.
+	 *
+	 * @param current     what the advisor answers: the user's message or a note (an upload)
+	 * @param currentText the same as text, for the checks
+	 */
+	private Flux<StreamEvent> turn(UUID userId, List<Message> visible,
+			org.springframework.ai.chat.messages.Message current, String currentText, UserStatements stated) {
 		// Tools push their events here while the reply is still streaming.
 		Sinks.Many<StreamEvent> toolEvents = Sinks.many().unicast().onBackpressureBuffer();
-		List<Message> visible = visible(earlier);
-		UserStatements stated = UserStatements.from(visible.stream()
-				.filter(m -> m.getRole() == Message.Role.USER).map(Message::getText).toList(), userText);
-		AdvisorTools tools = new AdvisorTools(userId, profile, property, listings, banks, loans, stated,
+		AdvisorTools tools = new AdvisorTools(userId, profile, property, listings, banks, loans, documents, stated,
 				event -> toolEvents.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(1))));
 
 		StringBuilder reply = new StringBuilder();
-		Flux<StreamEvent> text = replyText(userId, visible, userText, tools)
+		Flux<StreamEvent> text = replyText(userId, visible, current, tools)
 				.doOnNext(reply::append)
 				.map(StreamEvent::text)
 				.doFinally(signal -> toolEvents.tryEmitComplete());
 
 		return Flux.merge(text, toolEvents.asFlux())
 				// The verifier is a blocking call, so the end of the turn runs off the stream's thread.
-				.concatWith(Flux.defer(() -> finish(userId, reply.toString(), userText, visible, tools))
+				.concatWith(Flux.defer(() -> finish(userId, reply.toString(), currentText, visible, tools))
 						.subscribeOn(Schedulers.boundedElastic()))
 				.onErrorResume(e -> {
 					log.warn("Advisor turn failed", e);
 					return Flux.just(StreamEvent.error("Something went wrong. Please try again."));
 				});
+	}
+
+	private static List<String> userTexts(List<Message> messages) {
+		return messages.stream().filter(m -> m.getRole() == Message.Role.USER).map(Message::getText).toList();
 	}
 
 	/**
@@ -170,12 +252,13 @@ public class AdvisorOrchestrator {
 		return objectMapper.writeValueAsString(facts);
 	}
 
-	private Flux<String> replyText(UUID userId, List<Message> earlier, String userText, AdvisorTools tools) {
+	private Flux<String> replyText(UUID userId, List<Message> earlier,
+			org.springframework.ai.chat.messages.Message current, AdvisorTools tools) {
 		AdvisorAgent agent = advisor.getIfAvailable();
 		if (agent == null) {
 			return Flux.just(OFFLINE_REPLY);
 		}
-		return Flux.defer(() -> agent.reply(toPrompt(earlier), userText, () -> profileJson(userId), tools))
+		return Flux.defer(() -> agent.reply(toPrompt(earlier), current, () -> profileJson(userId), tools))
 				.onErrorResume(TokenBudgetExceededException.class, e -> Flux.just(OFFLINE_REPLY));
 	}
 
@@ -186,9 +269,11 @@ public class AdvisorOrchestrator {
 
 	private static List<org.springframework.ai.chat.messages.Message> toPrompt(List<Message> earlier) {
 		return earlier.stream()
-				.<org.springframework.ai.chat.messages.Message>map(m -> m.getRole() == Message.Role.USER
-						? new UserMessage(m.getText())
-						: new AssistantMessage(m.getText()))
+				.<org.springframework.ai.chat.messages.Message>map(m -> switch (m.getRole()) {
+					case USER -> new UserMessage(m.getText());
+					case ADVISOR -> new AssistantMessage(m.getText());
+					case SYSTEM -> new SystemMessage(m.getText());
+				})
 				.toList();
 	}
 
@@ -196,6 +281,10 @@ public class AdvisorOrchestrator {
 		Map<String, Object> known = new LinkedHashMap<>();
 		known.put("fields", profile.fields(userId));
 		known.put("property", property.active(userId).orElse(null));
+		known.put("documents", documents.checklist(userId).stream()
+				.filter(document -> document.status() != Document.Status.NOT_NEEDED_YET)
+				.map(document -> document.type() + ": " + document.status().name().toLowerCase(Locale.ROOT))
+				.toList());
 		return objectMapper.writeValueAsString(known);
 	}
 }
