@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import com.seb.mortgage.advisor.AdvisorTools.FieldUpdate;
+import com.seb.mortgage.agent.Explanations;
 import com.seb.mortgage.bank.BankCatalogService;
 import com.seb.mortgage.profile.LoanProfileAssembler;
 import com.seb.mortgage.profile.ProfileField;
@@ -152,6 +153,25 @@ class AdvisorToolsTest {
 		tools().updateProfile(List.of(field("netIncome", "2350")));
 
 		assertThat(profile.fields(UUID.randomUUID())).isEmpty();
+	}
+
+	/** #66: definitions come from our glossary, not the model's memory. */
+	@Test
+	void explainTermReturnsTheGlossaryEntry() {
+		String note = tools().explainTerm("LTV");
+
+		assertThat(note).startsWith("Glossary entry for loan-to-value: " + Explanations.lookup("loan-to-value").text())
+				.contains("Related topics: down-payment, interest-rate, stress-test.")
+				.endsWith("based only on this entry.");
+		assertThat(events).isEmpty();
+	}
+
+	@Test
+	void explainTermSaysWhenATermIsNotInTheGlossary() {
+		String note = tools().explainTerm("balloon payment");
+
+		assertThat(note).startsWith("\"balloon payment\" is not in the glossary. Topics it has: affordability, amortization,")
+				.contains("don't state any figures or rules as facts");
 	}
 
 	/** The tool description is what the advisor knows about the keys, so it must list all of them. */
