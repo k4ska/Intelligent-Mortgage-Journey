@@ -391,8 +391,8 @@ class AdvisorTools {
 
 	@Tool(name = "showBankPicker", description = """
 			Show the user a card where they pick the banks to send their application to. Call it
-			when the user wants to go to the bank. If the user isn't ready yet, this tells you what
-			is still missing; ask the user for it instead.""")
+			only when the user has asked to apply or go to the banks, never on your own. If the
+			user isn't ready yet, this tells you what is still missing; ask the user for it instead.""")
 	String showBankPicker() {
 		// Skeleton readiness rule (#50): the real checkReadiness comes later.
 		if (!profile.has(userId, ProfileKey.NET_INCOME)) {

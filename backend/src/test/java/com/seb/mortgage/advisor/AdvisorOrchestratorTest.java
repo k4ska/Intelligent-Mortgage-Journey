@@ -2,12 +2,15 @@ package com.seb.mortgage.advisor;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
@@ -75,13 +78,19 @@ class AdvisorOrchestratorTest {
 		/**
 		 * Plays the model in both steps of a turn. Act ({@code call}): answers "Hello there",
 		 * or, for a message ending in {@link #INVENTS}, replays #88: it writes a reply and
-		 * calls updateProfile with values the user never gave. Reply ({@code stream}): the
-		 * reply written after the tools ran. It remembers the prompt of each step.
+		 * calls updateProfile with values the user never gave. For {@link #SAVES_THEN_CHECKS}
+		 * it saves the income, then checks affordability in the next round (#94); for
+		 * {@link #NEVER_STOPS} it calls a tool every round. Reply ({@code stream}): the reply
+		 * written after the tools ran. It remembers the prompt of each call.
 		 */
 		static class FakeChatModel implements ChatModel {
 			static final String INVENTS = "only a house";
 			static final String INVENTED_TEXT = "Thanks, I've saved your savings as €0.";
+			static final String SAVES_THEN_CHECKS = "I earn 2350 a month, can I afford it?";
+			static final String NEVER_STOPS = "check it again and again";
 
+			/** Every act call of the last turn, in order. */
+			final List<Prompt> actPrompts = new CopyOnWriteArrayList<>();
 			volatile Prompt actPrompt;
 			volatile Prompt replyPrompt;
 
@@ -93,16 +102,46 @@ class AdvisorOrchestratorTest {
 
 			@Override
 			public ChatResponse call(Prompt prompt) {
-				actPrompt = prompt;
-				if (!prompt.getContents().endsWith(INVENTS)) {
-					return new ChatResponse(List.of(new Generation(new AssistantMessage("Hello there"))));
+				List<org.springframework.ai.chat.messages.Message> messages = prompt.getInstructions();
+				int lastUser = 0;
+				for (int i = 0; i < messages.size(); i++) {
+					if (messages.get(i) instanceof UserMessage) {
+						lastUser = i;
+					}
 				}
-				AssistantMessage toolCall = AssistantMessage.builder().content(INVENTED_TEXT)
-						.toolCalls(List.of(new AssistantMessage.ToolCall("call-1", "function", "updateProfile",
-								"{\"fields\":[{\"key\":\"savings\",\"value\":\"0\",\"quote\":\"only a house\"},"
-										+ "{\"key\":\"netIncome\",\"value\":\"3300\",\"quote\":\"only a house\"}]}")))
+				if (lastUser == messages.size() - 1) {
+					actPrompts.clear();
+				}
+				actPrompt = prompt;
+				actPrompts.add(prompt);
+				String user = messages.get(lastUser).getText();
+				// Earlier turns have no tool messages, so these are this turn's rounds so far.
+				long round = messages.subList(lastUser, messages.size()).stream()
+						.filter(ToolResponseMessage.class::isInstance).count() + 1;
+
+				if (user.endsWith(INVENTS) && round == 1) {
+					return toolCall(INVENTED_TEXT, "updateProfile",
+							"{\"fields\":[{\"key\":\"savings\",\"value\":\"0\",\"quote\":\"only a house\"},"
+									+ "{\"key\":\"netIncome\",\"value\":\"3300\",\"quote\":\"only a house\"}]}");
+				}
+				if (user.equals(SAVES_THEN_CHECKS) && round == 1) {
+					return toolCall("Saving that.", "updateProfile",
+							"{\"fields\":[{\"key\":\"netIncome\",\"value\":\"2350\",\"quote\":\"I earn 2350 a month\"}]}");
+				}
+				if (user.equals(SAVES_THEN_CHECKS) && round == 2) {
+					return toolCall("Now checking.", "checkAffordability", "{}");
+				}
+				if (user.equals(NEVER_STOPS)) {
+					return toolCall("Again.", "checkAffordability", "{}");
+				}
+				return new ChatResponse(List.of(new Generation(new AssistantMessage(round == 1 ? "Hello there" : "Done."))));
+			}
+
+			private static ChatResponse toolCall(String text, String tool, String arguments) {
+				AssistantMessage call = AssistantMessage.builder().content(text)
+						.toolCalls(List.of(new AssistantMessage.ToolCall("call-" + tool, "function", tool, arguments)))
 						.build();
-				return new ChatResponse(List.of(new Generation(toolCall)));
+				return new ChatResponse(List.of(new Generation(call)));
 			}
 
 			@Override
@@ -151,6 +190,46 @@ class AdvisorOrchestratorTest {
 			assertThat(model.replyPrompt.getContents())
 					.contains("savings=0 was not saved because the user never said it")
 					.doesNotContain(FakeChatModel.INVENTED_TEXT);
+		}
+
+		/** #94: a later round sees what the earlier one's tools returned, so it can save, then check. */
+		@Test
+		void aTurnCanSaveAFactThenCheckWithIt() {
+			UUID userId = UUID.randomUUID();
+
+			List<StreamEvent> events = orchestrator.send(userId, FakeChatModel.SAVES_THEN_CHECKS).collectList().block();
+
+			assertThat(events).extracting(StreamEvent::type).contains("profile_updated");
+			assertThat(profile.fields(userId)).extracting(f -> f.key() + "=" + f.value()).containsExactly("netIncome=2350");
+			// Three act calls: save, check, then one that calls nothing.
+			assertThat(model.actPrompts).hasSize(3);
+			ToolResponseMessage saved = (ToolResponseMessage) model.actPrompts.get(1).getInstructions().getLast();
+			assertThat(saved.getResponses()).singleElement().satisfies(response -> {
+				assertThat(response.name()).isEqualTo("updateProfile");
+				assertThat(response.responseData()).isEqualTo("Saved: netIncome=2350.");
+			});
+			// The model never sees the text it wrote next to its calls, and neither does the user.
+			assertThat(model.actPrompts.get(2).getContents()).doesNotContain("Saving that.", "Now checking.");
+			assertThat(model.replyPrompt.getContents())
+					.contains("- updateProfile: Saved: netIncome=2350.")
+					.contains("- checkAffordability: Can't tell yet. Still missing: savings")
+					.doesNotContain("Saving that.", "Now checking.", "Done.");
+			assertThat(model.replyPrompt.getInstructions()).extracting(m -> m.getMessageType())
+					.doesNotContain(MessageType.TOOL);
+			assertThat(conversations.history(userId)).last().extracting(Message::getText)
+					.isEqualTo("Got it. How much do you earn per month?");
+		}
+
+		@Test
+		void aTurnStopsActingAfterTheLastRound() {
+			UUID userId = UUID.randomUUID();
+
+			List<StreamEvent> events = orchestrator.send(userId, FakeChatModel.NEVER_STOPS).collectList().block();
+
+			assertThat(model.actPrompts).hasSize(AdvisorAgent.MAX_ACT_ROUNDS);
+			assertThat(events).extracting(StreamEvent::type).containsSubsequence("text", "done");
+			assertThat(model.replyPrompt.getContents().split("- checkAffordability:", -1))
+					.hasSize(AdvisorAgent.MAX_ACT_ROUNDS + 1);
 		}
 
 		@Test

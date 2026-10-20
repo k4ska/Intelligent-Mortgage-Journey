@@ -8,6 +8,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.support.ToolCallbacks;
@@ -26,8 +27,8 @@ import java.util.function.Supplier;
 /**
  * The advisor the user talks to: one voice for the whole conversation, which uses tools
  * for anything that touches the user's data (see {@code docs/architecture.md} §2). Its
- * reply streams token by token. A turn where it uses tools is two calls: act, then reply
- * (see {@link #reply}).
+ * reply streams token by token. A turn where it uses tools acts in one or more rounds, then
+ * replies (see {@link #reply}).
  */
 public class AdvisorAgent extends LlmSpecialistAgent {
 
@@ -58,8 +59,7 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			  user and, once they say they're right, save them again as confirmed.
 			- When the user asks whether they can afford a home, call checkAffordability; when
 			  they ask how much they could afford, call suggestAffordableRange. Call it again
-			  whenever they give a fact it was missing, in the same step as saving that fact and
-			  after it. If a tool says facts are missing, ask for the first one and wait; don't
+			  whenever they give a fact it was missing, right after saving that fact. If a tool says facts are missing, ask for the first one and wait; don't
 			  guess any of them. The tools choose the loan term and interest rate themselves,
 			  so never ask the user about those.
 			- Explain an affordability result in plain words with only the tool's numbers: the
@@ -69,11 +69,20 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			- Never invent numbers. Only use numbers the user gave you or a tool returned. Never
 			  save a value the user hasn't told you, not even 0, a typical value or something
 			  that seems likely (like "employed").
+			- When the user says in their message that they have none of something (no other
+			  loans, no credit cards, no children), that is a value they told you: save it as 0
+			  straight away, quoting those words.
 			- Never promise that a bank will approve a loan, and never recommend one specific
 			  bank over another.
-			- When the user wants to go to the bank, call showBankPicker. If it says the user
-			  isn't ready, ask for what is missing.
+			- Only when the user asks to apply or go to the banks, call showBankPicker. Never
+			  call it on your own. If it says the user isn't ready, ask for what is missing.
 			- Answer in English. All amounts are in euros.""";
+
+	/**
+	 * Most act rounds in one turn, so the advisor can save a fact and then check something
+	 * with it (#94) without looping forever.
+	 */
+	static final int MAX_ACT_ROUNDS = 3;
 
 	public AdvisorAgent(ChatClient.Builder chatClientBuilder) {
 		super(chatClientBuilder, SYSTEM);
@@ -84,7 +93,9 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 	 * <ol>
 	 * <li><b>Act</b>: the model sees the tools. If it calls none, its answer is the reply.
 	 * If it calls some, our code runs them and whatever text the model wrote next to the
-	 * calls is thrown away.</li>
+	 * calls is thrown away. Then it acts again, seeing its calls and what they returned,
+	 * so it can use one tool's result in the next (save the income, then check
+	 * affordability, #94), up to {@link #MAX_ACT_ROUNDS} rounds.</li>
 	 * <li><b>Reply</b>: a second call with no tools and no tool messages, just the
 	 * conversation and a note saying what the tools did. gpt-5-mini writing right after a
 	 * tool result was what produced doubled replies and notes to itself; a turn that looks
@@ -97,45 +108,62 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 	 * @param tools       this turn's tools, acting for this user
 	 */
 	Flux<String> reply(List<Message> earlier, String userText, Supplier<String> profileJson, AdvisorTools tools) {
-		return Mono.fromCallable(() -> act(earlier, userText, profileJson.get(), tools))
+		return Mono.fromCallable(() -> act(earlier, userText, profileJson, tools))
 				.flatMapMany(act -> {
 					if (act.toolResults().isEmpty()) {
 						log.info("Advisor turn: no tools, one call");
 						return act.text() == null || act.text().isEmpty() ? Flux.<String>empty() : Flux.just(act.text());
 					}
-					log.info("Advisor turn: tools {}, then a reply call", act.toolNames());
+					log.info("Advisor turn: tools {} in {} act calls, then a reply call", act.toolNames(), act.calls());
 					return replyAfterTools(earlier, userText, profileJson.get(), act.toolResults());
 				});
 	}
 
-	/** What the act step came to: the model's text, or the tools it called and what they said. */
-	record Act(String text, List<String> toolNames, List<String> toolResults) {}
+	/**
+	 * What the act step came to: the model's text (only when it called no tools), or the
+	 * tools it called and what they said, over {@code calls} model calls.
+	 */
+	record Act(String text, List<String> toolNames, List<String> toolResults, int calls) {}
 
-	private Act act(List<Message> earlier, String userText, String profileJson, AdvisorTools tools) {
-		// Our code runs the tools below, so ChatClient's own tool loop is switched off.
-		ChatResponse response = chatClient.prompt()
-				.messages(withProfile(profileJson, earlier))
-				.user(userText)
-				.tools(tools)
-				.advisors(AdvisorParams.toolCallingAdvisorAutoRegister(false))
-				.call()
-				.chatResponse();
-		AssistantMessage output = response == null || response.getResult() == null ? null
-				: response.getResult().getOutput();
-		if (output == null || !output.hasToolCalls()) {
-			return new Act(output == null ? null : output.getText(), List.of(), List.of());
-		}
+	private Act act(List<Message> earlier, String userText, Supplier<String> profileJson, AdvisorTools tools) {
 		Map<String, ToolCallback> callbacks = new HashMap<>();
 		for (ToolCallback callback : ToolCallbacks.from(tools)) {
 			callbacks.put(callback.getToolDefinition().name(), callback);
 		}
 		List<String> names = new ArrayList<>();
 		List<String> results = new ArrayList<>();
-		for (AssistantMessage.ToolCall call : output.getToolCalls()) {
-			names.add(call.name());
-			results.add(call.name() + ": " + run(callbacks.get(call.name()), call));
+		// The earlier rounds' calls and what they returned, for the next round to build on.
+		List<Message> rounds = new ArrayList<>();
+		for (int round = 1; round <= MAX_ACT_ROUNDS; round++) {
+			List<Message> messages = withProfile(profileJson.get(), earlier);
+			messages.add(new UserMessage(userText));
+			messages.addAll(rounds);
+			// Our code runs the tools below, so ChatClient's own tool loop is switched off.
+			ChatResponse response = chatClient.prompt()
+					.messages(messages)
+					.tools(tools)
+					.advisors(AdvisorParams.toolCallingAdvisorAutoRegister(false))
+					.call()
+					.chatResponse();
+			AssistantMessage output = response == null || response.getResult() == null ? null
+					: response.getResult().getOutput();
+			if (output == null || !output.hasToolCalls()) {
+				// Without tools the first answer is the reply; after tools, the reply call writes it.
+				String text = round == 1 && output != null ? output.getText() : null;
+				return new Act(text, names, results, round);
+			}
+			List<ToolResponseMessage.ToolResponse> responses = new ArrayList<>();
+			for (AssistantMessage.ToolCall call : output.getToolCalls()) {
+				String result = run(callbacks.get(call.name()), call);
+				names.add(call.name());
+				results.add(call.name() + ": " + result);
+				responses.add(new ToolResponseMessage.ToolResponse(call.id(), call.name(), result));
+			}
+			// The next round sees the calls and their results, never the text written next to them.
+			rounds.add(AssistantMessage.builder().content("").toolCalls(output.getToolCalls()).build());
+			rounds.add(ToolResponseMessage.builder().responses(responses).build());
 		}
-		return new Act(null, names, results);
+		return new Act(null, names, results, MAX_ACT_ROUNDS);
 	}
 
 	private static String run(ToolCallback callback, AssistantMessage.ToolCall call) {
