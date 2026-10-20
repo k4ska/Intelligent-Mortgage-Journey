@@ -37,6 +37,9 @@ public class Message {
 	@Column(nullable = false, columnDefinition = "TEXT")
 	private String text;
 
+	@Column(nullable = false)
+	private boolean corrected;
+
 	@Column(nullable = false, updatable = false)
 	private Instant createdAt;
 
@@ -53,6 +56,7 @@ public class Message {
 	/** Replaces an advisor reply with the verifier's safe version (#67). */
 	public void correct(String text) {
 		this.text = text;
+		this.corrected = true;
 	}
 
 	public Long getId() {
@@ -69,6 +73,10 @@ public class Message {
 
 	public String getText() {
 		return text;
+	}
+
+	public boolean isCorrected() {
+		return corrected;
 	}
 
 	public Instant getCreatedAt() {

@@ -1,4 +1,3 @@
-
 import type { ApplicationResult, BankOption, ChatMessage, InboxEmail, InboxThread, InboxThreadDetail, Profile, ProfileField, Property, PropertyField, StreamEvent } from '~/types/api'
 import { mergeProfileFields } from '~/utils/profile'
 
@@ -23,7 +22,7 @@ function current(): MockUser {
 function key(user: MockUser) { return `mortgage-mock-data:${user.id}` }
 function data(user: MockUser): MockData {
   return read<MockData>(key(user), {
-    messages: [{ id: 1, role: 'advisor', text: 'Hi, how can I help you?', createdAt: new Date().toISOString() }],
+    messages: [{ id: 1, role: 'advisor', text: 'Hi, how can I help you?', createdAt: new Date().toISOString(), corrected: false }],
     profile: { fields: [], property: null },
     nextId: 2,
   })
@@ -160,7 +159,7 @@ export function mockGetThread(threadId: string): InboxThreadDetail {
 export function mockSend(text: string): Response {
   const user = current()
   const state = data(user)
-  state.messages.push({ id: state.nextId++, role: 'user', text, createdAt: new Date().toISOString() })
+  state.messages.push({ id: state.nextId++, role: 'user', text, createdAt: new Date().toISOString(), corrected: false })
   const fields = detectIncome(text)
   mergeProfileFields(state.profile.fields, fields)
 
@@ -191,7 +190,10 @@ export function mockSend(text: string): Response {
     && /\b(apply|application|send|pick|choose|show|ready|go)\b/i.test(text)
   const ready = state.profile.fields.some(field => field.key === 'netIncome')
   const showPicker = wantsBanks && ready
-  const answer = wantsBanks
+  const shouldCorrect = /\bcorrect me\b/i.test(text)
+  const answer = shouldCorrect
+    ? 'Your loan is guaranteed to be approved.'
+    : wantsBanks
     ? showPicker
       ? 'You can choose one or more banks below and send your application.'
       : 'Before we contact banks, please tell me your monthly net income.'
@@ -220,8 +222,12 @@ export function mockSend(text: string): Response {
           emit({ type: 'text', data: { delta } })
         }
         const id = state.nextId++
-        state.messages.push({ id, role: 'advisor', text: answer, createdAt: new Date().toISOString() })
+        const finalAnswer = shouldCorrect
+          ? 'I cannot guarantee approval. A bank needs to assess your finances and application first.'
+          : answer
+        state.messages.push({ id, role: 'advisor', text: finalAnswer, createdAt: new Date().toISOString(), corrected: shouldCorrect })
         save(user, state)
+        if (shouldCorrect) emit({ type: 'corrected', data: { messageId: id, text: finalAnswer } })
         emit({ type: 'done', data: { messageId: id } })
         controller.close()
       } catch (error) { controller.error(error) }

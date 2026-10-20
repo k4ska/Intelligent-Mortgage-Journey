@@ -24,7 +24,7 @@ import java.util.UUID;
 @RequestMapping("/api/chat")
 public class ChatController {
 
-	public record MessageView(Long id, String role, String text, Instant createdAt) {}
+	public record MessageView(Long id, String role, String text, Instant createdAt, boolean corrected) {}
 
 	/** Either what the user typed, or a trigger for something that happened outside the chat. */
 	public record ChatRequest(String text, String trigger, UUID documentId) {}
@@ -47,7 +47,7 @@ public class ChatController {
 	public List<MessageView> history() {
 		return conversations.history(currentUser.id()).stream()
 				.map(m -> new MessageView(m.getId(), m.getRole().name().toLowerCase(Locale.ROOT),
-						m.getText(), m.getCreatedAt()))
+						m.getText(), m.getCreatedAt(), m.isCorrected()))
 				.toList();
 	}
 

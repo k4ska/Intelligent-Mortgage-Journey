@@ -80,8 +80,8 @@ export const useAdvisorStore = defineStore('advisor', {
       const createdAt = new Date().toISOString()
       const localId = -Date.now()
       const replyId = localId - 1
-      this.messages.push({ id: localId, role: 'user', text: trimmed, createdAt })
-      this.messages.push({ id: replyId, role: 'advisor', text: '', createdAt })
+      this.messages.push({ id: localId, role: 'user', text: trimmed, createdAt, corrected: false })
+      this.messages.push({ id: replyId, role: 'advisor', text: '', createdAt, corrected: false })
       let completed = false
       let streamedError = false
       try {
@@ -105,9 +105,13 @@ export const useAdvisorStore = defineStore('advisor', {
               this.bankOptions = event.data.banks
               break
             case 'corrected': {
-              // Showing that the reply was corrected is #69; for now it is just replaced.
-              const reply = this.messages.find(message => message.id === replyId)
-              if (reply) reply.text = event.data.text
+              // Prefer the saved ID; before 'done' the current reply still has a local ID.
+              const reply = this.messages.find(message => message.id === event.data.messageId && message.role === 'advisor')
+                ?? this.messages.find(message => message.id === replyId && message.role === 'advisor')
+              if (reply) {
+                reply.text = event.data.text
+                reply.corrected = true
+              }
               break
             }
             case 'done': {

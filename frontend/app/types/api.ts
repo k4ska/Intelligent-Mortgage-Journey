@@ -1,4 +1,3 @@
-
  // TypeScript mirror of the backend API. The full set of contracts for the chat-based
 // advisor (auth, chat, stream events, profile, documents, banks, inbox) is in
 // docs/architecture.md §5; add types here as each endpoint is built, and keep them in
@@ -19,6 +18,8 @@ export interface ChatMessage {
   role: 'user' | 'advisor' | 'system'
   text: string
   createdAt: string
+  /** True when the verifier replaced the original streamed advisor reply. */
+  corrected: boolean
 }
 
 // ---- Profile and property (GET /api/profile) ----
