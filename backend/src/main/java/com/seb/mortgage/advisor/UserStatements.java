@@ -41,6 +41,8 @@ final class UserStatements {
 	private final Set<BigDecimal> numbers = new HashSet<>();
 	/** All the user's messages, simplified for quote matching. */
 	private final StringBuilder words = new StringBuilder(" ");
+	/** Only the message being answered, simplified the same way. */
+	private String currentWords = " ";
 
 	private UserStatements() {
 	}
@@ -55,6 +57,7 @@ final class UserStatements {
 		texts.add(current == null ? "" : current);
 		texts.forEach(stated::read);
 		texts.forEach(text -> stated.words.append(simplify(text)).append(' '));
+		stated.currentWords = " " + simplify(current == null ? "" : current) + " ";
 		// "No" only counts as 0 right after the advisor asked, not anywhere in the conversation.
 		if (current != null && NONE.matcher(current).find()) {
 			stated.numbers.add(BigDecimal.ZERO);
@@ -69,6 +72,12 @@ final class UserStatements {
 	boolean containsQuote(String quote) {
 		String simplified = quote == null ? "" : simplify(quote);
 		return !simplified.isEmpty() && words.indexOf(" " + simplified + " ") >= 0;
+	}
+
+	/** Like {@link #containsQuote}, but only the message being answered counts (a "yes" from earlier doesn't). */
+	boolean saidNow(String quote) {
+		String simplified = quote == null ? "" : simplify(quote);
+		return !simplified.isEmpty() && currentWords.contains(" " + simplified + " ");
 	}
 
 	private static String simplify(String text) {

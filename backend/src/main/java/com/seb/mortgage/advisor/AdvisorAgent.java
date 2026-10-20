@@ -9,7 +9,6 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
@@ -76,6 +75,16 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			  bank over another.
 			- Only when the user asks to apply or go to the banks, call showBankPicker. Never
 			  call it on your own. If it says the user isn't ready, ask for what is missing.
+			- Once the user knows whether they can afford the home, or when they ask what a bank
+			  needs, call requestDocument once with all the documents a bank will need from them
+			  (co-applicant ones only with a co-applicant; the valuation and purchase agreement
+			  once they have picked a home). Then name exactly those documents and where to get
+			  each, as it says; never add other documents or details. If they don't have them
+			  yet, that's fine: they can upload them later and the conversation carries on.
+			- After the user uploads a document you get a note with the values read from it.
+			  Tell the user what you read and ask whether it's right. When they say yes, call
+			  confirmDocument with their words; when they correct a value, save the right value
+			  with updateProfile.
 			- When the user asks what a term means or how something works (Euribor, margin,
 			  loan-to-value, stress test, valuation, ...), call explainTerm and base your answer
 			  on its entry, in your own simple words. If it isn't in the glossary, keep it short
@@ -107,19 +116,21 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 	 * </ol>
 	 *
 	 * @param earlier     the conversation so far, oldest first
+	 * @param current     what the advisor answers: the user's message, or a note of something
+	 *                    that happened outside the chat (an upload, #72)
 	 * @param profileJson the user's profile fields and property as JSON, read fresh for each
 	 *                    step so the reply sees what the tools just saved
 	 * @param tools       this turn's tools, acting for this user
 	 */
-	Flux<String> reply(List<Message> earlier, String userText, Supplier<String> profileJson, AdvisorTools tools) {
-		return Mono.fromCallable(() -> act(earlier, userText, profileJson, tools))
+	Flux<String> reply(List<Message> earlier, Message current, Supplier<String> profileJson, AdvisorTools tools) {
+		return Mono.fromCallable(() -> act(earlier, current, profileJson, tools))
 				.flatMapMany(act -> {
 					if (act.toolResults().isEmpty()) {
 						log.info("Advisor turn: no tools, one call");
 						return act.text() == null || act.text().isEmpty() ? Flux.<String>empty() : Flux.just(act.text());
 					}
 					log.info("Advisor turn: tools {} in {} act calls, then a reply call", act.toolNames(), act.calls());
-					return replyAfterTools(earlier, userText, profileJson.get(), act.toolResults());
+					return replyAfterTools(earlier, current, profileJson.get(), act.toolResults());
 				});
 	}
 
@@ -129,7 +140,7 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 	 */
 	record Act(String text, List<String> toolNames, List<String> toolResults, int calls) {}
 
-	private Act act(List<Message> earlier, String userText, Supplier<String> profileJson, AdvisorTools tools) {
+	private Act act(List<Message> earlier, Message current, Supplier<String> profileJson, AdvisorTools tools) {
 		Map<String, ToolCallback> callbacks = new HashMap<>();
 		for (ToolCallback callback : ToolCallbacks.from(tools)) {
 			callbacks.put(callback.getToolDefinition().name(), callback);
@@ -140,7 +151,7 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 		List<Message> rounds = new ArrayList<>();
 		for (int round = 1; round <= MAX_ACT_ROUNDS; round++) {
 			List<Message> messages = withProfile(profileJson.get(), earlier);
-			messages.add(new UserMessage(userText));
+			messages.add(current);
 			messages.addAll(rounds);
 			// Our code runs the tools below, so ChatClient's own tool loop is switched off.
 			ChatResponse response = chatClient.prompt()
@@ -192,10 +203,10 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 		}
 	}
 
-	private Flux<String> replyAfterTools(List<Message> earlier, String userText, String profileJson,
+	private Flux<String> replyAfterTools(List<Message> earlier, Message current, String profileJson,
 			List<String> toolResults) {
 		List<Message> messages = withProfile(profileJson, earlier);
-		messages.add(new UserMessage(userText));
+		messages.add(current);
 		messages.add(new SystemMessage("""
 				You just used your tools for the user's last message. What they did:
 				%s

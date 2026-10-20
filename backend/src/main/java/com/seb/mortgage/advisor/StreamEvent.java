@@ -1,8 +1,10 @@
 package com.seb.mortgage.advisor;
 
+import com.seb.mortgage.documents.DocumentView;
 import com.seb.mortgage.profile.ProfileFieldView;
 import com.seb.mortgage.property.PropertyView;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +27,17 @@ public record StreamEvent(String type, Map<String, Object> data) {
 
 	public static StreamEvent propertyUpdated(PropertyView property) {
 		return new StreamEvent("property_updated", Map.of("property", property));
+	}
+
+	/** A document's status changed (#72); the file name is null until one is uploaded. */
+	public static StreamEvent documentStatus(DocumentView document) {
+		Map<String, Object> data = new LinkedHashMap<>();
+		data.put("type", document.type());
+		data.put("label", document.label());
+		data.put("status", document.status());
+		data.put("whereToGet", document.whereToGet());
+		data.put("fileName", document.fileName());
+		return new StreamEvent("document_status", data);
 	}
 
 	/** Shows the bank picker card under the chat. */

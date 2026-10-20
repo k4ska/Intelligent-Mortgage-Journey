@@ -50,6 +50,10 @@ public class ProfileField {
 	@Column(nullable = false)
 	private Status status;
 
+	/** The document type it was read from (e.g. PAYSLIP), when its source is a document. */
+	@Column(name = "source_document")
+	private String sourceDocument;
+
 	@Column(nullable = false)
 	private Instant updatedAt;
 
@@ -62,9 +66,20 @@ public class ProfileField {
 	}
 
 	public void set(String value, Source source, Status status) {
+		set(value, source, status, null);
+	}
+
+	public void set(String value, Source source, Status status, String sourceDocument) {
 		this.value = value;
 		this.source = source;
 		this.status = status;
+		this.sourceDocument = sourceDocument;
+		this.updatedAt = Instant.now();
+	}
+
+	/** The user said a value read from a document is right. */
+	public void confirm() {
+		this.status = Status.CONFIRMED;
 		this.updatedAt = Instant.now();
 	}
 
@@ -88,11 +103,15 @@ public class ProfileField {
 		return status;
 	}
 
+	public String getSourceDocument() {
+		return sourceDocument;
+	}
+
 	public Instant getUpdatedAt() {
 		return updatedAt;
 	}
 
 	public ProfileFieldView view() {
-		return new ProfileFieldView(key.key(), value, source, status);
+		return new ProfileFieldView(key.key(), value, source, status, sourceDocument);
 	}
 }

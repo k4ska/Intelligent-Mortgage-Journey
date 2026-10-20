@@ -20,7 +20,8 @@ import java.util.UUID;
 @Table(name = "message")
 public class Message {
 
-	public enum Role { USER, ADVISOR }
+	/** SYSTEM notes something that happened outside the chat, like an upload (#72). */
+	public enum Role { USER, ADVISOR, SYSTEM }
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)

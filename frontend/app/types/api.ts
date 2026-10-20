@@ -15,7 +15,8 @@ export interface AgentStatus {
 export interface ChatMessage {
   /** Increasing number; also the order of the conversation. */
   id: number
-  role: 'user' | 'advisor'
+  /** 'system' notes something that happened outside the chat, e.g. "Uploaded payslip.pdf as: ..." (#72). */
+  role: 'user' | 'advisor' | 'system'
   text: string
   createdAt: string
 }
@@ -45,6 +46,8 @@ export interface ProfileField {
   value: string
   source: ProfileFieldSource
   status: ProfileFieldStatus
+  /** The document it was read from, when source is DOCUMENT. */
+  sourceDocument?: DocumentType | null
 }
 
 /** Matches backend PropertyKey and PropertyView. Only known fields are included. */
@@ -68,6 +71,33 @@ export interface Profile {
   property: Property | null
 }
 
+// ---- Documents (GET /api/documents, POST /api/documents/{type}) (#72) ----
+
+export type DocumentType =
+  | 'ID'
+  | 'PAYSLIP'
+  | 'BANK_STATEMENT'
+  | 'DOWN_PAYMENT_PROOF'
+  | 'VALUATION'
+  | 'PURCHASE_AGREEMENT'
+  | 'CO_APPLICANT_ID'
+  | 'CO_APPLICANT_PAYSLIP'
+
+/** NOT_NEEDED_YET: in the checklist, but nobody has asked for it or uploaded it yet. */
+export type DocumentStatus = 'NOT_NEEDED_YET' | 'NEEDED' | 'UPLOADED' | 'CONFIRMED'
+
+export interface DocumentView {
+  /** Null until the document is asked for or uploaded. */
+  id: string | null
+  type: DocumentType
+  label: string
+  status: DocumentStatus
+  whereToGet: string
+  fileName: string | null
+  /** What the document reader read from it, by profile key. */
+  values: Partial<Record<ProfileFieldKey, string>>
+}
+
 // ---- Stream events of one advisor turn (SSE event name = type) ----
 
 export interface BankOption {
@@ -80,6 +110,7 @@ export type StreamEvent =
   | { type: 'profile_updated', data: { fields: ProfileField[] } }
   | { type: 'property_updated', data: { property: Property } }
   | { type: 'bank_picker', data: { banks: BankOption[] } }
+  | { type: 'document_status', data: { type: DocumentType, label: string, status: DocumentStatus, whereToGet: string, fileName: string | null } }
   // The verifier replaced the reply that just streamed with a safe version (#67).
   | { type: 'corrected', data: { messageId: number, text: string } }
   | { type: 'done', data: { messageId: number } }

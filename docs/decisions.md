@@ -3,6 +3,30 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-20 - Documents and the document reader (#72)
+
+- A `Document` row per user and type (`NEEDED | UPLOADED | CONFIRMED`) keeps only the file
+  name; the checklist shows `NOT_NEEDED_YET` for documents nobody has asked for.
+  Co-applicant documents only apply with a co-applicant.
+- The document reader copies a value the user already gave exactly, and asks the LLM only
+  for the missing ones (checked: a usable number, at most 1,000,000, income above 0). So a
+  read value can never contradict the chat. Without an API key nothing is read, not even
+  the copies, and the turn gives the offline reply.
+- Read values are saved as `DOCUMENT` + `UNCERTAIN` with the document type, even when they
+  copy a confirmed chat value: the user confirms what the document says, as in the vision.
+  Until then the affordability check counts them as unconfirmed.
+- "Yes" goes through a new `confirmDocument` tool, not `updateProfile`: a made-up value was
+  never written by the user, so the quote rule would refuse it. The quote has to come from
+  the user's latest message, so an old "yes" or the upload turn itself can't confirm
+  anything. A correction is an ordinary `updateProfile` save, and a document whose read
+  values are all confirmed or corrected becomes `CONFIRMED`.
+- The upload turn is the advisor's usual turn, answering a system note about what was read
+  instead of a user message. The note is stored as a `system` message, so later turns know
+  about the upload.
+- `requestDocument` takes all the types in one call, and its description lists the only
+  documents there are. In a live run with one type per call, the advisor asked for two and
+  then described other documents in its own words ("last 3 months", "employment contract").
+
 ## 2026-10-20 - Number check and verifier on flagged turns (#67)
 
 - After each reply, `NumberCheck` finds every € amount and % (`€2,350`, `2 350 €`,

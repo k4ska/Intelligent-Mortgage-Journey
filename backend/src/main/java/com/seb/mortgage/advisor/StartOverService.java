@@ -11,6 +11,7 @@ import com.seb.mortgage.bank.EmailRepository;
 import com.seb.mortgage.bank.EmailThread;
 import com.seb.mortgage.bank.EmailThreadRepository;
 import com.seb.mortgage.conversation.ConversationService;
+import com.seb.mortgage.documents.DocumentRepository;
 import com.seb.mortgage.profile.ProfileFieldRepository;
 import com.seb.mortgage.property.PropertyRepository;
 
@@ -27,16 +28,18 @@ public class StartOverService {
 	private final ApplicationRepository applications;
 	private final EmailThreadRepository threads;
 	private final EmailRepository emails;
+	private final DocumentRepository documents;
 
 	public StartOverService(ConversationService conversations, ProfileFieldRepository profileFields,
 			PropertyRepository properties, ApplicationRepository applications, EmailThreadRepository threads,
-			EmailRepository emails) {
+			EmailRepository emails, DocumentRepository documents) {
 		this.conversations = conversations;
 		this.profileFields = profileFields;
 		this.properties = properties;
 		this.applications = applications;
 		this.threads = threads;
 		this.emails = emails;
+		this.documents = documents;
 	}
 
 	/** All or nothing: a failure part way leaves the user's data as it was. */
@@ -49,6 +52,7 @@ public class StartOverService {
 		}
 		threads.deleteByUserId(userId);
 		applications.deleteByUserId(userId);
+		documents.deleteByUserId(userId);
 		properties.deleteByUserId(userId);
 		profileFields.deleteByUserId(userId);
 		conversations.delete(userId);

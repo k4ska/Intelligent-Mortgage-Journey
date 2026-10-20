@@ -23,6 +23,8 @@ import com.seb.mortgage.bank.EmailRepository;
 import com.seb.mortgage.bank.EmailThreadRepository;
 import com.seb.mortgage.conversation.ConversationService;
 import com.seb.mortgage.conversation.Message;
+import com.seb.mortgage.documents.DocumentService;
+import com.seb.mortgage.documents.DocumentType;
 import com.seb.mortgage.profile.ProfileField;
 import com.seb.mortgage.profile.ProfileKey;
 import com.seb.mortgage.profile.ProfileService;
@@ -44,6 +46,7 @@ class StartOverTest {
 	@Autowired ApplicationRepository applications;
 	@Autowired EmailThreadRepository threads;
 	@Autowired EmailRepository emails;
+	@Autowired DocumentService documents;
 
 	private record LoggedIn(UUID userId, MockHttpSession session) {}
 
@@ -66,6 +69,8 @@ class StartOverTest {
 				.andExpect(jsonPath("$.property").doesNotExist());
 		mvc.perform(get("/api/inbox").session(user.session()))
 				.andExpect(jsonPath("$", hasSize(0)));
+		mvc.perform(get("/api/documents").session(user.session()))
+				.andExpect(jsonPath("$[1].status").value("NOT_NEEDED_YET"));
 		assertThat(applications.findAll()).noneMatch(a -> a.getUserId().equals(user.userId()));
 		assertThat(threads.findByUserIdOrderByCreatedAtDesc(user.userId())).isEmpty();
 
@@ -116,6 +121,7 @@ class StartOverTest {
 						.contentType(MediaType.APPLICATION_JSON).content("{\"bankIds\":[\"seb\"]}"))
 				.andExpect(status().isOk());
 		assertThat(emailsOf(user)).isPositive();
+		documents.upload(user.userId(), DocumentType.PAYSLIP, "payslip.pdf");
 	}
 
 	private long emailsOf(LoggedIn user) {

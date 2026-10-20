@@ -2,6 +2,9 @@ package com.seb.mortgage.advisor;
 
 import com.seb.mortgage.agent.Explanations;
 import com.seb.mortgage.bank.BankCatalogService;
+import com.seb.mortgage.documents.DocumentService;
+import com.seb.mortgage.documents.DocumentType;
+import com.seb.mortgage.documents.DocumentView;
 import com.seb.mortgage.mockdata.AffordabilityCalculator;
 import com.seb.mortgage.profile.LoanProfile;
 import com.seb.mortgage.profile.LoanProfileAssembler;
@@ -18,6 +21,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +82,7 @@ class AdvisorTools {
 	private final ListingReader listings;
 	private final BankCatalogService banks;
 	private final LoanProfileAssembler loans;
+	private final DocumentService documents;
 	private final UserStatements stated;
 	private final Consumer<StreamEvent> emit;
 	/** Every tool call this turn and what it returned, for the number check (#67). */
@@ -86,13 +91,15 @@ class AdvisorTools {
 	record ToolUse(String name, String result) {}
 
 	AdvisorTools(UUID userId, ProfileService profile, PropertyService property, ListingReader listings,
-			BankCatalogService banks, LoanProfileAssembler loans, UserStatements stated, Consumer<StreamEvent> emit) {
+			BankCatalogService banks, LoanProfileAssembler loans, DocumentService documents, UserStatements stated,
+			Consumer<StreamEvent> emit) {
 		this.userId = userId;
 		this.profile = profile;
 		this.property = property;
 		this.listings = listings;
 		this.banks = banks;
 		this.loans = loans;
+		this.documents = documents;
 		this.stated = stated;
 		this.emit = emit;
 	}
@@ -129,8 +136,12 @@ class AdvisorTools {
 				problems.add(e.getMessage());
 			}
 		}
+		List<DocumentView> settled = List.of();
 		if (!saved.isEmpty()) {
 			emit.accept(StreamEvent.profileUpdated(saved));
+			// A correction of a value read from a document settles that document too.
+			settled = documents.settle(userId);
+			settled.forEach(document -> emit.accept(StreamEvent.documentStatus(document)));
 		}
 
 		StringBuilder note = new StringBuilder();
@@ -139,6 +150,7 @@ class AdvisorTools {
 					.append(String.join(", ", saved.stream().map(f -> f.key() + "=" + f.value()).toList()))
 					.append(". ");
 		}
+		settled.forEach(document -> note.append(document.type()).append(" is now confirmed. "));
 		if (!problems.isEmpty()) {
 			note.append("Not saved: ").append(String.join("; ", problems)).append('.');
 		}
@@ -418,6 +430,73 @@ class AdvisorTools {
 						+ String.join(", ", Explanations.topics()) + ". If one of them is what the user means, "
 						+ "look that up instead. Otherwise keep your answer short and general, say it is general "
 						+ "information, and don't state any figures or rules as facts.");
+	}
+
+	@Tool(name = "requestDocument", description = """
+			Mark the documents the bank will need as needed, so they show in the user's documents
+			panel with where to get each one. These are the only documents there are: ID (ID card
+			or passport), PAYSLIP (proof of income), BANK_STATEMENT (last 6 months),
+			DOWN_PAYMENT_PROOF, VALUATION (valuation report, ordered after picking the property),
+			PURCHASE_AGREEMENT, and only when the user buys with a co-applicant: CO_APPLICANT_ID
+			and CO_APPLICANT_PAYSLIP. Ask for all the ones the user needs in one call. Then tell
+			the user about exactly these documents, with where to get each one as it returns;
+			don't add others or change the details.""")
+	String requestDocument(@ToolParam(description = "The document types, e.g. [\"ID\", \"PAYSLIP\"]") List<String> types) {
+		List<String> notes = new ArrayList<>();
+		for (String type : types == null ? List.<String>of() : types) {
+			notes.add(requestOne(type));
+		}
+		return notes.isEmpty() ? "No document types given." : String.join(" ", notes);
+	}
+
+	private String requestOne(String type) {
+		DocumentType documentType = DocumentType.parse(type).orElse(null);
+		if (documentType == null) {
+			return type + " is not a document type (use one of: " + String.join(", ",
+					Arrays.stream(DocumentType.values()).map(Enum::name).toList()) + ").";
+		}
+		if (!documents.applies(userId, documentType)) {
+			return documentType + " is only needed when the user buys with a co-applicant; don't ask for it.";
+		}
+		DocumentView document = documents.request(userId, documentType);
+		return switch (document.status()) {
+			case UPLOADED -> documentType + " (" + document.label() + ") is already uploaded.";
+			case CONFIRMED -> documentType + " (" + document.label() + ") is already uploaded and confirmed.";
+			default -> {
+				emit.accept(StreamEvent.documentStatus(document));
+				yield documentType + " (" + document.label() + ") is needed; where to get it: "
+						+ document.whereToGet();
+			}
+		};
+	}
+
+	@Tool(name = "confirmDocument", description = """
+			Call it when the user says the values you read from an uploaded document are right.
+			Give the document type and, in quote, the user's own words saying so, copied exactly
+			from their latest message (e.g. "yes, that's right"). If they correct a value instead,
+			save the corrected value with updateProfile and don't call this.""")
+	String confirmDocument(@ToolParam(description = "The document type, e.g. PAYSLIP") String type,
+			@ToolParam(description = "The user's own words from their latest message saying the values are right")
+			String quote) {
+		DocumentType documentType = DocumentType.parse(type).orElse(null);
+		if (documentType == null) {
+			return type + " is not a document type.";
+		}
+		if (!stated.saidNow(quote)) {
+			return "Not confirmed: the user hasn't said in their latest message that the values from the "
+					+ documentType + " are right (quote their exact words). Ask them first.";
+		}
+		try {
+			DocumentService.Confirmed confirmed = documents.confirm(userId, documentType);
+			if (!confirmed.fields().isEmpty()) {
+				emit.accept(StreamEvent.profileUpdated(confirmed.fields()));
+			}
+			emit.accept(StreamEvent.documentStatus(confirmed.document()));
+			return documentType + " is confirmed" + (confirmed.fields().isEmpty() ? "." : ", and so are "
+					+ String.join(", ", confirmed.fields().stream().map(f -> f.key() + "=" + f.value()).toList()) + ".");
+		} catch (IllegalArgumentException e) {
+			return "Not confirmed: " + e.getMessage() + ".";
+		}
 	}
 
 	@Tool(name = "showBankPicker", description = """
