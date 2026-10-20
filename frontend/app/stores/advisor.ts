@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type { BankOption, ChatMessage, Profile, ProfileField } from '~/types/api'
 import { useAuthStore } from '~/stores/auth'
+import { useInboxStore } from '~/stores/inbox'
 import { consumeStream } from '~/utils/stream'
 import { copy } from '~/utils/copy'
 import { errorStatus } from '~/utils/errors'
@@ -38,6 +39,30 @@ export const useAdvisorStore = defineStore('advisor', {
     },
     mergeProfile(fields: ProfileField[]) {
       mergeProfileFields(this.profile.fields, fields)
+    },
+    /** Start over (#70): the server wipes everything; the chat is back to the greeting. */
+    async startOver(): Promise<boolean> {
+      // A reply still streaming must not land in the new conversation.
+      this.cancel()
+      try {
+        const messages = await useApi().resetChat()
+        this.$reset()
+        this.messages = messages
+        this.loaded = true
+      } catch (error) {
+        if (errorStatus(error) === 401) {
+          void useAuthStore().expire()
+          return false
+        }
+        // Unknown how far it got, so show whatever the server has now.
+        this.$reset()
+        void this.load()
+        return false
+      }
+      const inbox = useInboxStore()
+      inbox.$reset()
+      void inbox.load(true)
+      return true
     },
     /** Abort an in-flight send so it cannot write into a reset store. */
     cancel() {

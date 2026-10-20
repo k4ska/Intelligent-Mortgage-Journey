@@ -47,6 +47,13 @@ export function mockLogin(email: string): MockUser {
 }
 export function mockLogout() { localStorage.removeItem(CURRENT) }
 export function mockChat(): ChatMessage[] { return data(current()).messages }
+/** Start over: forget this user's chat, profile and inbox; the account stays. */
+export function mockReset(): ChatMessage[] {
+  const user = current()
+  localStorage.removeItem(key(user))
+  localStorage.removeItem(inboxKey(user))
+  return data(user).messages
+}
 export function mockProfile(): Profile { return data(current()).profile }
 
 function detectIncome(message: string): ProfileField[] {
