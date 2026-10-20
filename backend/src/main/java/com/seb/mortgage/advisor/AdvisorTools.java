@@ -1,5 +1,6 @@
 package com.seb.mortgage.advisor;
 
+import com.seb.mortgage.agent.Explanations;
 import com.seb.mortgage.bank.BankCatalogService;
 import com.seb.mortgage.mockdata.AffordabilityCalculator;
 import com.seb.mortgage.profile.LoanProfile;
@@ -387,6 +388,22 @@ class AdvisorTools {
 
 	private static String number(double value) {
 		return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
+	}
+
+	@Tool(name = "explainTerm", description = """
+			Look up what a mortgage term means in our glossary, e.g. Euribor, margin, loan-to-value,
+			stress test, down payment, valuation. Call it whenever the user asks what a term means
+			or how something works, and base your explanation on the entry it returns.""")
+	String explainTerm(@ToolParam(description = "The term, e.g. \"Euribor\" or \"loan-to-value\"") String topic) {
+		return Explanations.find(topic)
+				.map(found -> "Glossary entry for " + found.key() + ": " + found.entry().text()
+						+ (found.entry().related().isEmpty() ? "" : " Related topics: "
+								+ String.join(", ", found.entry().related()) + ".")
+						+ " Explain it in your own plain words, based only on this entry.")
+				.orElseGet(() -> "\"" + topic + "\" is not in the glossary. Topics it has: "
+						+ String.join(", ", Explanations.topics()) + ". If one of them is what the user means, "
+						+ "look that up instead. Otherwise keep your answer short and general, say it is general "
+						+ "information, and don't state any figures or rules as facts.");
 	}
 
 	@Tool(name = "showBankPicker", description = """

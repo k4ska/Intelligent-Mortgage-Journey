@@ -76,6 +76,10 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			  bank over another.
 			- Only when the user asks to apply or go to the banks, call showBankPicker. Never
 			  call it on your own. If it says the user isn't ready, ask for what is missing.
+			- When the user asks what a term means or how something works (Euribor, margin,
+			  loan-to-value, stress test, valuation, ...), call explainTerm and base your answer
+			  on its entry, in your own simple words. If it isn't in the glossary, keep it short
+			  and general.
 			- Answer in English. All amounts are in euros.""";
 
 	/**
