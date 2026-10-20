@@ -1,10 +1,27 @@
 <script setup lang="ts">
+import { useAdvisorStore } from '~/stores/advisor'
 import { useAuthStore } from '~/stores/auth'
 import { useInboxStore } from '~/stores/inbox'
 import { copy } from '~/utils/copy'
 
 const auth = useAuthStore()
 const inbox = useInboxStore()
+const advisor = useAdvisorStore()
+
+const confirmingStartOver = ref(false)
+const startingOver = ref(false)
+
+async function startOver() {
+  startingOver.value = true
+  const done = await advisor.startOver()
+  startingOver.value = false
+  confirmingStartOver.value = false
+  if (!done) {
+    useToast().add({ title: copy.startOverError, color: 'error', icon: 'i-lucide-circle-alert' })
+    return
+  }
+  await navigateTo('/')
+}
 
 watch(() => auth.isAuthenticated, (authenticated) => {
   if (authenticated) void inbox.load()
@@ -36,7 +53,11 @@ watch(() => auth.isAuthenticated, (authenticated) => {
           <UColorModeButton :aria-label="copy.theme" />
           <UDropdownMenu
             v-if="auth.isAuthenticated"
-            :items="[[{ label: auth.user?.email || '', disabled: true }], [{ label: copy.logout, icon: 'i-lucide-log-out', onSelect: () => auth.logout() }]]"
+            :items="[
+              [{ label: auth.user?.email || '', disabled: true }],
+              [{ label: copy.startOver, icon: 'i-lucide-rotate-ccw', onSelect: () => { confirmingStartOver = true } }],
+              [{ label: copy.logout, icon: 'i-lucide-log-out', onSelect: () => auth.logout() }],
+            ]"
           >
             <UButton color="neutral" variant="ghost" trailing-icon="i-lucide-chevron-down" :aria-label="auth.user?.email || copy.logout">
               <UIcon name="i-lucide-circle-user-round" class="text-xl" />
@@ -48,6 +69,21 @@ watch(() => auth.isAuthenticated, (authenticated) => {
     </header>
 
     <main class="min-h-0 flex-1"><slot /></main>
+
+    <UModal
+      v-model:open="confirmingStartOver"
+      :title="copy.startOverTitle"
+      :description="copy.startOverBody"
+      :dismissible="!startingOver"
+      :close="false"
+    >
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="ghost" :label="copy.startOverCancel" :disabled="startingOver" @click="confirmingStartOver = false" />
+          <UButton color="error" icon="i-lucide-rotate-ccw" :label="copy.startOverConfirm" :loading="startingOver" @click="startOver" />
+        </div>
+      </template>
+    </UModal>
 
     <footer class="shrink-0 border-t border-[var(--ui-border)] bg-[var(--ui-bg)] px-2 py-2 text-center text-xs text-[var(--ui-text-dimmed)]">
       {{ copy.prototype }}

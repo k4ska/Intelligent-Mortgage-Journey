@@ -283,7 +283,9 @@ POST /api/chat/messages   (SSE)       { text }                                 t
                                       { trigger: "APPLICATION_SENT",  applicationId }
                                       { trigger: "OFFER_ACCEPTED",    threadId }
 POST /api/chat/reset                  -> start over (wipes conversation, profile,
-                                         property, documents, applications)
+                                         property, documents, applications, emails;
+                                         keeps the account) and returns the new
+                                         history: just the greeting
 ```
 
 Triggers let the advisor react to things that happen outside the chat, through the same

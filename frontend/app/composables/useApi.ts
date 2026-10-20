@@ -1,5 +1,5 @@
 import type { AgentStatus, ApplicationResult, ChatMessage, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
-import { mockChat, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockSend, mockSubmitApplication } from '~/mocks/advisor'
+import { mockChat, mockReset, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockSend, mockSubmitApplication } from '~/mocks/advisor'
 
 export interface AuthUser { id: string; email: string }
 
@@ -34,6 +34,10 @@ export function useApi() {
     getChat: (): Promise<ChatMessage[]> => mock
       ? later(mockChat)
       : request<ChatMessage[]>('/chat'),
+    // Wipes the user's conversation, profile, property and bank emails; returns the greeting.
+    resetChat: (): Promise<ChatMessage[]> => mock
+      ? later(mockReset)
+      : request<ChatMessage[]>('/chat/reset', { method: 'POST' }),
     getProfile: (): Promise<Profile> => mock
       ? later(mockProfile)
       : request<Profile>('/profile'),

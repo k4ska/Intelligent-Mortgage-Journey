@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface PropertyRepository extends JpaRepository<Property, UUID> {
 
 	Optional<Property> findByUserId(UUID userId);
+
+	void deleteByUserId(UUID userId);
 }
