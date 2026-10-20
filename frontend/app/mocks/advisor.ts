@@ -1,4 +1,5 @@
-import type { ApplicationResult, BankOption, ChatMessage, InboxEmail, InboxThread, InboxThreadDetail, Profile, ProfileField, StreamEvent } from '~/types/api'
+
+import type { ApplicationResult, BankOption, ChatMessage, InboxEmail, InboxThread, InboxThreadDetail, Profile, ProfileField, Property, PropertyField, StreamEvent } from '~/types/api'
 import { mergeProfileFields } from '~/utils/profile'
 
 // Explicit development-only mock. Never sends or stores passwords. It intentionally
@@ -57,6 +58,22 @@ function detectIncome(message: string): ProfileField[] {
   return Number.isFinite(amount) && amount > 0
     ? [{ key: 'netIncome', value: String(amount), source: 'CHAT', status: 'CONFIRMED' }]
     : []
+}
+
+// A made-up property for the mock. Listing data is confirmed; values inferred from
+// pasted page text are uncertain until the user confirms them in chat.
+function sampleProperty(listingUrl: string | null, source: PropertyField['source'], status: PropertyField['status']): Property {
+  return {
+    listingUrl,
+    fields: [
+      { key: 'type', value: 'APARTMENT', source, status },
+      { key: 'price', value: '189000', source, status },
+      { key: 'location', value: 'Tallinn, Kesklinn', source, status },
+      { key: 'size', value: '61.4', source, status },
+      { key: 'rooms', value: '3', source, status },
+      { key: 'yearBuilt', value: '1937', source, status },
+    ],
+  }
 }
 
 // Development fixtures only. The real picker always uses the banks from the SSE event;
@@ -139,6 +156,28 @@ export function mockSend(text: string): Response {
   state.messages.push({ id: state.nextId++, role: 'user', text, createdAt: new Date().toISOString() })
   const fields = detectIncome(text)
   mergeProfileFields(state.profile.fields, fields)
+
+  let propertyUpdate: Property | null = null
+  let propertyReply = ''
+  const link = text.match(/\b(?:https?:\/\/)?(?:www\.)?kv\.ee\/[^\s<>"']+/i)?.[0]
+    .replace(/[.,;!?)]*$/, '')
+  if (link) {
+    const listingUrl = /^https?:\/\//i.test(link) ? link : `https://${link}`
+    propertyUpdate = sampleProperty(listingUrl, 'LISTING', 'CONFIRMED')
+    propertyReply = 'I have added a sample property from that kv.ee link.'
+  } else if (/^\s*pasted (?:page|listing) text:/i.test(text)) {
+    propertyUpdate = sampleProperty(null, 'CHAT', 'UNCERTAIN')
+    propertyReply = 'I have extracted sample details from the pasted page text. Are these correct?'
+  } else if (/^(?:yes|yes,\s*that['’]s correct|confirm property)[.!]?$/i.test(text.trim())
+      && state.profile.property?.fields.some(field => field.status === 'UNCERTAIN')) {
+    const existing = state.profile.property
+    propertyUpdate = {
+      ...existing,
+      fields: existing.fields.map(field => ({ ...field, status: 'CONFIRMED' as const })),
+    }
+    propertyReply = 'Thanks — I have confirmed the property details.'
+  }
+  if (propertyUpdate) state.profile.property = propertyUpdate
   save(user, state)
 
   const wantsBanks = /\b(banks?|lenders?)\b/i.test(text)
@@ -149,9 +188,11 @@ export function mockSend(text: string): Response {
     ? showPicker
       ? 'You can choose one or more banks below and send your application.'
       : 'Before we contact banks, please tell me your monthly net income.'
-    : fields.length
-      ? 'Thanks — I have added your monthly net income to your profile. What else should I know?'
-      : 'Thanks for sharing. Tell me a little more about your finances or the home you are looking for.'
+    : propertyUpdate
+      ? propertyReply
+      : fields.length
+        ? 'Thanks — I have added your monthly net income to your profile. What else should I know?'
+        : 'Thanks for sharing. Tell me a little more about your finances or the home you are looking for.'
   const parts = answer.match(/.{1,12}/gs) || [answer]
   const encoder = new TextEncoder()
   let cancelled = false
@@ -163,6 +204,7 @@ export function mockSend(text: string): Response {
       try {
         // First send a fact BEFORE the first text token, like the real advisor.
         if (fields.length) emit({ type: 'profile_updated', data: { fields } })
+        if (propertyUpdate) emit({ type: 'property_updated', data: { property: propertyUpdate } })
         if (showPicker) emit({ type: 'bank_picker', data: { banks: MOCK_BANKS } })
         for (const delta of parts) {
           await new Promise(resolve => setTimeout(resolve, 65))

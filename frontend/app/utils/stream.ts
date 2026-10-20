@@ -1,7 +1,7 @@
 import type { StreamEvent } from '~/types/api'
 
 const eventTypes = new Set<StreamEvent['type']>([
-  'text', 'profile_updated', 'bank_picker', 'done', 'error',
+  'text', 'profile_updated', 'property_updated', 'bank_picker', 'done', 'error',
 ])
 
 /**

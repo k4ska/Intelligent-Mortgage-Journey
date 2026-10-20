@@ -1,3 +1,4 @@
+
 /** User-facing copy lives here so an Estonian translation can be added later. */
 export const copy = {
   appName: 'Intelligent Mortgage Journey',
@@ -30,6 +31,21 @@ export const copy = {
   profileEmpty: 'Facts you share with the advisor will appear here automatically.',
   property: 'Property',
   propertyEmpty: 'A property you discuss with your advisor will appear here.',
+  viewListing: 'View listing',
+  propertyFields: {
+    type: 'Type',
+    price: 'Price',
+    location: 'Location',
+    size: 'Size',
+    rooms: 'Rooms',
+    yearBuilt: 'Year built',
+  },
+  propertyTypes: {
+    APARTMENT: 'Apartment',
+    HOUSE: 'House',
+    PLOT: 'Plot',
+    NEW_BUILD: 'New build',
+  },
   unknown: 'Not provided',
   uncertain: 'Needs confirmation',
   sourceChat: 'from chat',

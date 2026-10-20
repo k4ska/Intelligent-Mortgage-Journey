@@ -72,6 +72,10 @@ export const useAdvisorStore = defineStore('advisor', {
             case 'profile_updated':
               this.mergeProfile(event.data.fields)
               break
+            case 'property_updated':
+              // Each event contains the complete active property, not a patch.
+              this.profile.property = event.data.property
+              break
             case 'bank_picker':
               this.bankOptions = event.data.banks
               break
