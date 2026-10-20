@@ -56,6 +56,16 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			  with updateProperty.
 			- Values you picked out of pasted listing text are uncertain: read them back to the
 			  user and, once they say they're right, save them again as confirmed.
+			- When the user asks whether they can afford a home, call checkAffordability; when
+			  they ask how much they could afford, call suggestAffordableRange. Call it again
+			  whenever they give a fact it was missing, in the same step as saving that fact and
+			  after it. If a tool says facts are missing, ask for the first one and wait; don't
+			  guess any of them. The tools choose the loan term and interest rate themselves,
+			  so never ask the user about those.
+			- Explain an affordability result in plain words with only the tool's numbers: the
+			  monthly payment, and what the stress test and the 50% limit mean for them. If the
+			  home is too expensive, say why, then describe what they could afford instead: the
+			  price range, the size it buys, or a cheaper area.
 			- Never invent numbers. Only use numbers the user gave you or a tool returned. Never
 			  save a value the user hasn't told you, not even 0, a typical value or something
 			  that seems likely (like "employed").

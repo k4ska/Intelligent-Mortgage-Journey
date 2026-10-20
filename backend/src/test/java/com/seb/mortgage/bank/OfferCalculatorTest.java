@@ -76,6 +76,24 @@ class OfferCalculatorTest {
 	}
 
 	@Test
+	void countsTheLivingCostsTheUserEntered() {
+		OfferCalculator.Decision result = calculator.calculate(
+				snapshot("netIncome", "5000", "savings", "40000", "monthlyLivingCosts", "3600"), catalog.find("seb"));
+
+		assertThat(result.type()).isEqualTo(OfferCalculator.DecisionType.DECLINE);
+		assertThat(result.reason()).contains("affordability");
+	}
+
+	@Test
+	void countsCreditCardLimitsAsAMonthlyDebt() {
+		OfferCalculator.Decision result = calculator.calculate(
+				snapshot("netIncome", "5000", "savings", "40000", "creditCardLimits", "45000"), catalog.find("seb"));
+
+		assertThat(result.type()).isEqualTo(OfferCalculator.DecisionType.DECLINE);
+		assertThat(result.reason()).contains("affordability");
+	}
+
+	@Test
 	void declinesWhenTheRequestedLoanExceedsTheBankLtv() {
 		BankCatalogService.Bank strictLtvBank = new BankCatalogService.Bank("test", "Test Bank",
 				"neutral", "Received.", 1.65, 1.35, 70, 10,

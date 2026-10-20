@@ -1,6 +1,9 @@
 package com.seb.mortgage.advisor;
 
 import com.seb.mortgage.bank.BankCatalogService;
+import com.seb.mortgage.mockdata.AffordabilityCalculator;
+import com.seb.mortgage.profile.LoanProfile;
+import com.seb.mortgage.profile.LoanProfileAssembler;
 import com.seb.mortgage.profile.ProfileField;
 import com.seb.mortgage.profile.ProfileFieldView;
 import com.seb.mortgage.profile.ProfileKey;
@@ -12,6 +15,7 @@ import com.seb.mortgage.property.PropertyView;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -33,9 +37,12 @@ class AdvisorTools {
 			- employment: employment type, e.g. employed, self-employed, student, retired
 			- savings: savings available for the down payment, in euros
 			- monthlyDebtPayments: monthly payments on other loans and leases, in euros
+			- creditCardLimits: the total limit of all credit cards and overdrafts, used or not, in euros
 			- hasCoApplicant: yes or no, whether someone is buying together with the user
 			- coApplicantNetIncome: the co-applicant's monthly net income, in euros
 			- dependants: number of children or other dependants in the household
+			- monthlyLivingCosts: what the household spends a month on living (food, transport,
+			  utilities, ...), without loan payments, in euros
 			Euro amounts are plain numbers like 2350, with no currency or thousands separators.
 			For each fact, give in quote the user's own words that state it, copied exactly
 			(e.g. "I work at a bank" for employment=employed). Only save what the user actually
@@ -68,16 +75,18 @@ class AdvisorTools {
 	private final PropertyService property;
 	private final ListingReader listings;
 	private final BankCatalogService banks;
+	private final LoanProfileAssembler loans;
 	private final UserStatements stated;
 	private final Consumer<StreamEvent> emit;
 
 	AdvisorTools(UUID userId, ProfileService profile, PropertyService property, ListingReader listings,
-			BankCatalogService banks, UserStatements stated, Consumer<StreamEvent> emit) {
+			BankCatalogService banks, LoanProfileAssembler loans, UserStatements stated, Consumer<StreamEvent> emit) {
 		this.userId = userId;
 		this.profile = profile;
 		this.property = property;
 		this.listings = listings;
 		this.banks = banks;
+		this.loans = loans;
 		this.stated = stated;
 		this.emit = emit;
 	}
@@ -202,6 +211,182 @@ class AdvisorTools {
 		List<PropertyKey> missing = property.missing(userId);
 		return missing.isEmpty() ? "" : " Still missing: "
 				+ String.join(", ", missing.stream().map(PropertyKey::key).toList()) + ". Ask the user about it.";
+	}
+
+	@Tool(name = "checkAffordability", description = """
+			Check with our affordability rules whether the user can afford the home they have in
+			mind. Call it when they ask if they can afford it, or once you know the property and
+			their finances; when you save facts in the same step, call it after them. It picks
+			the loan term and rate itself. If it lists facts that are missing, ask the user for
+			them one at a time; never guess them. Explain the result in plain words using only
+			its numbers.""")
+	String checkAffordability() {
+		List<ProfileFieldView> values = property.active(userId).map(PropertyView::fields).orElse(List.of());
+		return switch (loans.check(profile.fields(userId), values, terms())) {
+			case LoanProfileAssembler.Missing missing -> cantTellYet(missing);
+			case LoanProfileAssembler.Checked checked -> describe(checked);
+		};
+	}
+
+	@Tool(name = "suggestAffordableRange", description = """
+			Work out the price range of homes the user could afford, with our affordability rules.
+			Call it when the home they have in mind is too expensive, or when they ask how much
+			they could afford. If it lists facts that are missing, ask the user for them one at a
+			time. Describe what they could afford (price range, size, or a cheaper area) using
+			only its numbers.""")
+	String suggestAffordableRange() {
+		return switch (loans.range(profile.fields(userId), terms())) {
+			case LoanProfileAssembler.Missing missing -> cantTellYet(missing);
+			case LoanProfileAssembler.PriceRange range -> describe(range);
+		};
+	}
+
+	/** The rate the checks assume: the variable rate plus the banks' middle margin, like their offers. */
+	private LoanProfileAssembler.Terms terms() {
+		return loans.terms(banks.typicalBaseMarginPct());
+	}
+
+	private static String cantTellYet(LoanProfileAssembler.Missing missing) {
+		StringBuilder note = new StringBuilder("Can't tell yet.");
+		if (!missing.missing().isEmpty()) {
+			note.append(" Still missing: ").append(String.join(", ", missing.missing())).append('.');
+		}
+		if (!missing.unconfirmed().isEmpty()) {
+			note.append(" Not confirmed by the user yet: ").append(String.join(", ", missing.unconfirmed()))
+					.append('.');
+		}
+		return note.append(" Ask the user about the first of these, one question at a time; don't guess any.")
+				.toString();
+	}
+
+	private static String describe(LoanProfileAssembler.Checked checked) {
+		LoanProfile profile = checked.profile();
+		LoanProfile.Financials money = profile.financials();
+		LoanProfile.Household household = profile.household();
+		double stressedRate = AffordabilityCalculator.stressedRate(checked.terms().ratePct());
+
+		StringBuilder note = new StringBuilder();
+		note.append("Affordable: ").append(checked.affordable() ? "yes" : "no").append(". ");
+		note.append("Price ").append(euros(profile.property().purchasePrice()))
+				.append(", down payment ").append(euros(money.downPayment()))
+				.append(", loan ").append(euros(profile.loanRequest().amount()))
+				.append(" (loan-to-value ").append(number(money.ltv())).append("%, at most ")
+				.append(number(AffordabilityCalculator.TYPICAL_MAX_LTV_PCT)).append("%). ");
+		note.append(rate(checked.terms(), profile.loanRequest().termYears()));
+		note.append("Monthly payment ").append(euros(money.estimatedMonthlyPayment()))
+				.append("; at the stress-test rate of ").append(number(stressedRate)).append("% it would be ")
+				.append(euros(money.stressedMonthlyPayment())).append(". ");
+		note.append("All loan payments incl. this one take ").append(number(money.dti()))
+				.append("% of net income, and ").append(number(money.stressedDti()))
+				.append("% at the stress-test rate (at most ").append(number(AffordabilityCalculator.MAX_DTI_PCT))
+				.append("%). ");
+		if (money.creditLimitMonthlyCost() > 0) {
+			note.append("Credit card limits count as ").append(euros(money.creditLimitMonthlyCost()))
+					.append(" a month of those payments. ");
+		}
+		note.append("Living costs counted: ").append(euros(money.monthlyLivingCosts())).append(" a month");
+		if (household.enteredMonthlyCosts() != null && household.enteredMonthlyCosts() < money.monthlyLivingCosts()) {
+			note.append(" (the user said ").append(euros(household.enteredMonthlyCosts()))
+					.append(", but banks count at least ").append(euros(household.minimumMonthlyCosts()))
+					.append(" for ").append(plural(household.adults(), "adult"))
+					.append(" and ").append(plural(household.dependants(), "dependant")).append(')');
+		}
+		note.append(". Left each month after debts, living costs and the stressed payment: ")
+				.append(euros(money.monthlyBufferAfterStress())).append(" (at least ")
+				.append(euros(AffordabilityCalculator.MIN_STRESS_BUFFER)).append(" needed). ");
+		note.append("Largest loan the rules allow: ").append(euros(checked.maxLoan().amount())).append('.');
+		if (!checked.affordable()) {
+			note.append(" Too expensive because: ").append(String.join("; ", profile.riskIndicators()))
+					.append(". Call suggestAffordableRange to tell the user what they could afford instead.");
+		}
+		return note.toString();
+	}
+
+	private String describe(LoanProfileAssembler.PriceRange range) {
+		StringBuilder note = new StringBuilder();
+		if (range.longest().amount() <= 0) {
+			note.append("The user can't borrow anything yet. What limits it: ")
+					.append(limitedBy(range.longest().limitedBy())).append(". ");
+		} else {
+			note.append("Putting in their savings of ").append(euros(range.savings()))
+					.append(", the user could afford a home priced up to ").append(euros(range.standardMaxPrice()))
+					.append(" with a ").append(LoanProfileAssembler.TERM_YEARS).append("-year loan");
+			if (range.longestMaxPrice() > range.standardMaxPrice()) {
+				note.append(", or up to ").append(euros(range.longestMaxPrice())).append(" with a ")
+						.append(LoanProfileAssembler.MAX_TERM_YEARS).append("-year loan (the longest allowed)");
+			}
+			note.append(". What limits it: ").append(limitedBy(range.longest().limitedBy())).append(". ");
+		}
+		note.append(rate(range.terms(), LoanProfileAssembler.TERM_YEARS));
+		if (range.longest().amount() > 0) {
+			property.active(userId).ifPresent(home -> note.append(compared(home, range)));
+		}
+		return note.toString().trim();
+	}
+
+	/** How the range compares with the user's property, and the size it buys at that listing's price per m². */
+	private static String compared(PropertyView home, LoanProfileAssembler.PriceRange range) {
+		Double price = confirmedNumber(home, PropertyKey.PRICE);
+		if (price == null) {
+			return "";
+		}
+		double gap = price - range.longestMaxPrice();
+		StringBuilder note = new StringBuilder("The home they have in mind costs ").append(euros(price)).append(", ")
+				.append(euros(Math.abs(gap))).append(gap > 0 ? " more" : " less").append(" than the top of that range. ");
+		Double size = confirmedNumber(home, PropertyKey.SIZE);
+		if (size != null && size > 0) {
+			double perSquareMetre = price / size;
+			note.append("At that listing's price of ").append(euros(perSquareMetre))
+					.append(" per m², the range buys about ").append(Math.round(range.standardMaxPrice() / perSquareMetre));
+			if (range.longestMaxPrice() > range.standardMaxPrice()) {
+				note.append(" to ").append(Math.round(range.longestMaxPrice() / perSquareMetre));
+			}
+			note.append(" m² in a similar area.");
+		}
+		return note.toString();
+	}
+
+	private static Double confirmedNumber(PropertyView home, PropertyKey key) {
+		return home.fields().stream()
+				.filter(f -> f.key().equals(key.key()) && f.status() == ProfileField.Status.CONFIRMED)
+				.findFirst()
+				.map(f -> {
+					try {
+						return Double.valueOf(f.value());
+					} catch (NumberFormatException e) {
+						return null;
+					}
+				})
+				.orElse(null);
+	}
+
+	private static String rate(LoanProfileAssembler.Terms terms, int termYears) {
+		return "Assumed: " + termYears + " years at " + number(terms.ratePct()) + "% a year (the variable rate of "
+				+ number(terms.variableRatePct()) + "% plus a typical bank margin of " + number(terms.marginPct())
+				+ "%). ";
+	}
+
+	private static String limitedBy(AffordabilityCalculator.LoanLimit limit) {
+		return switch (limit) {
+			case INCOME -> "income: all loan payments may take at most "
+					+ number(AffordabilityCalculator.MAX_DTI_PCT) + "% of net income at the stress-test rate";
+			case STRESS -> "what is left each month after debts and living costs at the stress-test rate";
+			case DOWN_PAYMENT -> "the down payment: savings must cover at least "
+					+ number(100 - AffordabilityCalculator.TYPICAL_MAX_LTV_PCT) + "% of the price";
+		};
+	}
+
+	private static String plural(int count, String noun) {
+		return count + " " + noun + (count == 1 ? "" : "s");
+	}
+
+	/** Whole euros, as a plain number like the saved values. */
+	private static String euros(double amount) {
+		return Long.toString(Math.round(amount));
+	}
+
+	private static String number(double value) {
+		return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
 	}
 
 	@Tool(name = "showBankPicker", description = """

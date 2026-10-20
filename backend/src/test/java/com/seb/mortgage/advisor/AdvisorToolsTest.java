@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import com.seb.mortgage.advisor.AdvisorTools.FieldUpdate;
 import com.seb.mortgage.bank.BankCatalogService;
+import com.seb.mortgage.profile.LoanProfileAssembler;
 import com.seb.mortgage.profile.ProfileField;
 import com.seb.mortgage.profile.ProfileFieldView;
 import com.seb.mortgage.profile.ProfileKey;
@@ -28,6 +29,7 @@ class AdvisorToolsTest {
 	@Autowired BankCatalogService banks;
 	@Autowired PropertyService property;
 	@Autowired ListingReader listings;
+	@Autowired LoanProfileAssembler loans;
 
 	private final UUID userId = UUID.randomUUID();
 	private final List<StreamEvent> events = new ArrayList<>();
@@ -35,7 +37,7 @@ class AdvisorToolsTest {
 	private String userSaid = "I earn 2350 a month, soon 2400, and we have 2 kids";
 
 	private AdvisorTools tools() {
-		return new AdvisorTools(userId, profile, property, listings, banks,
+		return new AdvisorTools(userId, profile, property, listings, banks, loans,
 				UserStatements.from(List.of(), userSaid), events::add);
 	}
 

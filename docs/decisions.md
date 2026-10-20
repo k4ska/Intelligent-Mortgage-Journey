@@ -3,6 +3,23 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-20 - Affordability tools (#65)
+
+- `checkAffordability` and `suggestAffordableRange` need every fact the calculator uses:
+  net income, savings, monthly debt payments, credit card limits, co-applicant (and their
+  income if yes), dependants and monthly living costs, plus the property price for the
+  check. A missing or uncertain value is reported and asked for, never assumed (rule 2):
+  no debts or limits until the user says "none". Living costs still count at least the
+  household minimum, as banks do.
+- The checks assume the variable rate plus the banks' middle base margin (4.35% + 1.75% =
+  6.10%) over 25 years, so the advisor and the bank offers judge a loan almost the same
+  way. The range also shows the 30-year maximum, the longest term Eesti Pank allows.
+- `creditCardLimits` and `monthlyLivingCosts` are new profile keys; `OfferCalculator` counts
+  them too, so the banks see the same costs as the advisor.
+- "What you could afford instead" gives the price range and, when the listing has a size,
+  the m² it buys at that listing's price per m². A cheaper area is described in words
+  only: we have no price data per area.
+
 ## 2026-10-19 - Prototype bank rules and offer terms
 
 - Bank terms are deterministic seed data, not real bank policy: SEB, Swedbank, LHV and

@@ -17,6 +17,7 @@ import com.seb.mortgage.agent.TokenBudgetExceededException;
 import com.seb.mortgage.conversation.ConversationService;
 import com.seb.mortgage.conversation.Message;
 import com.seb.mortgage.bank.BankCatalogService;
+import com.seb.mortgage.profile.LoanProfileAssembler;
 import com.seb.mortgage.profile.ProfileService;
 import com.seb.mortgage.property.ListingReader;
 import com.seb.mortgage.property.PropertyService;
@@ -47,17 +48,19 @@ public class AdvisorOrchestrator {
 	private final PropertyService property;
 	private final ListingReader listings;
 	private final BankCatalogService banks;
+	private final LoanProfileAssembler loans;
 	private final ObjectMapper objectMapper;
 
 	public AdvisorOrchestrator(ObjectProvider<AdvisorAgent> advisor, ConversationService conversations,
 			ProfileService profile, PropertyService property, ListingReader listings, BankCatalogService banks,
-			ObjectMapper objectMapper) {
+			LoanProfileAssembler loans, ObjectMapper objectMapper) {
 		this.advisor = advisor;
 		this.conversations = conversations;
 		this.profile = profile;
 		this.property = property;
 		this.listings = listings;
 		this.banks = banks;
+		this.loans = loans;
 		this.objectMapper = objectMapper;
 	}
 
@@ -70,7 +73,7 @@ public class AdvisorOrchestrator {
 		List<Message> visible = visible(earlier);
 		UserStatements stated = UserStatements.from(visible.stream()
 				.filter(m -> m.getRole() == Message.Role.USER).map(Message::getText).toList(), userText);
-		AdvisorTools tools = new AdvisorTools(userId, profile, property, listings, banks, stated,
+		AdvisorTools tools = new AdvisorTools(userId, profile, property, listings, banks, loans, stated,
 				event -> toolEvents.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(1))));
 
 		StringBuilder reply = new StringBuilder();

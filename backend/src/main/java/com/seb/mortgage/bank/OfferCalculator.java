@@ -111,10 +111,12 @@ public class OfferCalculator {
 				&& hasNumber(fields, "coApplicantNetIncome")) {
 			income += number(fields, "coApplicantNetIncome");
 		}
-		double debts = numberOrZero(fields, "monthlyDebtPayments");
+		double debts = numberOrZero(fields, "monthlyDebtPayments")
+				+ affordability.creditLimitMonthlyCost(numberOrZero(fields, "creditCardLimits"));
 		int dependants = (int) numberOrZero(fields, "dependants");
 		int adults = "yes".equalsIgnoreCase(fields.get("hasCoApplicant")) ? 2 : 1;
-		double livingCosts = affordability.livingCosts(null, adults, dependants);
+		Double enteredLivingCosts = hasNumber(fields, "monthlyLivingCosts") ? number(fields, "monthlyLivingCosts") : null;
+		double livingCosts = affordability.livingCosts(enteredLivingCosts, adults, dependants);
 		double neededLoan = Math.max(0, price - savings);
 		AffordabilityCalculator.MaxLoan maxLoan = affordability.maxLoan(income, debts, livingCosts,
 				null, rate, TERM_YEARS);

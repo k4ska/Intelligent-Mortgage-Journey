@@ -34,9 +34,11 @@ export type ProfileFieldKey =
   | 'employment'
   | 'savings'
   | 'monthlyDebtPayments'
+  | 'creditCardLimits'
   | 'hasCoApplicant'
   | 'coApplicantNetIncome'
   | 'dependants'
+  | 'monthlyLivingCosts'
 
 export interface ProfileField {
   key: ProfileFieldKey
