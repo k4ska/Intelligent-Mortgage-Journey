@@ -3,6 +3,22 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-20 - Up to three act rounds per advisor turn (#94)
+
+- A turn with tools may act up to 3 times before the reply: each later round sees the
+  earlier calls and what they returned (as tool messages, without the text written next to
+  them), so the advisor can save a fact and then check affordability with it in one turn.
+  The reply call is unchanged from #90: no tools, no tool messages, just a note of all tool
+  results, so the doubled replies and notes to itself can't come back.
+- Measured by replaying two conversations 5 times each against gpt-5-mini (same prompt):
+  one round reached a full affordability answer in 0 of 5 runs, three rounds in 5 of 5,
+  with 0 broken replies in 40 turns either way and no invented values. The cost is about
+  2.7 act calls per turn with tools: roughly twice the tokens per conversation (14k to 28k).
+- The prompt no longer forbids saving 0 when the user says they have none ("no other
+  loans"): that answer is a value the user gave, and the code already accepted it.
+- `showBankPicker` is only called when the user asks to apply; later rounds once called it
+  unasked.
+
 ## 2026-10-20 - Affordability tools (#65)
 
 - `checkAffordability` and `suggestAffordableRange` need every fact the calculator uses:
