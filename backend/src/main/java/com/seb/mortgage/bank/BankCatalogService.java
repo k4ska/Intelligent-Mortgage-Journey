@@ -49,6 +49,12 @@ public class BankCatalogService {
 		return BANKS;
 	}
 
+	/** The middle base margin of the banks: what a typical offer starts from, neither the cheapest nor the dearest. */
+	public double typicalBaseMarginPct() {
+		List<Double> margins = BANKS.stream().map(Bank::baseMarginPct).sorted().toList();
+		return margins.get(margins.size() / 2);
+	}
+
 	/** @throws UnknownBankException if no bank has this id */
 	public Bank find(String id) {
 		return BANKS.stream().filter(bank -> bank.id().equals(id)).findFirst()

@@ -9,7 +9,7 @@ const props = defineProps<{
   label: string
 }>()
 
-const moneyKeys = ['netIncome', 'savings', 'monthlyDebtPayments', 'coApplicantNetIncome', 'price']
+const moneyKeys = ['netIncome', 'savings', 'monthlyDebtPayments', 'coApplicantNetIncome', 'creditCardLimits', 'monthlyLivingCosts', 'price']
 const sourceLabels = { CHAT: copy.sourceChat, LISTING: copy.sourceListing, DOCUMENT: copy.sourceDocument }
 
 function displayValue(field: ProfileField | PropertyField): string {

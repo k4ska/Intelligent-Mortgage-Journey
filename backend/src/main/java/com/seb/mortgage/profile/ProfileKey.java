@@ -17,9 +17,11 @@ public enum ProfileKey {
 	EMPLOYMENT("employment", Type.TEXT),
 	SAVINGS("savings", Type.AMOUNT),
 	MONTHLY_DEBT_PAYMENTS("monthlyDebtPayments", Type.AMOUNT),
+	CREDIT_CARD_LIMITS("creditCardLimits", Type.AMOUNT),
 	HAS_CO_APPLICANT("hasCoApplicant", Type.YES_NO),
 	CO_APPLICANT_NET_INCOME("coApplicantNetIncome", Type.AMOUNT),
-	DEPENDANTS("dependants", Type.COUNT);
+	DEPENDANTS("dependants", Type.COUNT),
+	MONTHLY_LIVING_COSTS("monthlyLivingCosts", Type.AMOUNT);
 
 	public enum Type { AMOUNT, COUNT, YES_NO, TEXT }
 
