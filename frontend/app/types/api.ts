@@ -80,6 +80,8 @@ export type StreamEvent =
   | { type: 'profile_updated', data: { fields: ProfileField[] } }
   | { type: 'property_updated', data: { property: Property } }
   | { type: 'bank_picker', data: { banks: BankOption[] } }
+  // The verifier replaced the reply that just streamed with a safe version (#67).
+  | { type: 'corrected', data: { messageId: number, text: string } }
   | { type: 'done', data: { messageId: number } }
   | { type: 'error', data: { message: string } }
 

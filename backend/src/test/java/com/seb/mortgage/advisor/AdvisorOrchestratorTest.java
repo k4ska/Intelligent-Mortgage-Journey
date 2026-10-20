@@ -3,12 +3,15 @@ package com.seb.mortgage.advisor;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -81,13 +84,26 @@ class AdvisorOrchestratorTest {
 		 * calls updateProfile with values the user never gave. For {@link #SAVES_THEN_CHECKS}
 		 * it saves the income, then checks affordability in the next round (#94); for
 		 * {@link #NEVER_STOPS} it calls a tool every round. Reply ({@code stream}): the reply
-		 * written after the tools ran. It remembers the prompt of each call.
+		 * written after the tools ran. For {@link #MAKES_UP} it answers without tools with a
+		 * payment nobody gave.
+		 * It also plays the verifier (#67), answering with {@link #verdict}. It remembers the
+		 * prompt of each call.
 		 */
 		static class FakeChatModel implements ChatModel {
 			static final String INVENTS = "only a house";
 			static final String INVENTED_TEXT = "Thanks, I've saved your savings as €0.";
 			static final String SAVES_THEN_CHECKS = "I earn 2350 a month, can I afford it?";
 			static final String NEVER_STOPS = "check it again and again";
+			static final String MAKES_UP = "What would I pay a month?";
+			static final String MADE_UP_REPLY = "You would pay about €1,234 a month.";
+			static final String APPROVE = "{\"approved\":true,\"rewrite\":null}";
+			static final String SAFE_REPLY = "I can't give a monthly payment yet. What is your net income?";
+			static final String REJECT = "{\"approved\":false,\"rewrite\":\"" + SAFE_REPLY + "\"}";
+			/** Makes the verifier's call fail. */
+			static final String BROKEN = "broken";
+
+			volatile String verdict = APPROVE;
+			final AtomicInteger verifierCalls = new AtomicInteger();
 
 			/** Every act call of the last turn, in order. */
 			final List<Prompt> actPrompts = new CopyOnWriteArrayList<>();
@@ -103,6 +119,14 @@ class AdvisorOrchestratorTest {
 			@Override
 			public ChatResponse call(Prompt prompt) {
 				List<org.springframework.ai.chat.messages.Message> messages = prompt.getInstructions();
+				if (messages.stream().anyMatch(m -> m instanceof SystemMessage
+						&& m.getText().contains("quality-and-safety checker"))) {
+					verifierCalls.incrementAndGet();
+					if (verdict.equals(BROKEN)) {
+						throw new IllegalStateException("verifier down");
+					}
+					return new ChatResponse(List.of(new Generation(new AssistantMessage(verdict))));
+				}
 				int lastUser = 0;
 				for (int i = 0; i < messages.size(); i++) {
 					if (messages.get(i) instanceof UserMessage) {
@@ -131,6 +155,9 @@ class AdvisorOrchestratorTest {
 				if (user.equals(SAVES_THEN_CHECKS) && round == 2) {
 					return toolCall("Now checking.", "checkAffordability", "{}");
 				}
+				if (user.equals(MAKES_UP)) {
+					return new ChatResponse(List.of(new Generation(new AssistantMessage(MADE_UP_REPLY))));
+				}
 				if (user.equals(NEVER_STOPS)) {
 					return toolCall("Again.", "checkAffordability", "{}");
 				}
@@ -157,6 +184,12 @@ class AdvisorOrchestratorTest {
 		@Autowired FakeChatModel model;
 		@Autowired ProfileService profile;
 
+		@BeforeEach
+		void approveByDefault() {
+			model.verdict = FakeChatModel.APPROVE;
+			model.verifierCalls.set(0);
+		}
+
 		@Test
 		void aTurnWithoutToolsIsOneCall() {
 			UUID userId = UUID.randomUUID();
@@ -165,6 +198,58 @@ class AdvisorOrchestratorTest {
 
 			assertThat(events).extracting(StreamEvent::type).containsExactly("text", "done");
 			assertThat(conversations.history(userId)).last().extracting(Message::getText).isEqualTo("Hello there");
+			// No figures and no money tools: the verifier isn't asked (#67).
+			assertThat(model.verifierCalls).hasValue(0);
+		}
+
+		/** #67: a figure from nowhere sends the reply to the verifier, whose safe version replaces it. */
+		@Test
+		void aMadeUpNumberIsCorrected() {
+			UUID userId = UUID.randomUUID();
+			model.verdict = FakeChatModel.REJECT;
+
+			List<StreamEvent> events = orchestrator.send(userId, FakeChatModel.MAKES_UP).collectList().block();
+
+			assertThat(model.verifierCalls).hasValue(1);
+			Message saved = conversations.history(userId).getLast();
+			assertThat(saved.getText()).isEqualTo(FakeChatModel.SAFE_REPLY);
+			assertThat(events).extracting(StreamEvent::type).containsExactly("text", "corrected", "done");
+			assertThat(events.get(1)).isEqualTo(StreamEvent.corrected(saved.getId(), FakeChatModel.SAFE_REPLY));
+			assertThat(events.get(2)).isEqualTo(StreamEvent.done(saved.getId()));
+		}
+
+		@Test
+		void anApprovedReplyStands() {
+			UUID userId = UUID.randomUUID();
+
+			List<StreamEvent> events = orchestrator.send(userId, FakeChatModel.MAKES_UP).collectList().block();
+
+			assertThat(model.verifierCalls).hasValue(1);
+			assertThat(events).extracting(StreamEvent::type).containsExactly("text", "done");
+			assertThat(conversations.history(userId).getLast().getText()).isEqualTo(FakeChatModel.MADE_UP_REPLY);
+		}
+
+		@Test
+		void aBrokenVerifierDoesNotBreakTheTurn() {
+			UUID userId = UUID.randomUUID();
+			model.verdict = FakeChatModel.BROKEN;
+
+			List<StreamEvent> events = orchestrator.send(userId, FakeChatModel.MAKES_UP).collectList().block();
+
+			assertThat(model.verifierCalls).hasPositiveValue();
+			assertThat(events).extracting(StreamEvent::type).containsExactly("text", "done");
+			assertThat(conversations.history(userId).getLast().getText()).isEqualTo(FakeChatModel.MADE_UP_REPLY);
+		}
+
+		/** A turn that checked affordability is verified even when its reply has no figures. */
+		@Test
+		void aMoneyTurnIsAlwaysVerified() {
+			UUID userId = UUID.randomUUID();
+
+			List<StreamEvent> events = orchestrator.send(userId, FakeChatModel.SAVES_THEN_CHECKS).collectList().block();
+
+			assertThat(model.verifierCalls).hasValue(1);
+			assertThat(events).extracting(StreamEvent::type).doesNotContain("corrected").endsWith("done");
 		}
 
 		/** #88: act, then a separate reply call that sees what the tools did but no tools. */

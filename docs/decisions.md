@@ -3,6 +3,21 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-20 - Number check and verifier on flagged turns (#67)
+
+- After each reply, `NumberCheck` finds every € amount and % (`€2,350`, `2 350 €`,
+  `210k`, `3.5%`) and looks for it, within 1%, in the turn's tool results, the profile and
+  property, the user's messages and the advisor's earlier replies. Earlier replies count
+  because they already passed this check, so the advisor can repeat itself.
+- The turn goes to the verifier when a figure comes from nowhere or when it called
+  `checkAffordability` or `suggestAffordableRange`. The verifier gets the reply, the
+  figures that failed, and the profile, property, tool results and user messages as facts.
+  If it rejects the reply, its safe version replaces the saved message and a `corrected`
+  event is sent before `done`. Other turns end without the extra call.
+- It fails open, like the verifier already did: an error in the check or the verifier
+  keeps the reply that was shown.
+- The frontend replaces the reply's text on `corrected`; marking it as corrected is #69.
+
 ## 2026-10-20 - Up to three act rounds per advisor turn (#94)
 
 - A turn with tools may act up to 3 times before the reply: each later round sees the

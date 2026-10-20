@@ -1,9 +1,11 @@
 package com.seb.mortgage.advisor;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -14,6 +16,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import com.seb.mortgage.agent.TokenBudgetExceededException;
+import com.seb.mortgage.agent.VerifierAgent;
 import com.seb.mortgage.conversation.ConversationService;
 import com.seb.mortgage.conversation.Message;
 import com.seb.mortgage.bank.BankCatalogService;
@@ -25,6 +28,7 @@ import com.seb.mortgage.property.PropertyService;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
+import reactor.core.scheduler.Schedulers;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -40,9 +44,13 @@ public class AdvisorOrchestrator {
 	/** How much of the conversation the advisor sees each turn, to keep prompts bounded. */
 	private static final int HISTORY_LIMIT = 40;
 
+	/** Tools whose turns talk about money, so the verifier always checks them (#67). */
+	static final Set<String> MONEY_TOOLS = Set.of("checkAffordability", "suggestAffordableRange");
+
 	private static final Logger log = LoggerFactory.getLogger(AdvisorOrchestrator.class);
 
 	private final ObjectProvider<AdvisorAgent> advisor;
+	private final ObjectProvider<VerifierAgent> verifier;
 	private final ConversationService conversations;
 	private final ProfileService profile;
 	private final PropertyService property;
@@ -51,10 +59,12 @@ public class AdvisorOrchestrator {
 	private final LoanProfileAssembler loans;
 	private final ObjectMapper objectMapper;
 
-	public AdvisorOrchestrator(ObjectProvider<AdvisorAgent> advisor, ConversationService conversations,
+	public AdvisorOrchestrator(ObjectProvider<AdvisorAgent> advisor, ObjectProvider<VerifierAgent> verifier,
+			ConversationService conversations,
 			ProfileService profile, PropertyService property, ListingReader listings, BankCatalogService banks,
 			LoanProfileAssembler loans, ObjectMapper objectMapper) {
 		this.advisor = advisor;
+		this.verifier = verifier;
 		this.conversations = conversations;
 		this.profile = profile;
 		this.property = property;
@@ -83,12 +93,81 @@ public class AdvisorOrchestrator {
 				.doFinally(signal -> toolEvents.tryEmitComplete());
 
 		return Flux.merge(text, toolEvents.asFlux())
-				.concatWith(Mono.fromCallable(() -> StreamEvent.done(
-						conversations.append(userId, Message.Role.ADVISOR, reply.toString()).getId())))
+				// The verifier is a blocking call, so the end of the turn runs off the stream's thread.
+				.concatWith(Flux.defer(() -> finish(userId, reply.toString(), userText, visible, tools))
+						.subscribeOn(Schedulers.boundedElastic()))
 				.onErrorResume(e -> {
 					log.warn("Advisor turn failed", e);
 					return Flux.just(StreamEvent.error("Something went wrong. Please try again."));
 				});
+	}
+
+	/**
+	 * Saves the reply and, on a flagged turn, has the verifier check it (#67). A turn is
+	 * flagged when the number check finds a figure that comes from nowhere, or when it
+	 * talked about money. A rejected reply is replaced by the verifier's safe version.
+	 */
+	private Flux<StreamEvent> finish(UUID userId, String reply, String userText, List<Message> earlier,
+			AdvisorTools tools) {
+		Long messageId = conversations.append(userId, Message.Role.ADVISOR, reply).getId();
+		VerifierAgent checker = verifier.getIfAvailable();
+		if (checker == null || reply.isBlank() || reply.equals(OFFLINE_REPLY)) {
+			return Flux.just(StreamEvent.done(messageId));
+		}
+		try {
+			NumberCheck.Result numbers = NumberCheck.check(reply, sources(userId, userText, earlier, tools));
+			List<String> money = tools.used().stream().map(AdvisorTools.ToolUse::name)
+					.filter(MONEY_TOOLS::contains).distinct().toList();
+			if (numbers.passed() && money.isEmpty()) {
+				return Flux.just(StreamEvent.done(messageId));
+			}
+			VerifierAgent.Verdict verdict = checker.verify(task(userText, numbers), reply,
+					factsJson(userId, userText, earlier, tools));
+			log.info("Advisor turn flagged (figures from nowhere: {}, money tools: {}): verifier {}",
+					numbers.unsupported(), money, verdict.approved()
+							? "approved" + (verdict.note() == null ? "" : " (" + verdict.note() + ")")
+							: "replaced the reply");
+			if (verdict.approved()) {
+				return Flux.just(StreamEvent.done(messageId));
+			}
+			conversations.correct(messageId, verdict.output());
+			return Flux.just(StreamEvent.corrected(messageId, verdict.output()), StreamEvent.done(messageId));
+		} catch (RuntimeException e) {
+			// Like the verifier itself, the check fails open: the reply has already been shown.
+			log.warn("Checking the advisor's reply failed; it stands", e);
+			return Flux.just(StreamEvent.done(messageId));
+		}
+	}
+
+	/** Everything the advisor may take figures from this turn (see {@link NumberCheck}). */
+	private List<String> sources(UUID userId, String userText, List<Message> earlier, AdvisorTools tools) {
+		List<String> sources = new ArrayList<>();
+		tools.used().forEach(use -> sources.add(use.result()));
+		sources.add(profileJson(userId));
+		// The user's own words, and earlier replies, which already passed this check.
+		earlier.forEach(message -> sources.add(message.getText()));
+		sources.add(userText);
+		return sources;
+	}
+
+	private static String task(String userText, NumberCheck.Result numbers) {
+		String task = "A mortgage advisor's chat reply to a home buyer, answering their message: \"" + userText
+				+ "\". Figures may only come from the tool results, the profile, the property and the user's "
+				+ "own messages in the facts.";
+		return numbers.passed() ? task : task + " These figures in the draft appear in none of them: "
+				+ String.join(", ", numbers.unsupported()) + ".";
+	}
+
+	private String factsJson(UUID userId, String userText, List<Message> earlier, AdvisorTools tools) {
+		Map<String, Object> facts = new LinkedHashMap<>();
+		facts.put("profile", profile.fields(userId));
+		facts.put("property", property.active(userId).orElse(null));
+		facts.put("toolResults", tools.used().stream().map(use -> use.name() + ": " + use.result()).toList());
+		List<String> said = new ArrayList<>(earlier.stream()
+				.filter(m -> m.getRole() == Message.Role.USER).map(Message::getText).toList());
+		said.add(userText);
+		facts.put("userMessages", said);
+		return objectMapper.writeValueAsString(facts);
 	}
 
 	private Flux<String> replyText(UUID userId, List<Message> earlier, String userText, AdvisorTools tools) {
