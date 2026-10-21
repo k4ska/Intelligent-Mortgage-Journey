@@ -94,6 +94,10 @@ export interface DocumentView {
   label: string
   status: DocumentStatus
   whereToGet: string
+  /** Why the bank needs it, in one sentence. */
+  why: string
+  /** Honest tips for making it count in the months before applying. */
+  tips: string
   fileName: string | null
   /** What the document reader read from it, by profile key. */
   values: Partial<Record<ProfileFieldKey, string>>
@@ -111,7 +115,7 @@ export type StreamEvent =
   | { type: 'profile_updated', data: { fields: ProfileField[] } }
   | { type: 'property_updated', data: { property: Property } }
   | { type: 'bank_picker', data: { banks: BankOption[] } }
-  | { type: 'document_status', data: { type: DocumentType, label: string, status: DocumentStatus, whereToGet: string, fileName: string | null } }
+  | { type: 'document_status', data: { type: DocumentType, label: string, status: DocumentStatus, whereToGet: string, why: string, tips: string, fileName: string | null } }
   // The verifier replaced the reply that just streamed with a safe version (#67).
   | { type: 'corrected', data: { messageId: number, text: string } }
   | { type: 'done', data: { messageId: number } }
