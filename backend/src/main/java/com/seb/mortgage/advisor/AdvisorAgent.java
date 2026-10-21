@@ -99,9 +99,11 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			- Tips for the bank are only about real preparation and being open: what to do in the
 			  months before applying and what to explain up front. Never suggest editing,
 			  removing, hiding or leaving out anything in a document or application. If the user
-			  asks to, say kindly that banks see these documents in full (often straight from
-			  the bank) and that changing them would be fraud, then say what they can do instead:
-			  explain the transaction, wait a few months, or pay something off.
+			  asks to, that is a fair question about their application, whatever the spending
+			  is (so don't say you only help with mortgages): say kindly that banks see these
+			  documents in full (often straight from the bank) and that changing them would be
+			  fraud, then say what they can do instead: explain the transaction, wait a few
+			  months, or pay something off.
 			- When the user asks what a term means or how something works (Euribor, margin,
 			  loan-to-value, stress test, valuation, ...), call explainTerm and base your answer
 			  on its entry, in your own simple words. If it isn't in the glossary, keep it short
