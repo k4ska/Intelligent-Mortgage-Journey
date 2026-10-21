@@ -108,9 +108,9 @@ public class Phases {
 			StringBuilder note = new StringBuilder("Where the conversation is now: ").append(phase.label())
 					.append(". Focus: ").append(phase.focus());
 			if (!readiness.ready() && phase != Phase.AT_THE_BANKS) {
-				note.append(" The user can't go to the banks yet. If they ask to, don't offer it; tell them "
-						+ "kindly what is still needed and carry on. Still needed: ").append(readiness.describe())
-						.append('.');
+				note.append(" The user can't go to the banks yet. Only if their latest message asks to, say it's "
+						+ "a little early, name only the next one or two things from this list, and carry on "
+						+ "with the first. Still needed: ").append(readiness.describe()).append('.');
 			}
 			return note.toString();
 		}

@@ -76,9 +76,10 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			- Each turn you get a note on where the conversation is and what to focus on. Follow
 			  it, but always answer what the user asks. You only get the tools that fit that
 			  stage; never say you did something you have no tool for.
-			- When the user asks to apply or go to the banks: if you have showBankPicker, call it
-			  (never on your own). If you don't, they aren't ready yet: tell them kindly what is
-			  still needed, as the note says, and carry on with that.
+			- Applying to the banks is part of what you help with. When the user asks to apply or
+			  go to the banks: if you have showBankPicker, call it (never on your own). If you
+			  don't, they aren't ready yet: say it's a little early, name the next thing or two
+			  that is still needed (from the note, not the whole list), and carry on with that.
 			- Once the user knows whether they can afford the home, or when they ask what a bank
 			  needs, call requestDocument once with all the documents a bank will need from them
 			  (co-applicant ones only with a co-applicant; the valuation and purchase agreement
@@ -136,15 +137,20 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 						return act.text() == null || act.text().isEmpty() ? Flux.<String>empty() : Flux.just(act.text());
 					}
 					log.info("Advisor turn: tools {} in {} act calls, then a reply call", act.toolNames(), act.calls());
-					return replyAfterTools(earlier, current, profileJson.get(), tools.phase(), act.toolResults());
+					// The reply keeps the focus the turn started with: a phase the tools just reached
+					// may ask for tools the reply step doesn't have (asking for documents, #73).
+					Phases.Current now = tools.phase();
+					return replyAfterTools(earlier, current, profileJson.get(),
+							new Phases.Current(act.startPhase(), now.readiness()), act.toolResults());
 				});
 	}
 
 	/**
 	 * What the act step came to: the model's text (only when it called no tools), or the
-	 * tools it called and what they said, over {@code calls} model calls.
+	 * tools it called and what they said, over {@code calls} model calls, and the phase the
+	 * turn started in.
 	 */
-	record Act(String text, List<String> toolNames, List<String> toolResults, int calls) {}
+	record Act(String text, List<String> toolNames, List<String> toolResults, int calls, Phase startPhase) {}
 
 	private Act act(List<Message> earlier, Message current, Supplier<String> profileJson, AdvisorTools tools) {
 		Map<String, ToolCallback> callbacks = new LinkedHashMap<>();
@@ -155,9 +161,13 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 		List<String> results = new ArrayList<>();
 		// The earlier rounds' calls and what they returned, for the next round to build on.
 		List<Message> rounds = new ArrayList<>();
+		Phase startPhase = null;
 		for (int round = 1; round <= MAX_ACT_ROUNDS; round++) {
 			// The phase is read again each round: a tool in the last one may have moved it on (#73).
 			Phases.Current phase = tools.phase();
+			if (startPhase == null) {
+				startPhase = phase.phase();
+			}
 			Map<String, ToolCallback> offered = new LinkedHashMap<>(callbacks);
 			offered.keySet().retainAll(phase.phase().tools());
 			log.info("Advisor act round {} in phase {}", round, phase.phase());
@@ -176,7 +186,7 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			if (output == null || !output.hasToolCalls()) {
 				// Without tools the first answer is the reply; after tools, the reply call writes it.
 				String text = round == 1 && output != null ? output.getText() : null;
-				return new Act(text, names, results, round);
+				return new Act(text, names, results, round, startPhase);
 			}
 			List<ToolResponseMessage.ToolResponse> responses = new ArrayList<>();
 			for (AssistantMessage.ToolCall call : output.getToolCalls()) {
@@ -192,7 +202,7 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			rounds.add(AssistantMessage.builder().content("").toolCalls(output.getToolCalls()).build());
 			rounds.add(ToolResponseMessage.builder().responses(responses).build());
 		}
-		return new Act(null, names, results, MAX_ACT_ROUNDS);
+		return new Act(null, names, results, MAX_ACT_ROUNDS, startPhase);
 	}
 
 	private static String run(ToolCallback callback, AssistantMessage.ToolCall call) {

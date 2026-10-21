@@ -19,6 +19,10 @@ re-litigated.
 - Every act and reply call gets a note: the phase, its focus, and, before **ready**, what
   is still needed for the banks. So asking for the banks too early gets a kind "not yet"
   with what is missing, without the bank picker even being offered.
+- The reply call keeps the focus of the phase the turn **started** in (with fresh
+  readiness). In a live run, the reply right after an affordability result was told to
+  "ask for documents", had no tools to do it, and wrote a made-up list with
+  "(requestDocument)" in it. Now that turn explains the result, and the next one asks.
 - Tools per phase (cumulative):
 
   | Phase | Tools added |
