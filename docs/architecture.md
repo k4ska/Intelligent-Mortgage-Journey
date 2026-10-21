@@ -89,7 +89,7 @@ and next to an email thread in the inbox. Both write to the **same conversation*
 | `requestDocument(types)` | Marks the documents the user needs as needed (all in one call), with where to get each in real life | `document_status` |
 | `confirmDocument(type, quote)` | The user said the values read from a document are right (quoting their latest message): those fields and the document become `CONFIRMED` | `profile_updated`, `document_status` |
 | `explainTerm(topic)` | Looks up the `Explanations` glossary (the old `ExplainAgent`'s job) | — |
-| `checkReadiness()` | Plain-code check: are all required fields and documents confirmed? Returns what's missing | — |
+| `checkReadiness()` | Plain-code check: are all required fields, the property and the required documents (ID, payslip, bank statement, proof of down payment; the co-applicant's ID and payslip with one) confirmed? Returns what's missing | — |
 | `showBankPicker()` | Only allowed when `checkReadiness()` passes | `bank_picker` |
 | `draftReply(threadId, body)` | Inbox only: puts a draft in the reply box; the user edits and sends | `draft_reply` |
 
@@ -178,9 +178,14 @@ message).
 | Getting to know you | Key facts missing (income, savings, buying alone or not, other loans) | Ask simple questions, one at a time | `updateProfile`, `lookupListing`, `updateProperty`, `explainTerm` |
 | Property | Key facts known, no property yet | Ask what they have in mind, or suggest a range | `checkAffordability`, `suggestAffordableRange`, `showChart` |
 | Affordability | A property is set, affordability not yet discussed | Explain the result in plain language | (same) |
-| Documents | Affordability discussed | Ask for documents, explain where to get them | `requestDocument`, `checkReadiness` |
+| Documents | Affordability discussed (`checkAffordability` or `suggestAffordableRange` gave a result), or a document was asked for | Ask for documents, explain where to get them | `requestDocument`, `confirmDocument`, `checkReadiness` |
 | Ready | `checkReadiness` passes | Tell the user they're ready, offer to go to the bank | `showBankPicker` |
 | At the banks | The application is sent | Help with the inbox: explain, compare, negotiate | `draftReply` (inbox only) |
+
+The phase is read again before every act round, so one turn can still move through
+several phases, and a note with the phase, its focus and what is still needed for the banks
+goes with every call. The details (what counts as "discussed", which documents are
+required) are in `docs/decisions.md`, 2026-10-21.
 
 ### Layer 2: the number check (plain code, after every turn)
 
@@ -321,7 +326,9 @@ GET  /api/documents                   -> checklist: [{ id, type, label, status, 
                                          only with a co-applicant
 POST /api/documents/{type}  (file)    -> document (multipart field "file", any file);
                                          the frontend then sends the
-                                         DOCUMENT_UPLOADED trigger to the chat
+                                         DOCUMENT_UPLOADED trigger to the chat.
+                                         409 until the advisor asked for it
+                                         (status NOT_NEEDED_YET)
 ```
 
 ### Banks and inbox

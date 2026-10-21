@@ -36,6 +36,7 @@ class PropertyToolsTest {
 	@Autowired BankCatalogService banks;
 	@Autowired LoanProfileAssembler loans;
 	@Autowired DocumentService documents;
+	@Autowired Phases phases;
 
 	private final UUID userId = UUID.randomUUID();
 	private final List<StreamEvent> events = new ArrayList<>();
@@ -43,7 +44,7 @@ class PropertyToolsTest {
 	private String userSaid = "It's 189000, they'd take 182000. Or the other one for 320 000";
 
 	private AdvisorTools tools(ListingReader listings) {
-		return new AdvisorTools(userId, profile, property, listings, banks, loans, documents,
+		return new AdvisorTools(userId, profile, property, listings, banks, loans, documents, phases,
 				UserStatements.from(List.of(), userSaid), events::add);
 	}
 

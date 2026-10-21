@@ -83,6 +83,7 @@ class AdvisorTools {
 	private final BankCatalogService banks;
 	private final LoanProfileAssembler loans;
 	private final DocumentService documents;
+	private final Phases phases;
 	private final UserStatements stated;
 	private final Consumer<StreamEvent> emit;
 	/** Every tool call this turn and what it returned, for the number check (#67). */
@@ -91,8 +92,8 @@ class AdvisorTools {
 	record ToolUse(String name, String result) {}
 
 	AdvisorTools(UUID userId, ProfileService profile, PropertyService property, ListingReader listings,
-			BankCatalogService banks, LoanProfileAssembler loans, DocumentService documents, UserStatements stated,
-			Consumer<StreamEvent> emit) {
+			BankCatalogService banks, LoanProfileAssembler loans, DocumentService documents, Phases phases,
+			UserStatements stated, Consumer<StreamEvent> emit) {
 		this.userId = userId;
 		this.profile = profile;
 		this.property = property;
@@ -100,6 +101,7 @@ class AdvisorTools {
 		this.banks = banks;
 		this.loans = loans;
 		this.documents = documents;
+		this.phases = phases;
 		this.stated = stated;
 		this.emit = emit;
 	}
@@ -111,6 +113,11 @@ class AdvisorTools {
 
 	List<ToolUse> used() {
 		return List.copyOf(used);
+	}
+
+	/** Where the conversation is right now; read again before each act round, since tools change it. */
+	Phases.Current phase() {
+		return phases.current(userId);
 	}
 
 	@Tool(name = "updateProfile", description = UPDATE_PROFILE_DESCRIPTION)
@@ -251,7 +258,10 @@ class AdvisorTools {
 		List<ProfileFieldView> values = property.active(userId).map(PropertyView::fields).orElse(List.of());
 		return switch (loans.check(profile.fields(userId), values, terms())) {
 			case LoanProfileAssembler.Missing missing -> cantTellYet(missing);
-			case LoanProfileAssembler.Checked checked -> describe(checked);
+			case LoanProfileAssembler.Checked checked -> {
+				phases.affordabilityDiscussed(userId);
+				yield describe(checked);
+			}
 		};
 	}
 
@@ -264,7 +274,10 @@ class AdvisorTools {
 	String suggestAffordableRange() {
 		return switch (loans.range(profile.fields(userId), terms())) {
 			case LoanProfileAssembler.Missing missing -> cantTellYet(missing);
-			case LoanProfileAssembler.PriceRange range -> describe(range);
+			case LoanProfileAssembler.PriceRange range -> {
+				phases.affordabilityDiscussed(userId);
+				yield describe(range);
+			}
 		};
 	}
 
@@ -499,15 +512,28 @@ class AdvisorTools {
 		}
 	}
 
+	@Tool(name = "checkReadiness", description = """
+			Check whether everything a bank needs is in place: the profile facts, the property
+			and the required documents, all confirmed by the user. Returns what is still missing.
+			Call it when the user asks what is left to do before going to the banks.""")
+	String checkReadiness() {
+		Phases.Readiness readiness = phases.readiness(userId);
+		return readiness.ready()
+				? "Ready: everything a bank needs is confirmed. Offer to send the application to the banks."
+				: "Not ready yet. Still needed: " + readiness.describe() + ". Tell the user what is left, the most "
+						+ "important first.";
+	}
+
 	@Tool(name = "showBankPicker", description = """
 			Show the user a card where they pick the banks to send their application to. Call it
 			only when the user has asked to apply or go to the banks, never on your own. If the
 			user isn't ready yet, this tells you what is still missing; ask the user for it instead.""")
 	String showBankPicker() {
-		// Skeleton readiness rule (#50): the real checkReadiness comes later.
-		if (!profile.has(userId, ProfileKey.NET_INCOME)) {
-			return "Not ready yet: the user's monthly net income is still missing. Ask for it first. "
-					+ "The bank picker was not shown.";
+		// Only the advisor in the ready phase has this tool, but it checks again (#73).
+		Phases.Readiness readiness = phases.readiness(userId);
+		if (!readiness.ready()) {
+			return "Not ready yet, so the bank picker was not shown. Still needed: " + readiness.describe()
+					+ ". Tell the user what is left.";
 		}
 		emit.accept(StreamEvent.bankPicker(banks.banks().stream()
 				.map(bank -> new StreamEvent.BankOption(bank.id(), bank.name()))

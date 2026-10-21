@@ -18,7 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -73,14 +73,21 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			  straight away, quoting those words.
 			- Never promise that a bank will approve a loan, and never recommend one specific
 			  bank over another.
-			- Only when the user asks to apply or go to the banks, call showBankPicker. Never
-			  call it on your own. If it says the user isn't ready, ask for what is missing.
+			- Each turn you get a note on where the conversation is and what to focus on. Follow
+			  it, but always answer what the user asks. You only get the tools that fit that
+			  stage; never say you did something you have no tool for.
+			- Applying to the banks is part of what you help with. When the user asks to apply or
+			  go to the banks: if you have showBankPicker, call it (never on your own). If you
+			  don't, they aren't ready yet: say it's a little early, name the next thing or two
+			  that is still needed (from the note, not the whole list), and carry on with that.
 			- Once the user knows whether they can afford the home, or when they ask what a bank
 			  needs, call requestDocument once with all the documents a bank will need from them
 			  (co-applicant ones only with a co-applicant; the valuation and purchase agreement
 			  once they have picked a home). Then name exactly those documents and where to get
 			  each, as it says; never add other documents or details. If they don't have them
-			  yet, that's fine: they can upload them later and the conversation carries on.
+			  yet, that's fine: they can upload them later and the conversation carries on. If
+			  you don't have requestDocument yet, say you'll go through the documents once you
+			  know what they can afford.
 			- After the user uploads a document you get a note with the values read from it.
 			  Tell the user what you read and ask whether it's right. When they say yes, call
 			  confirmDocument with their words; when they correct a value, save the right value
@@ -130,18 +137,23 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 						return act.text() == null || act.text().isEmpty() ? Flux.<String>empty() : Flux.just(act.text());
 					}
 					log.info("Advisor turn: tools {} in {} act calls, then a reply call", act.toolNames(), act.calls());
-					return replyAfterTools(earlier, current, profileJson.get(), act.toolResults());
+					// The reply keeps the focus the turn started with: a phase the tools just reached
+					// may ask for tools the reply step doesn't have (asking for documents, #73).
+					Phases.Current now = tools.phase();
+					return replyAfterTools(earlier, current, profileJson.get(),
+							new Phases.Current(act.startPhase(), now.readiness()), act.toolResults());
 				});
 	}
 
 	/**
 	 * What the act step came to: the model's text (only when it called no tools), or the
-	 * tools it called and what they said, over {@code calls} model calls.
+	 * tools it called and what they said, over {@code calls} model calls, and the phase the
+	 * turn started in.
 	 */
-	record Act(String text, List<String> toolNames, List<String> toolResults, int calls) {}
+	record Act(String text, List<String> toolNames, List<String> toolResults, int calls, Phase startPhase) {}
 
 	private Act act(List<Message> earlier, Message current, Supplier<String> profileJson, AdvisorTools tools) {
-		Map<String, ToolCallback> callbacks = new HashMap<>();
+		Map<String, ToolCallback> callbacks = new LinkedHashMap<>();
 		for (ToolCallback callback : ToolCallbacks.from(tools)) {
 			callbacks.put(callback.getToolDefinition().name(), callback);
 		}
@@ -149,14 +161,23 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 		List<String> results = new ArrayList<>();
 		// The earlier rounds' calls and what they returned, for the next round to build on.
 		List<Message> rounds = new ArrayList<>();
+		Phase startPhase = null;
 		for (int round = 1; round <= MAX_ACT_ROUNDS; round++) {
-			List<Message> messages = withProfile(profileJson.get(), earlier);
+			// The phase is read again each round: a tool in the last one may have moved it on (#73).
+			Phases.Current phase = tools.phase();
+			if (startPhase == null) {
+				startPhase = phase.phase();
+			}
+			Map<String, ToolCallback> offered = new LinkedHashMap<>(callbacks);
+			offered.keySet().retainAll(phase.phase().tools());
+			log.info("Advisor act round {} in phase {}", round, phase.phase());
+			List<Message> messages = context(profileJson.get(), phase, earlier);
 			messages.add(current);
 			messages.addAll(rounds);
 			// Our code runs the tools below, so ChatClient's own tool loop is switched off.
 			ChatResponse response = chatClient.prompt()
 					.messages(messages)
-					.tools(tools)
+					.tools(offered.values().toArray())
 					.advisors(AdvisorParams.toolCallingAdvisorAutoRegister(false))
 					.call()
 					.chatResponse();
@@ -165,11 +186,13 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			if (output == null || !output.hasToolCalls()) {
 				// Without tools the first answer is the reply; after tools, the reply call writes it.
 				String text = round == 1 && output != null ? output.getText() : null;
-				return new Act(text, names, results, round);
+				return new Act(text, names, results, round, startPhase);
 			}
 			List<ToolResponseMessage.ToolResponse> responses = new ArrayList<>();
 			for (AssistantMessage.ToolCall call : output.getToolCalls()) {
-				String result = run(callbacks.get(call.name()), call);
+				String result = callbacks.containsKey(call.name()) && !offered.containsKey(call.name())
+						? call.name() + " isn't available yet, at this stage (" + phase.phase().label() + "); nothing was done"
+						: run(callbacks.get(call.name()), call);
 				names.add(call.name());
 				results.add(call.name() + ": " + result);
 				tools.record(call.name(), result);
@@ -179,7 +202,7 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			rounds.add(AssistantMessage.builder().content("").toolCalls(output.getToolCalls()).build());
 			rounds.add(ToolResponseMessage.builder().responses(responses).build());
 		}
-		return new Act(null, names, results, MAX_ACT_ROUNDS);
+		return new Act(null, names, results, MAX_ACT_ROUNDS, startPhase);
 	}
 
 	private static String run(ToolCallback callback, AssistantMessage.ToolCall call) {
@@ -204,8 +227,8 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 	}
 
 	private Flux<String> replyAfterTools(List<Message> earlier, Message current, String profileJson,
-			List<String> toolResults) {
-		List<Message> messages = withProfile(profileJson, earlier);
+			Phases.Current phase, List<String> toolResults) {
+		List<Message> messages = context(profileJson, phase, earlier);
 		messages.add(current);
 		messages.add(new SystemMessage("""
 				You just used your tools for the user's last message. What they did:
@@ -219,9 +242,10 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 				.content();
 	}
 
-	private static List<Message> withProfile(String profileJson, List<Message> earlier) {
+	private static List<Message> context(String profileJson, Phases.Current phase, List<Message> earlier) {
 		List<Message> messages = new ArrayList<>();
 		messages.add(new SystemMessage("What the user's profile and property say so far (JSON): " + profileJson));
+		messages.add(new SystemMessage(phase.note()));
 		messages.addAll(earlier);
 		return messages;
 	}

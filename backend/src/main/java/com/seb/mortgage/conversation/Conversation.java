@@ -25,6 +25,9 @@ public class Conversation {
 	@Column(nullable = false, updatable = false)
 	private Instant createdAt;
 
+	/** When the advisor first gave the user an affordability result; it moves the conversation on (#73). */
+	private Instant affordabilityDiscussedAt;
+
 	protected Conversation() {
 	}
 
@@ -43,5 +46,16 @@ public class Conversation {
 
 	public Instant getCreatedAt() {
 		return createdAt;
+	}
+
+	public Instant getAffordabilityDiscussedAt() {
+		return affordabilityDiscussedAt;
+	}
+
+	/** Only the first time counts. */
+	public void affordabilityDiscussed() {
+		if (affordabilityDiscussedAt == null) {
+			affordabilityDiscussedAt = Instant.now();
+		}
 	}
 }

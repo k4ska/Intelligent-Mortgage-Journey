@@ -38,6 +38,7 @@ class DocumentControllerTest {
 	@Autowired MockMvc mvc;
 	@Autowired ObjectMapper mapper;
 	@Autowired ProfileService profile;
+	@Autowired DocumentService documents;
 
 	private record LoggedIn(UUID userId, MockHttpSession session) {}
 
@@ -67,6 +68,7 @@ class DocumentControllerTest {
 	@Test
 	void anyFileUploadsAndOnlyItsNameIsKept() throws Exception {
 		LoggedIn user = login();
+		documents.request(user.userId(), DocumentType.PAYSLIP);
 
 		mvc.perform(multipart("/api/documents/PAYSLIP").file(file("C:\\fakepath\\payslip march.pdf"))
 						.session(user.session()))
@@ -92,10 +94,23 @@ class DocumentControllerTest {
 				.andExpect(status().isBadRequest());
 	}
 
+	/** #73: the advisor asks for a document before it can be uploaded. */
+	@Test
+	void aDocumentNobodyAskedForCantBeUploaded() throws Exception {
+		LoggedIn user = login();
+
+		mvc.perform(multipart("/api/documents/PAYSLIP").file(file("a.pdf")).session(user.session()))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.error").value("Your advisor hasn't asked for this document yet"));
+		mvc.perform(get("/api/documents").session(user.session()))
+				.andExpect(jsonPath("$[1].status").value("NOT_NEEDED_YET"));
+	}
+
 	/** The upload trigger through the chat endpoint. This test runs without an API key, so nothing is read. */
 	@Test
 	void theUploadTriggerStreamsTheTurnAndRejectsBadRequests() throws Exception {
 		LoggedIn user = login();
+		documents.request(user.userId(), DocumentType.PAYSLIP);
 		String id = mapper.readTree(mvc.perform(multipart("/api/documents/PAYSLIP").file(file("payslip.pdf"))
 				.session(user.session())).andReturn().getResponse().getContentAsString()).path("id").asString();
 
