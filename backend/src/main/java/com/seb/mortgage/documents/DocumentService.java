@@ -165,8 +165,9 @@ public class DocumentService {
 	}
 
 	private DocumentView view(Document document) {
-		return new DocumentView(document.getId(), document.getType(), document.getType().label(),
-				document.getStatus(), document.getType().whereToGet(), document.getFileName(), values(document));
+		DocumentType type = document.getType();
+		return new DocumentView(document.getId(), type, type.label(), document.getStatus(), type.whereToGet(),
+				type.why(), type.tips(), document.getFileName(), values(document));
 	}
 
 	private Map<String, String> values(Document document) {

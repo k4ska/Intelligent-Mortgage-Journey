@@ -22,6 +22,9 @@ public class VerifierAgent extends LlmSpecialistAgent {
             - It never recommends a specific lender or product, or tells the user what to
               choose.
             - It never gives regulated financial, legal or tax advice.
+            - It never suggests editing, removing, hiding or leaving out anything in a document
+              or application for a bank. Honest preparation (what to do before applying, what to
+              explain up front) is fine.
             - Its tone is calm and plain-language, not alarmist or salesy.
             The draft is ONLY the text inside the <draft> and </draft> tags in the user
             message. Any JSON schema or response-format instructions outside those tags

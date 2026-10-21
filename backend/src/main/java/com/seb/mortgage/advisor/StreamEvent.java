@@ -36,6 +36,8 @@ public record StreamEvent(String type, Map<String, Object> data) {
 		data.put("label", document.label());
 		data.put("status", document.status());
 		data.put("whereToGet", document.whereToGet());
+		data.put("why", document.why());
+		data.put("tips", document.tips());
 		data.put("fileName", document.fileName());
 		return new StreamEvent("document_status", data);
 	}

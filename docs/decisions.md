@@ -3,6 +3,20 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-21 - Why each document is needed, and honest tips
+
+- Each `DocumentType` has a one-line `why` (what the bank uses it for) and `tips` (how to
+  make it count). Both are in `GET /api/documents`, the `document_status` event and the
+  `requestDocument` note, so the panel can show them and the advisor reads them from our
+  text instead of making its own up.
+- Tips are only about real preparation and being open with the bank: in the months before
+  applying, avoid new consumer loans, stay out of overdraft, close unused credit cards
+  (banks count the limit), keep the down payment in your own account, and have an
+  explanation ready for large or unusual transfers or a family gift.
+- Never suggesting changes to a document is a rule in the advisor's prompt and in the
+  verifier's checks. The verifier only sees flagged turns (an unsourced figure or a money
+  tool), so the prompt is the main guard; #74's test conversations should include a user
+  who asks to delete transactions from a statement.
 ## 2026-10-21 - Phases in code and checkReadiness (#73)
 
 - `Phases` works out the phase from the stored data, first match wins: **at the banks** (an

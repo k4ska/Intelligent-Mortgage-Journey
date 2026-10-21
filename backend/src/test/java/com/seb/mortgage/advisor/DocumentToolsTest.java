@@ -49,13 +49,16 @@ class DocumentToolsTest {
 
 		String note = tools(userId, List.of(), "").requestDocument(List.of("payslip"));
 
-		assertThat(note).isEqualTo("PAYSLIP (" + DocumentType.PAYSLIP.label() + ") is needed; where to get it: "
-				+ DocumentType.PAYSLIP.whereToGet());
+		assertThat(note).isEqualTo("PAYSLIP (" + DocumentType.PAYSLIP.label() + ") is needed. Why: "
+				+ DocumentType.PAYSLIP.why() + " Where to get it: " + DocumentType.PAYSLIP.whereToGet() + " Tip: "
+				+ DocumentType.PAYSLIP.tips());
 		assertThat(events).singleElement().satisfies(event -> {
 			assertThat(event.type()).isEqualTo("document_status");
 			assertThat(event.data()).containsEntry("type", DocumentType.PAYSLIP)
 					.containsEntry("status", Document.Status.NEEDED)
-					.containsEntry("whereToGet", DocumentType.PAYSLIP.whereToGet());
+					.containsEntry("whereToGet", DocumentType.PAYSLIP.whereToGet())
+					.containsEntry("why", DocumentType.PAYSLIP.why())
+					.containsEntry("tips", DocumentType.PAYSLIP.tips());
 		});
 		assertThat(documents.checklist(userId)).filteredOn(d -> d.type() == DocumentType.PAYSLIP)
 				.extracting(DocumentView::status).containsExactly(Document.Status.NEEDED);
