@@ -221,8 +221,8 @@ outcome. For example:
 
 They live under `backend/src/test/.../advisor/scenarios/` and run with a separate Gradle
 task (`./gradlew advisorEval`), not in the normal `./gradlew test`, because they need an
-API key and cost tokens. We run them after prompt or tool changes and keep the results,
-so we can show how often the advisor gets things right.
+API key and cost tokens. We run them after prompt or tool changes and keep the results
+in `docs/advisor-eval.md`, so we can show how often the advisor gets things right.
 
 ## 4. The data
 
