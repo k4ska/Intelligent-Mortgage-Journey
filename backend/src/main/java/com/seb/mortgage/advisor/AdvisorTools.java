@@ -452,8 +452,8 @@ class AdvisorTools {
 			DOWN_PAYMENT_PROOF, VALUATION (valuation report, ordered after picking the property),
 			PURCHASE_AGREEMENT, and only when the user buys with a co-applicant: CO_APPLICANT_ID
 			and CO_APPLICANT_PAYSLIP. Ask for all the ones the user needs in one call. Then tell
-			the user about exactly these documents, with where to get each one as it returns;
-			don't add others or change the details.""")
+			the user about exactly these documents, with why each is needed and where to get it
+			as it returns; don't add others or change the details.""")
 	String requestDocument(@ToolParam(description = "The document types, e.g. [\"ID\", \"PAYSLIP\"]") List<String> types) {
 		List<String> notes = new ArrayList<>();
 		for (String type : types == null ? List.<String>of() : types) {
@@ -477,8 +477,8 @@ class AdvisorTools {
 			case CONFIRMED -> documentType + " (" + document.label() + ") is already uploaded and confirmed.";
 			default -> {
 				emit.accept(StreamEvent.documentStatus(document));
-				yield documentType + " (" + document.label() + ") is needed; where to get it: "
-						+ document.whereToGet();
+				yield documentType + " (" + document.label() + ") is needed. Why: " + document.why()
+						+ " Where to get it: " + document.whereToGet() + " Tip: " + document.tips();
 			}
 		};
 	}
