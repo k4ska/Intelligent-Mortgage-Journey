@@ -3,6 +3,23 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-21 - Advisor test conversations (#74)
+
+- Scenarios live in `backend/src/test/java/com/seb/mortgage/advisor/scenarios/`, tagged
+  `eval`. `./gradlew test` skips them; `./gradlew advisorEval` runs them against the real
+  model (needs `OPENAI_API_KEY`), with `-Pruns=N` to repeat each one. It prints a pass rate
+  per scenario and writes it to `backend/build/advisor-eval.md`; a failure prints the whole
+  conversation.
+- They run in-process: the orchestrator's `send` and `documentUploaded` are the same calls
+  the chat endpoint makes, and an upload goes through `DocumentService` like the upload
+  endpoint. To skip the first turns, a scenario can set the property and mark affordability
+  as discussed.
+- What a turn did is read from what we already have: the events, the profile and document
+  rows, and the advisor's own "tools [...]" log line. A `corrected` event counts as the
+  advisor getting something wrong (an invented number, a promise).
+- A failing scenario doesn't fail the build: the pass rate is the result. Results to
+  compare against are in `docs/advisor-eval.md`; add a row there after a prompt change.
+
 ## 2026-10-21 - Why each document is needed, and honest tips
 
 - Each `DocumentType` has a one-line `why` (what the bank uses it for) and `tips` (how to

@@ -49,5 +49,57 @@ dependencies {
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+	useJUnitPlatform {
+		excludeTags 'eval'
+	}
+}
+
+// The advisor's test conversations (#74): scripted chats against the real model, each with
+// checks on the outcome. They need OPENAI_API_KEY and cost tokens, so `test` skips them.
+// Run each scenario several times with -Pruns=3; the pass rates go to build/advisor-eval.md.
+tasks.register('advisorEval', Test) {
+	description = 'Runs the advisor test conversations against the real model.'
+	group = 'verification'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform {
+		includeTags 'eval'
+	}
+	systemProperty 'eval.runs', providers.gradleProperty('runs').getOrElse('1')
+	outputs.upToDateWhen { false }
+	// A scenario that fails sometimes is a result to report, not a broken build.
+	ignoreFailures = true
+	testLogging {
+		events 'passed', 'failed'
+		exceptionFormat 'full'
+		showStandardStreams = false
+	}
+	doFirst {
+		if (!System.getenv('OPENAI_API_KEY')) {
+			throw new GradleException('advisorEval needs OPENAI_API_KEY in the environment')
+		}
+	}
+	def results = new TreeMap<String, int[]>()
+	afterTest { descriptor, result ->
+		// Dynamic tests are named "<scenario> run <n>"; count passes per scenario.
+		def scenario = descriptor.displayName.replaceAll(/ run \d+$/, '')
+		def counts = results.computeIfAbsent(scenario) { new int[2] }
+		counts[1]++
+		if (result.resultType == TestResult.ResultType.SUCCESS) {
+			counts[0]++
+		}
+	}
+	afterSuite { descriptor, result ->
+		if (descriptor.parent == null) {
+			def lines = ['| Scenario | Passed |', '| --- | --- |']
+			results.each { name, counts -> lines << "| ${name} | ${counts[0]}/${counts[1]} |" }
+			int passed = results.values().sum { it[0] } ?: 0
+			int total = results.values().sum { it[1] } ?: 0
+			lines << "| **All** | **${passed}/${total}** |"
+			def report = layout.buildDirectory.file('advisor-eval.md').get().asFile
+			report.text = lines.join('\n') + '\n'
+			println "\nAdvisor eval, ${providers.gradleProperty('runs').getOrElse('1')} run(s) per scenario:\n" +
+					lines.join('\n') + "\n(written to ${report})"
+		}
+	}
 }
