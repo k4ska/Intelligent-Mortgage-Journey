@@ -1,4 +1,3 @@
-
 /** User-facing copy lives here so an Estonian translation can be added later. */
 export const copy = {
   appName: 'Intelligent Mortgage Journey',
@@ -27,6 +26,8 @@ export const copy = {
   documents: 'Documents',
   documentsPlaceholder: 'Your requested documents and uploads will appear here in a later step.',
   chatTitle: 'Your mortgage advisor',
+  correctedLabel: 'Corrected',
+  correctedTooltip: "The advisor's first answer had a mistake and was corrected.",
   chatHint: 'Describe your situation or ask a question to get started.',
   chatPlaceholder: 'Type a message…',
   send: 'Send',
@@ -36,7 +37,7 @@ export const copy = {
   profile: 'Profile',
   profileEmpty: 'Facts you share with the advisor will appear here automatically.',
   property: 'Property',
-  propertyEmpty: 'A property you discuss with your advisor will appear here.',
+  propertyEmpty: 'A property you discuss with the advisor will appear here.',
   viewListing: 'View listing',
   propertyFields: {
     type: 'Type',
