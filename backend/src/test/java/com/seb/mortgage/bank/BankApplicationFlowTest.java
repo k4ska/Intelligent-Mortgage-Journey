@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.seb.mortgage.profile.ProfileField;
 import com.seb.mortgage.profile.ProfileKey;
 import com.seb.mortgage.profile.ProfileService;
+import com.seb.mortgage.property.PropertyKey;
+import com.seb.mortgage.property.PropertyService;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -34,6 +37,7 @@ class BankApplicationFlowTest {
 	@Autowired MockMvc mvc;
 	@Autowired ObjectMapper mapper;
 	@Autowired ProfileService profile;
+	@Autowired PropertyService property;
 	@Autowired ApplicationRepository applications;
 
 	private record LoggedIn(UUID userId, MockHttpSession session) {}
@@ -106,6 +110,20 @@ class BankApplicationFlowTest {
 		Application application = applications.findById(applicationId).orElseThrow();
 		assertThat(application.getSnapshotJson()).contains("2350").doesNotContain("9999");
 		assertThat(application.getBankIdsJson()).isEqualTo("[\"seb\"]");
+	}
+
+	@Test
+	void thePropertyIsFrozenWhenTheApplicationIsSent() throws Exception {
+		LoggedIn user = login();
+		property.updateFromChat(user.userId(), Map.of(PropertyKey.PRICE, "185000"),
+				ProfileField.Status.CONFIRMED, false);
+		UUID applicationId = UUID.fromString(apply(user, "[\"seb\"]").path("applicationId").asString());
+
+		property.updateFromChat(user.userId(), Map.of(PropertyKey.PRICE, "310000"),
+				ProfileField.Status.CONFIRMED, false);
+
+		Application application = applications.findById(applicationId).orElseThrow();
+		assertThat(application.getSnapshotJson()).contains("185000").doesNotContain("310000");
 	}
 
 	@Test

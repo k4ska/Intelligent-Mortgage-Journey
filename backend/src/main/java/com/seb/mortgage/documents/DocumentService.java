@@ -25,7 +25,7 @@ import tools.jackson.databind.ObjectMapper;
  * values read from it is uncertain any more, because the user said "yes" or corrected them.
  */
 @Service
-public class DocumentService {
+public class DocumentService implements DocumentSnapshotProvider {
 
 	private static final int MAX_FILE_NAME = 255;
 
@@ -51,6 +51,15 @@ public class DocumentService {
 		return Arrays.stream(DocumentType.values())
 				.filter(type -> !type.coApplicantOnly() || coApplicant || stored.containsKey(type))
 				.map(type -> stored.containsKey(type) ? view(stored.get(type)) : DocumentView.notNeededYet(type))
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<DocumentView> snapshot(UUID userId) {
+		return checklist(userId).stream()
+				.filter(document -> document.status() == Document.Status.UPLOADED
+						|| document.status() == Document.Status.CONFIRMED)
 				.toList();
 	}
 

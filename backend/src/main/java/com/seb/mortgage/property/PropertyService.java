@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
-public class PropertyService {
+public class PropertyService implements PropertySnapshotProvider {
 
 	private final PropertyRepository properties;
 
@@ -23,6 +23,12 @@ public class PropertyService {
 	@Transactional(readOnly = true)
 	public Optional<PropertyView> active(UUID userId) {
 		return properties.findByUserId(userId).map(Property::view);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public Optional<PropertyView> snapshot(UUID userId) {
+		return active(userId);
 	}
 
 	/** Replaces the user's property with what a listing says. The values must already be normalized. */
