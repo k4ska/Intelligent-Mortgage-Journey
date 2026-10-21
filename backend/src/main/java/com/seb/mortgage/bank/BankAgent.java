@@ -2,9 +2,6 @@ package com.seb.mortgage.bank;
 
 import org.springframework.stereotype.Component;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 
 /**
  * One bank's side of an email thread, configured by the bank it's called with. It sees only
@@ -19,10 +16,10 @@ public class BankAgent {
 
 	private static final String SUBJECT = "Your mortgage application is received";
 
-	private final ObjectMapper mapper;
+	private final ApplicationSnapshots snapshots;
 
-	public BankAgent(ObjectMapper mapper) {
-		this.mapper = mapper;
+	public BankAgent(ApplicationSnapshots snapshots) {
+		this.snapshots = snapshots;
 	}
 
 	public Draft initialReply(BankCatalogService.Bank bank, String snapshotJson) {
@@ -33,17 +30,12 @@ public class BankAgent {
 				bank.greeting() + " Before we can assess it, please send us " + need + ".");
 	}
 
-	/** Whether the snapshot (a list of profile fields) has a non-blank value for this key. */
+	/** Whether the snapshot's profile fields have a non-blank value for this key. */
 	private boolean hasValue(String snapshotJson, String key) {
 		try {
-			for (JsonNode field : mapper.readTree(snapshotJson)) {
-				JsonNode value = field.path("value");
-				if (key.equals(field.path("key").asString()) && value.isString() && !value.asString().isBlank()) {
-					return true;
-				}
-			}
-			return false;
-		} catch (JacksonException e) {
+			return snapshots.read(snapshotJson).fields().stream()
+					.anyMatch(field -> key.equals(field.key()) && field.value() != null && !field.value().isBlank());
+		} catch (IllegalArgumentException e) {
 			return false;
 		}
 	}

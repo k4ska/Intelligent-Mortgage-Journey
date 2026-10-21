@@ -3,6 +3,19 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-21 - The application snapshot has the property and documents (#86)
+
+- `Application.snapshotJson` is `{ fields, property, documents }`, the same shape as
+  `OfferCalculator.Snapshot`. `property` is `null` when the user has none; `documents` are
+  `{ type, status }`, only `UPLOADED` and `CONFIRMED` ones. A document that was only asked
+  for (`NEEDED`) isn't something the user sent, and a needed valuation would otherwise make
+  the bank ask for it instead of making it an offer condition.
+- `bank.ApplicationSnapshots` freezes and reads it. It reads the property and documents
+  through `PropertySnapshotProvider` and `DocumentSnapshotProvider`, like the profile, so
+  the bank package still imports nothing from the advisor side.
+- Applications sent before this stored only the list of profile fields. They still read,
+  as fields with no property and no documents; no migration.
+
 ## 2026-10-21 - Advisor test conversations (#74)
 
 - Scenarios live in `backend/src/test/java/com/seb/mortgage/advisor/scenarios/`, tagged

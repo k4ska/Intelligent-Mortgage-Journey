@@ -266,7 +266,10 @@ Seed data (the same for everyone, loaded at startup):
   easy for every field. The `LoanProfile` used by the calculator is **built** from these
   rows.
 - **The application is a frozen snapshot**: the bank sees exactly what was sent, even
-  if the conversation changes things afterwards.
+  if the conversation changes things afterwards. It is stored as
+  `{ fields, property, documents }`: the profile fields, the property (`null` if there is
+  none) and the uploaded or confirmed documents as `{ type, status }`. Older rows that are
+  just the list of fields still read.
 
 ## 5. API contracts
 

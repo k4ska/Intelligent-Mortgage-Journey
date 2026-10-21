@@ -9,16 +9,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.seb.mortgage.auth.CurrentUser;
-import com.seb.mortgage.profile.ProfileFieldView;
-import com.seb.mortgage.profile.ProfileSnapshotProvider;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Sends the user's application to the chosen banks: freezes the profile as it is now, opens
- * one email thread per bank and lets each bank agent write its first email. Later profile
- * changes don't touch an application that was already sent.
+ * Sends the user's application to the chosen banks: freezes the profile, property and
+ * uploaded documents as they are now ({@link ApplicationSnapshots}), opens one email thread
+ * per bank and lets each bank agent write its first email. Later changes don't touch an
+ * application that was already sent.
  */
 @Service
 public class ApplicationService {
@@ -28,18 +27,18 @@ public class ApplicationService {
 	public record ApplicationResult(UUID applicationId, List<ThreadResult> threads) {}
 
 	private final CurrentUser currentUser;
-	private final ProfileSnapshotProvider profiles;
+	private final ApplicationSnapshots snapshots;
 	private final ApplicationRepository applications;
 	private final BankCatalogService banks;
 	private final EmailGateway emailGateway;
 	private final BankAgent agent;
 	private final ObjectMapper mapper;
 
-	public ApplicationService(CurrentUser currentUser, ProfileSnapshotProvider profiles,
+	public ApplicationService(CurrentUser currentUser, ApplicationSnapshots snapshots,
 			ApplicationRepository applications, BankCatalogService banks, EmailGateway emailGateway,
 			BankAgent agent, ObjectMapper mapper) {
 		this.currentUser = currentUser;
-		this.profiles = profiles;
+		this.snapshots = snapshots;
 		this.applications = applications;
 		this.banks = banks;
 		this.emailGateway = emailGateway;
@@ -55,8 +54,7 @@ public class ApplicationService {
 		}
 		List<BankCatalogService.Bank> selected = new LinkedHashSet<>(bankIds).stream().map(banks::find).toList();
 		UUID userId = currentUser.id();
-		List<ProfileFieldView> snapshot = profiles.snapshot(userId);
-		Application application = applications.save(new Application(userId, toJson(snapshot),
+		Application application = applications.save(new Application(userId, snapshots.freeze(userId),
 				toJson(selected.stream().map(BankCatalogService.Bank::id).toList())));
 
 		List<ThreadResult> results = new ArrayList<>();
