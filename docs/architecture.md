@@ -302,7 +302,7 @@ profile_updated   { fields: [{ key, value, source, status }] }
 property_updated  { property: { listingUrl, fields: [{ key, value, source, status }] } }
                     keys: type (APARTMENT | HOUSE | PLOT | NEW_BUILD), price, location,
                     size (m²), rooms, yearBuilt
-document_status   { type, label, status, whereToGet, fileName }
+document_status   { type, label, status, whereToGet, why, tips, fileName }
 chart             { chartType, title, data }
 bank_picker       { banks: [{ id, name }] }                 card under the chat
 draft_reply       { threadId, body }                        fills the inbox reply box
@@ -317,7 +317,7 @@ error             { message }
 ```
 GET  /api/profile                     -> fields + active property (null if none yet)
 GET  /api/documents                   -> checklist: [{ id, type, label, status, whereToGet,
-                                         fileName, values }], co-applicant documents
+                                         why, tips, fileName, values }], co-applicant documents
                                          only with a co-applicant
 POST /api/documents/{type}  (file)    -> document (multipart field "file", any file);
                                          the frontend then sends the

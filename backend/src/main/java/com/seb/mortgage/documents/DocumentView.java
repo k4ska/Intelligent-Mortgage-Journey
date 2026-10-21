@@ -10,10 +10,10 @@ import java.util.UUID;
  * @param values what the document reader read from it, by profile key; empty until read
  */
 public record DocumentView(UUID id, DocumentType type, String label, Document.Status status, String whereToGet,
-		String fileName, Map<String, String> values) {
+		String why, String tips, String fileName, Map<String, String> values) {
 
 	static DocumentView notNeededYet(DocumentType type) {
-		return new DocumentView(null, type, type.label(), Document.Status.NOT_NEEDED_YET, type.whereToGet(), null,
-				Map.of());
+		return new DocumentView(null, type, type.label(), Document.Status.NOT_NEEDED_YET, type.whereToGet(),
+				type.why(), type.tips(), null, Map.of());
 	}
 }

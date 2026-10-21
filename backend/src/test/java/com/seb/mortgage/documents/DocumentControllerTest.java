@@ -50,7 +50,9 @@ class DocumentControllerTest {
 				.andExpect(jsonPath("$[*].status", everyItem(is("NOT_NEEDED_YET"))))
 				.andExpect(jsonPath("$[1].type").value("PAYSLIP"))
 				.andExpect(jsonPath("$[1].whereToGet")
-						.value("Your employer, or the Tax and Customs Board (EMTA) e-services."));
+						.value("Your employer, or the Tax and Customs Board (EMTA) e-services."))
+				.andExpect(jsonPath("$[1].why").value(DocumentType.PAYSLIP.why()))
+				.andExpect(jsonPath("$[1].tips").value(DocumentType.PAYSLIP.tips()));
 	}
 
 	@Test
