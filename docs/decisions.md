@@ -3,6 +3,46 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-21 - Phases in code and checkReadiness (#73)
+
+- `Phases` works out the phase from the stored data, first match wins: **at the banks** (an
+  application exists), **ready** (`checkReadiness` passes), **documents** (affordability
+  was discussed, or a document was already asked for), **getting to know you** (income,
+  savings, co-applicant or other loans missing), **property** (no property yet),
+  **affordability** (otherwise).
+- "Affordability discussed" is a timestamp on the conversation, set the first time
+  `checkAffordability` or `suggestAffordableRange` returns a real result (not "can't tell
+  yet"). Start over deletes it with the conversation.
+- The phase is read again before every act round, so one turn can still save the last key
+  fact, then check affordability, then ask for documents (#94). A tool the model calls
+  outside its phase isn't run; it gets "isn't available yet, at this stage".
+- Every act and reply call gets a note: the phase, its focus, and, before **ready**, what
+  is still needed for the banks. So asking for the banks too early gets a kind "not yet"
+  with what is missing, without the bank picker even being offered.
+- Tools per phase (cumulative):
+
+  | Phase | Tools added |
+  | --- | --- |
+  | Getting to know you | `updateProfile`, `lookupListing`, `updateProperty`, `explainTerm` |
+  | Property | `checkAffordability`, `suggestAffordableRange` |
+  | Affordability | (same) |
+  | Documents | `requestDocument`, `confirmDocument`, `checkReadiness` |
+  | Ready | `showBankPicker` |
+  | At the banks | (same; `draftReply` comes with the inbox) |
+
+- `checkReadiness` needs: every fact the affordability check uses, confirmed; a property
+  with type, price and location, confirmed; and **ID, payslip, bank statement and proof of
+  down payment** confirmed, plus the co-applicant's ID and payslip with a co-applicant. A
+  value read from a document counts only once the user confirmed it. The **valuation and
+  purchase agreement are not required**: banks make their offer on condition of them, so
+  the advisor may ask for them once a home is picked, but they don't hold up the
+  application.
+- `showBankPicker` checks readiness itself too, replacing the skeleton's "income is known"
+  rule (#50).
+- Only a document the advisor asked for can be uploaded (409 otherwise). An early upload
+  couldn't be confirmed, since `confirmDocument` belongs to the documents phase, and it
+  would let the user skip the affordability conversation.
+
 ## 2026-10-20 - Documents and the document reader (#72)
 
 - A `Document` row per user and type (`NEEDED | UPLOADED | CONFIRMED`) keeps only the file

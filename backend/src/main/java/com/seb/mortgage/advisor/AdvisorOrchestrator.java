@@ -66,12 +66,14 @@ public class AdvisorOrchestrator {
 	private final LoanProfileAssembler loans;
 	private final DocumentService documents;
 	private final DocumentReader reader;
+	private final Phases phases;
 	private final ObjectMapper objectMapper;
 
 	public AdvisorOrchestrator(ObjectProvider<AdvisorAgent> advisor, ObjectProvider<VerifierAgent> verifier,
 			ConversationService conversations,
 			ProfileService profile, PropertyService property, ListingReader listings, BankCatalogService banks,
-			LoanProfileAssembler loans, DocumentService documents, DocumentReader reader, ObjectMapper objectMapper) {
+			LoanProfileAssembler loans, DocumentService documents, DocumentReader reader, Phases phases,
+			ObjectMapper objectMapper) {
 		this.advisor = advisor;
 		this.verifier = verifier;
 		this.conversations = conversations;
@@ -82,6 +84,7 @@ public class AdvisorOrchestrator {
 		this.loans = loans;
 		this.documents = documents;
 		this.reader = reader;
+		this.phases = phases;
 		this.objectMapper = objectMapper;
 	}
 
@@ -161,8 +164,8 @@ public class AdvisorOrchestrator {
 			org.springframework.ai.chat.messages.Message current, String currentText, UserStatements stated) {
 		// Tools push their events here while the reply is still streaming.
 		Sinks.Many<StreamEvent> toolEvents = Sinks.many().unicast().onBackpressureBuffer();
-		AdvisorTools tools = new AdvisorTools(userId, profile, property, listings, banks, loans, documents, stated,
-				event -> toolEvents.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(1))));
+		AdvisorTools tools = new AdvisorTools(userId, profile, property, listings, banks, loans, documents, phases,
+				stated, event -> toolEvents.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(1))));
 
 		StringBuilder reply = new StringBuilder();
 		Flux<StreamEvent> text = replyText(userId, visible, current, tools)

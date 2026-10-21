@@ -49,6 +49,19 @@ public class ConversationService {
 		messages.findById(messageId).ifPresent(message -> message.correct(text));
 	}
 
+	/** The advisor gave the user an affordability result (#73). */
+	@Transactional
+	public void affordabilityDiscussed(UUID userId) {
+		conversationFor(userId).affordabilityDiscussed();
+	}
+
+	@Transactional(readOnly = true)
+	public boolean hasDiscussedAffordability(UUID userId) {
+		return conversations.findByUserId(userId)
+				.map(conversation -> conversation.getAffordabilityDiscussedAt() != null)
+				.orElse(false);
+	}
+
 	private Conversation conversationFor(UUID userId) {
 		return conversations.findByUserId(userId).orElseGet(() -> {
 			Conversation conversation = conversations.save(new Conversation(userId));

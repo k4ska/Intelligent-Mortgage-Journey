@@ -22,6 +22,7 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -77,6 +78,7 @@ class AdvisorOrchestratorTest {
 		void anUploadReadsNothing() {
 			UUID userId = UUID.randomUUID();
 			profile.save(userId, ProfileKey.NET_INCOME, "2300", ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED);
+			documents.request(userId, DocumentType.PAYSLIP);
 			UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
 
 			List<StreamEvent> events = orchestrator.documentUploaded(userId, payslip).collectList().block();
@@ -135,6 +137,7 @@ class AdvisorOrchestratorTest {
 			static final String READ_BACK = "I read €2,350 net from your payslip. Is that right?";
 			static final String CONFIRMS = "Yes, that's right";
 			static final String CORRECTS = "No, it's 2,400";
+			static final String TO_THE_BANKS = "Send my application to the banks";
 
 			volatile String verdict = APPROVE;
 			final AtomicInteger verifierCalls = new AtomicInteger();
@@ -203,6 +206,9 @@ class AdvisorOrchestratorTest {
 				if (user.equals(CORRECTS) && round == 1) {
 					return toolCall("", "updateProfile",
 							"{\"fields\":[{\"key\":\"netIncome\",\"value\":\"2400\",\"quote\":\"it's 2,400\"}]}");
+				}
+				if (user.equals(TO_THE_BANKS) && round == 1) {
+					return toolCall("Sending it.", "showBankPicker", "{}");
 				}
 				if (user.equals(MAKES_UP)) {
 					return new ChatResponse(List.of(new Generation(new AssistantMessage(MADE_UP_REPLY))));
@@ -295,6 +301,7 @@ class AdvisorOrchestratorTest {
 		@Test
 		void aMoneyTurnIsAlwaysVerified() {
 			UUID userId = UUID.randomUUID();
+			allKeyFactsButTheIncome(userId);
 
 			List<StreamEvent> events = orchestrator.send(userId, FakeChatModel.SAVES_THEN_CHECKS).collectList().block();
 
@@ -331,13 +338,17 @@ class AdvisorOrchestratorTest {
 		@Test
 		void aTurnCanSaveAFactThenCheckWithIt() {
 			UUID userId = UUID.randomUUID();
+			allKeyFactsButTheIncome(userId);
 
 			List<StreamEvent> events = orchestrator.send(userId, FakeChatModel.SAVES_THEN_CHECKS).collectList().block();
 
 			assertThat(events).extracting(StreamEvent::type).contains("profile_updated");
-			assertThat(profile.fields(userId)).extracting(f -> f.key() + "=" + f.value()).containsExactly("netIncome=2350");
+			assertThat(profile.fields(userId)).extracting(f -> f.key() + "=" + f.value()).contains("netIncome=2350");
 			// Three act calls: save, check, then one that calls nothing.
 			assertThat(model.actPrompts).hasSize(3);
+			// #73: saving the last key fact moved the conversation on, so the next round could check.
+			assertThat(toolNames(model.actPrompts.get(0))).doesNotContain("checkAffordability");
+			assertThat(toolNames(model.actPrompts.get(1))).contains("checkAffordability");
 			ToolResponseMessage saved = (ToolResponseMessage) model.actPrompts.get(1).getInstructions().getLast();
 			assertThat(saved.getResponses()).singleElement().satisfies(response -> {
 				assertThat(response.name()).isEqualTo("updateProfile");
@@ -347,12 +358,43 @@ class AdvisorOrchestratorTest {
 			assertThat(model.actPrompts.get(2).getContents()).doesNotContain("Saving that.", "Now checking.");
 			assertThat(model.replyPrompt.getContents())
 					.contains("- updateProfile: Saved: netIncome=2350.")
-					.contains("- checkAffordability: Can't tell yet. Still missing: savings")
+					.contains("- checkAffordability: Can't tell yet. Still missing: creditCardLimits")
 					.doesNotContain("Saving that.", "Now checking.", "Done.");
 			assertThat(model.replyPrompt.getInstructions()).extracting(m -> m.getMessageType())
 					.doesNotContain(MessageType.TOOL);
 			assertThat(conversations.history(userId)).last().extracting(Message::getText)
 					.isEqualTo("Got it. How much do you earn per month?");
+		}
+
+		/** #73: asking for the banks too early shows no picker, and the advisor knows what's still needed. */
+		@Test
+		void goingToTheBanksTooEarly() {
+			UUID userId = UUID.randomUUID();
+
+			List<StreamEvent> events = orchestrator.send(userId, FakeChatModel.TO_THE_BANKS).collectList().block();
+
+			assertThat(events).extracting(StreamEvent::type).doesNotContain("bank_picker");
+			assertThat(toolNames(model.actPrompts.getFirst())).doesNotContain("showBankPicker");
+			assertThat(model.actPrompts.getFirst().getContents())
+					.contains("Where the conversation is now: getting to know you.")
+					.contains("The user can't go to the banks yet").contains("netIncome").contains("a property");
+			assertThat(model.replyPrompt.getContents())
+					.contains("- showBankPicker: showBankPicker isn't available yet, at this stage (getting to know you)")
+					.contains("The user can't go to the banks yet");
+		}
+
+		private void allKeyFactsButTheIncome(UUID userId) {
+			for (ProfileKey key : List.of(ProfileKey.SAVINGS, ProfileKey.MONTHLY_DEBT_PAYMENTS)) {
+				profile.save(userId, key, "0", ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED);
+			}
+			profile.save(userId, ProfileKey.HAS_CO_APPLICANT, "no", ProfileField.Source.CHAT,
+					ProfileField.Status.CONFIRMED);
+		}
+
+		private static List<String> toolNames(Prompt prompt) {
+			List<ToolCallback> callbacks = ((ToolCallingChatOptions) prompt.getOptions()).getToolCallbacks();
+			return callbacks == null ? List.of()
+					: callbacks.stream().map(callback -> callback.getToolDefinition().name()).toList();
 		}
 
 		@Test
@@ -371,6 +413,7 @@ class AdvisorOrchestratorTest {
 		@Test
 		void anUploadIsReadThenConfirmed() {
 			UUID userId = UUID.randomUUID();
+			documents.request(userId, DocumentType.PAYSLIP);
 			UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
 
 			List<StreamEvent> events = orchestrator.documentUploaded(userId, payslip).collectList().block();
@@ -398,6 +441,7 @@ class AdvisorOrchestratorTest {
 		@Test
 		void aCorrectionAfterAnUploadSavesTheUsersValue() {
 			UUID userId = UUID.randomUUID();
+			documents.request(userId, DocumentType.PAYSLIP);
 			UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
 			orchestrator.documentUploaded(userId, payslip).collectList().block();
 
@@ -411,6 +455,7 @@ class AdvisorOrchestratorTest {
 		@Test
 		void aDocumentIsReadOnceAndOnlyForItsOwner() {
 			UUID userId = UUID.randomUUID();
+			documents.request(userId, DocumentType.PAYSLIP);
 			UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
 			orchestrator.documentUploaded(userId, payslip).collectList().block();
 

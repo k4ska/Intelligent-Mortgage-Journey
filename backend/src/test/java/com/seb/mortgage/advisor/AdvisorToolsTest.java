@@ -33,6 +33,7 @@ class AdvisorToolsTest {
 	@Autowired ListingReader listings;
 	@Autowired LoanProfileAssembler loans;
 	@Autowired DocumentService documents;
+	@Autowired Phases phases;
 
 	private final UUID userId = UUID.randomUUID();
 	private final List<StreamEvent> events = new ArrayList<>();
@@ -40,7 +41,7 @@ class AdvisorToolsTest {
 	private String userSaid = "I earn 2350 a month, soon 2400, and we have 2 kids";
 
 	private AdvisorTools tools() {
-		return new AdvisorTools(userId, profile, property, listings, banks, loans, documents,
+		return new AdvisorTools(userId, profile, property, listings, banks, loans, documents, phases,
 				UserStatements.from(List.of(), userSaid), events::add);
 	}
 
@@ -128,26 +129,6 @@ class AdvisorToolsTest {
 		assertThat(tools().updateProfile(List.of(field("salary", "1")))).startsWith("Not saved:");
 		assertThat(tools().updateProfile(null)).isEqualTo("Nothing to save.");
 		assertThat(events).isEmpty();
-	}
-
-	@Test
-	void bankPickerWaitsForTheIncome() {
-		String note = tools().showBankPicker();
-
-		assertThat(note).startsWith("Not ready yet").contains("net income");
-		assertThat(events).isEmpty();
-	}
-
-	@Test
-	void bankPickerShowsEveryBankOnceTheIncomeIsKnown() {
-		profile.save(userId, ProfileKey.NET_INCOME, "2350", ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED);
-
-		String note = tools().showBankPicker();
-
-		assertThat(note).contains("bank picker is now shown");
-		assertThat(events).containsExactly(StreamEvent.bankPicker(banks.banks().stream()
-				.map(bank -> new StreamEvent.BankOption(bank.id(), bank.name()))
-				.toList()));
 	}
 
 	@Test

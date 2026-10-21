@@ -33,13 +33,14 @@ class AffordabilityToolsTest {
 	@Autowired ListingReader listings;
 	@Autowired LoanProfileAssembler loans;
 	@Autowired DocumentService documents;
+	@Autowired Phases phases;
 	@Autowired AffordabilityCalculator calculator;
 
 	private final UUID userId = UUID.randomUUID();
 	private final List<StreamEvent> events = new ArrayList<>();
 
 	private AdvisorTools tools() {
-		return new AdvisorTools(userId, profile, property, listings, banks, loans, documents,
+		return new AdvisorTools(userId, profile, property, listings, banks, loans, documents, phases,
 				UserStatements.from(List.of(), ""), events::add);
 	}
 

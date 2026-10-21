@@ -67,15 +67,18 @@ public class DocumentService {
 	}
 
 	/**
-	 * Records an uploaded file (only its name); a new file replaces an earlier one.
+	 * Records an uploaded file (only its name); a new file replaces an earlier one. Only a
+	 * document the advisor asked for can be uploaded (#73): the advisor confirms what is read
+	 * from it in the documents phase, which starts with that request.
 	 *
 	 * @throws IllegalArgumentException for a co-applicant document when there is no co-applicant
+	 * @throws IllegalStateException    when the advisor hasn't asked for this document yet
 	 */
 	@Transactional
 	public DocumentView upload(UUID userId, DocumentType type, String fileName) {
 		checkApplies(userId, type);
 		Document document = documents.findByUserIdAndType(userId, type)
-				.orElseGet(() -> new Document(userId, type));
+				.orElseThrow(() -> new IllegalStateException("Your advisor hasn't asked for this document yet"));
 		document.uploaded(cleanFileName(fileName));
 		return view(documents.save(document));
 	}

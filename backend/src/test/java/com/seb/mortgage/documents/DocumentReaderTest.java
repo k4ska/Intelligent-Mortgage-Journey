@@ -42,6 +42,7 @@ class DocumentReaderTest {
 	void aValueTheUserGaveIsReadExactlyAndNothingIsMadeUp() {
 		UUID userId = UUID.randomUUID();
 		profile.save(userId, ProfileKey.NET_INCOME, "2300", ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED);
+		documents.request(userId, DocumentType.PAYSLIP);
 		UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
 
 		DocumentReader.Reading reading = reader().read(userId, payslip, List.of("I earn 2300 a month"));
@@ -60,6 +61,7 @@ class DocumentReaderTest {
 		UUID userId = UUID.randomUUID();
 		when(agent.read(eq(DocumentType.PAYSLIP), eq(List.of(ProfileKey.NET_INCOME)), anyString(),
 				eq(List.of("I'm a nurse")))).thenReturn(Map.of("netIncome", "1 650"));
+		documents.request(userId, DocumentType.PAYSLIP);
 		UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
 
 		DocumentReader.Reading reading = reader().read(userId, payslip, List.of("I'm a nurse"));
@@ -79,6 +81,7 @@ class DocumentReaderTest {
 				ProfileField.Status.CONFIRMED);
 		when(agent.read(eq(DocumentType.BANK_STATEMENT), eq(List.of(ProfileKey.MONTHLY_LIVING_COSTS)), anyString(),
 				anyList())).thenReturn(Map.of("monthlyLivingCosts", "640", "monthlyDebtPayments", "300"));
+		documents.request(userId, DocumentType.BANK_STATEMENT);
 		UUID statement = documents.upload(userId, DocumentType.BANK_STATEMENT, "statement.pdf").id();
 
 		DocumentReader.Reading reading = reader().read(userId, statement, List.of());
@@ -92,6 +95,7 @@ class DocumentReaderTest {
 	void anImplausibleOrBrokenAnswerIsNotSaved() {
 		UUID userId = UUID.randomUUID();
 		when(agent.read(any(), anyList(), anyString(), anyList())).thenReturn(Map.of("netIncome", "5000000"));
+		documents.request(userId, DocumentType.PAYSLIP);
 		UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
 
 		DocumentReader.Reading reading = reader().read(userId, payslip, List.of());
@@ -105,6 +109,7 @@ class DocumentReaderTest {
 	void aFailingAgentReadsNothing() {
 		UUID userId = UUID.randomUUID();
 		when(agent.read(any(), anyList(), anyString(), anyList())).thenThrow(new IllegalStateException("down"));
+		documents.request(userId, DocumentType.PAYSLIP);
 		UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
 
 		assertThat(reader().read(userId, payslip, List.of()).read()).isFalse();
@@ -114,6 +119,7 @@ class DocumentReaderTest {
 	@Test
 	void aDocumentWithNothingToReadIsConfirmedStraightAway() {
 		UUID userId = UUID.randomUUID();
+		documents.request(userId, DocumentType.ID);
 		UUID id = documents.upload(userId, DocumentType.ID, "passport.jpg").id();
 
 		DocumentReader.Reading reading = reader().read(userId, id, List.of());
@@ -128,6 +134,7 @@ class DocumentReaderTest {
 	void withoutAnLlmNothingIsRead() {
 		UUID userId = UUID.randomUUID();
 		profile.save(userId, ProfileKey.NET_INCOME, "2300", ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED);
+		documents.request(userId, DocumentType.PAYSLIP);
 		UUID payslip = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
 
 		DocumentReader.Reading reading = withoutLlm.read(userId, payslip, List.of());

@@ -121,6 +121,7 @@ class StartOverTest {
 						.contentType(MediaType.APPLICATION_JSON).content("{\"bankIds\":[\"seb\"]}"))
 				.andExpect(status().isOk());
 		assertThat(emailsOf(user)).isPositive();
+		documents.request(user.userId(), DocumentType.PAYSLIP);
 		documents.upload(user.userId(), DocumentType.PAYSLIP, "payslip.pdf");
 	}
 

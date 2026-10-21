@@ -34,11 +34,12 @@ class DocumentToolsTest {
 	@Autowired BankCatalogService banks;
 	@Autowired LoanProfileAssembler loans;
 	@Autowired DocumentService documents;
+	@Autowired Phases phases;
 
 	private final List<StreamEvent> events = new ArrayList<>();
 
 	private AdvisorTools tools(UUID userId, List<String> earlier, String userSaid) {
-		return new AdvisorTools(userId, profile, property, listings, banks, loans, documents,
+		return new AdvisorTools(userId, profile, property, listings, banks, loans, documents, phases,
 				UserStatements.from(earlier, userSaid), events::add);
 	}
 
@@ -73,6 +74,7 @@ class DocumentToolsTest {
 	@Test
 	void anUploadedDocumentIsNotAskedForAgain() {
 		UUID userId = UUID.randomUUID();
+		documents.request(userId, DocumentType.PAYSLIP);
 		documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf");
 
 		assertThat(tools(userId, List.of(), "").requestDocument(List.of("PAYSLIP"))).contains("already uploaded");
@@ -121,6 +123,7 @@ class DocumentToolsTest {
 	@Test
 	void nothingToConfirmBeforeTheDocumentIsRead() {
 		UUID userId = UUID.randomUUID();
+		documents.request(userId, DocumentType.PAYSLIP);
 		documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf");
 
 		assertThat(tools(userId, List.of(), "yes").confirmDocument("PAYSLIP", "yes"))
@@ -145,6 +148,7 @@ class DocumentToolsTest {
 
 	/** What the document reader would have done: an uncertain value from the payslip. */
 	private void readPayslip(UUID userId, String netIncome) {
+		documents.request(userId, DocumentType.PAYSLIP);
 		UUID id = documents.upload(userId, DocumentType.PAYSLIP, "payslip.pdf").id();
 		profile.saveFromDocument(userId, ProfileKey.NET_INCOME, netIncome, "PAYSLIP");
 		documents.recordReading(userId, id, Map.of("netIncome", netIncome));
