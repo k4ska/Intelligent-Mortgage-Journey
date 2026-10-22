@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import type { ProfileField, PropertyField } from '~/types/api'
 import { copy } from '~/utils/copy'
@@ -33,7 +32,10 @@ function displayValue(field: ProfileField | PropertyField): string {
     <p class="text-xs text-[var(--ui-text-muted)]">{{ props.label }}</p>
     <p class="mt-1 font-semibold tabular-nums break-words">{{ displayValue(props.field) }}</p>
     <div class="mt-2 flex flex-wrap gap-1.5">
-      <span class="rounded-md bg-[var(--ui-bg-muted)] px-2 py-0.5 text-xs text-[var(--ui-text-muted)]">{{ sourceLabels[props.field.source] }}</span>
+      <span class="inline-flex items-center gap-1 rounded-md bg-[var(--ui-bg-muted)] px-2 py-0.5 text-xs text-[var(--ui-text-muted)]">
+        <UIcon v-if="props.field.source === 'DOCUMENT'" name="i-lucide-file-text" aria-hidden="true" />
+        {{ sourceLabels[props.field.source] }}
+      </span>
       <span v-if="props.field.status === 'UNCERTAIN'" class="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ copy.uncertain }}</span>
     </div>
   </div>
