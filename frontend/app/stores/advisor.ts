@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import type { ChatInput } from '~/composables/useApi'
 import type { BankOption, ChatMessage, Profile, ProfileField } from '~/types/api'
 import { useAuthStore } from '~/stores/auth'
 import { useInboxStore } from '~/stores/inbox'
@@ -68,9 +69,9 @@ export const useAdvisorStore = defineStore('advisor', {
     cancel() {
       activeSend?.abort()
     },
-    async send(text: string) {
-      const trimmed = text.trim()
-      if (!trimmed || this.sending || !this.loaded) return
+    async send(input: ChatInput): Promise<boolean> {
+      const text = typeof input === 'string' ? input.trim() : null
+      if ((text !== null && !text) || this.sending || !this.loaded) return false
       const controller = new AbortController()
       activeSend = controller
       const { signal } = controller
@@ -80,12 +81,12 @@ export const useAdvisorStore = defineStore('advisor', {
       const createdAt = new Date().toISOString()
       const localId = -Date.now()
       const replyId = localId - 1
-      this.messages.push({ id: localId, role: 'user', text: trimmed, createdAt, corrected: false })
+      if (text !== null) this.messages.push({ id: localId, role: 'user', text, createdAt, corrected: false })
       this.messages.push({ id: replyId, role: 'advisor', text: '', createdAt, corrected: false })
       let completed = false
       let streamedError = false
       try {
-        const response = await api.sendMessage(trimmed, signal)
+        const response = await api.sendMessage(text ?? input, signal)
         await consumeStream(response, (event) => {
           switch (event.type) {
             case 'text': {
@@ -128,8 +129,11 @@ export const useAdvisorStore = defineStore('advisor', {
         }, signal)
         if (!completed && !streamedError) throw new Error('Stream ended before done')
       } catch (error) {
-        if (signal.aborted) return
-        if (errorStatus(error) === 401) return void useAuthStore().expire()
+        if (signal.aborted) return false
+        if (errorStatus(error) === 401) {
+          void useAuthStore().expire()
+          return false
+        }
         if (!this.error) this.error = error instanceof Error && error.message === 'Stream ended before done'
           ? copy.streamIncomplete : copy.sendError
       } finally {
@@ -140,7 +144,7 @@ export const useAdvisorStore = defineStore('advisor', {
       }
 
       // The reply was delivered; a failed refresh only means the optimistic IDs stay local.
-      if (!completed || signal.aborted) return
+      if (!completed || signal.aborted) return false
       try {
         // Server-provided IDs are authoritative, including the optimistic user message.
         const messages = await api.getChat()
@@ -148,6 +152,7 @@ export const useAdvisorStore = defineStore('advisor', {
       } catch (error) {
         if (errorStatus(error) === 401 && !signal.aborted) useAuthStore().expire()
       }
+      return !signal.aborted
     },
   },
 })

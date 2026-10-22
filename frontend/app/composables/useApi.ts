@@ -1,7 +1,8 @@
 import type { AgentStatus, ApplicationResult, ChatMessage, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
-import { mockChat, mockReset, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockSend, mockSubmitApplication } from '~/mocks/advisor'
+import { mockChat, mockReset, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockSend, mockSubmitApplication, mockReplyToThread, mockAcceptOffer } from '~/mocks/advisor'
 
 export interface AuthUser { id: string; email: string }
+export type ChatInput = string | { trigger: 'OFFER_ACCEPTED'; threadId: string }
 
 /** All backend URLs and the optional explicit mock switch live in one place. */
 export function useApi() {
@@ -52,9 +53,16 @@ export function useApi() {
       ? later(() => mockGetThread(threadId))
       : request<InboxThreadDetail>(`/inbox/${encodeURIComponent(threadId)}`),
 
+    replyToThread: (threadId: string, body: string): Promise<unknown> => mock
+      ? mockReplyToThread(threadId, body)
+      : request<unknown>(`/inbox/${encodeURIComponent(threadId)}/reply`, { method: 'POST', body: { body } }),
+    acceptOffer: (threadId: string, emailId: string | number): Promise<unknown> => mock
+      ? later(() => mockAcceptOffer(threadId, emailId))
+      : request<unknown>(`/inbox/${encodeURIComponent(threadId)}/accept`, { method: 'POST', body: { emailId } }),
+
     // EventSource cannot POST JSON; fetch provides the ReadableStream we need.
-    sendMessage: async (text: string, signal?: AbortSignal): Promise<Response> => {
-      if (mock) return mockSend(text)
+    sendMessage: async (input: ChatInput, signal?: AbortSignal): Promise<Response> => {
+      if (mock) return mockSend(input)
 
       const response = await fetch(`${base}/chat/messages`, {
         method: 'POST',
@@ -63,7 +71,7 @@ export function useApi() {
           'Content-Type': 'application/json',
           Accept: 'text/event-stream',
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(typeof input === 'string' ? { text: input } : input),
         signal,
       })
 

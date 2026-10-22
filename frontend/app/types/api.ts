@@ -1,4 +1,4 @@
- // TypeScript mirror of the backend API. The full set of contracts for the chat-based
+// TypeScript mirror of the backend API. The full set of contracts for the chat-based
 // advisor (auth, chat, stream events, profile, documents, banks, inbox) is in
 // docs/architecture.md §5; add types here as each endpoint is built, and keep them in
 // sync with the backend DTOs.
@@ -128,10 +128,24 @@ export interface ApplicationResult {
   threads: { threadId: string; bankId: string; status: string }[]
 }
 
+export type InboxThreadStatus = 'OPEN' | 'OFFER' | 'NEGOTIATING' | 'ACCEPTED' | 'DECLINED' | 'CLOSED'
+
+/** Mirrors OfferCalculator.Offer on the bank backend (#78). */
+export interface MortgageOffer {
+  amount: number
+  termYears: number
+  euriborPct: number
+  marginPct: number
+  ratePct: number
+  monthlyPayment: number
+  conditions: string[]
+  validUntil: string
+}
+
 export interface InboxThread {
   threadId: string
   bank: BankOption
-  status: string
+  status: InboxThreadStatus
   unread: boolean
   lastEmail: {
     subject: string
@@ -146,13 +160,13 @@ export interface InboxEmail {
   type: string
   subject: string
   body: string
-  offer: null
+  offer: MortgageOffer | null
   createdAt: string
 }
 
 export interface InboxThreadDetail {
   threadId: string
   bank: BankOption
-  status: string
+  status: InboxThreadStatus
   emails: InboxEmail[]
 }
