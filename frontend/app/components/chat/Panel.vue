@@ -11,10 +11,12 @@ const auth = useAuthStore()
 const selectedBankIds = ref<string[]>([])
 const submittingApplication = ref(false)
 const applicationError = ref('')
+const applicationAdvisorError = ref('')
 
 watch(() => advisor.bankOptions, () => {
   selectedBankIds.value = []
   applicationError.value = ''
+  applicationAdvisorError.value = ''
 })
 
 async function submitApplication() {
@@ -25,11 +27,15 @@ async function submitApplication() {
   submittingApplication.value = true
   applicationError.value = ''
   try {
-    await useApi().sendApplication(bankIds)
+    const result = await useApi().sendApplication(bankIds)
     advisor.bankOptions = []
     selectedBankIds.value = []
-    // #51 creates bank emails immediately; refresh the shared unread badge and list.
     await inbox.load(true)
+    // Application creation is committed; a failed advisor notification does not undo it.
+    applicationAdvisorError.value = ''
+    if (!await advisor.send({ trigger: 'APPLICATION_SENT', applicationId: result.applicationId })) {
+      applicationAdvisorError.value = copy.applicationAdvisorError
+    }
   } catch (error) {
     if (errorStatus(error) === 401) return void auth.expire()
     applicationError.value = copy.applicationError
@@ -75,15 +81,7 @@ function onKeydown(event: KeyboardEvent) {
 
     <div ref="list" class="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5" role="log" aria-live="polite" aria-relevant="additions text">
       <p v-if="advisor.loading" class="text-center text-sm text-[var(--ui-text-muted)]">{{ copy.loading }}</p>
-      <div v-for="message in advisor.messages" :key="message.id" :class="['flex', message.role === 'user' ? 'justify-end' : 'justify-start']">
-        <div :class="['max-w-[87%] rounded-2xl px-4 py-3 text-sm leading-6 whitespace-pre-wrap break-words', message.role === 'user' ? 'rounded-br-sm bg-[var(--ui-primary)] text-white' : 'rounded-bl-sm bg-[var(--ui-bg-muted)] text-[var(--ui-text)]']">
-          <div>{{ message.text || (advisor.sending && message.role === 'advisor' ? '…' : '') }}</div>
-          <span v-if="message.role === 'advisor' && message.corrected" class="mt-2 inline-flex items-center gap-1 rounded-md border border-[var(--ui-border)] px-2 py-0.5 text-xs text-[var(--ui-text-muted)]" :title="copy.correctedTooltip" :aria-label="`${copy.correctedLabel}. ${copy.correctedTooltip}`" role="note" tabindex="0">
-            <UIcon name="i-lucide-info" aria-hidden="true" />
-            {{ copy.correctedLabel }}
-          </span>
-        </div>
-      </div>
+      <ChatMessageBubble v-for="message in advisor.messages" :key="message.id" :message="message" :streaming="advisor.sending" />
     </div>
 
     <div v-if="advisor.bankOptions.length" class="shrink-0 border-t border-[var(--ui-border)] p-4">
@@ -104,6 +102,7 @@ function onKeydown(event: KeyboardEvent) {
     </div>
 
     <div class="shrink-0 border-t border-[var(--ui-border)] p-4">
+      <p v-if="applicationAdvisorError" class="mb-2 text-sm text-red-600" role="alert">{{ applicationAdvisorError }}</p>
       <div v-if="advisor.error" role="alert" class="mb-3 flex items-center justify-between gap-2 text-sm text-red-600">
         <span>{{ advisor.error }}</span>
         <UButton v-if="!advisor.loaded" variant="soft" color="neutral" size="xs" @click="advisor.load()">{{ copy.retry }}</UButton>

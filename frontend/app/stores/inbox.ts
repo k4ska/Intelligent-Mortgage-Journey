@@ -2,8 +2,12 @@ import { defineStore } from 'pinia'
 import type { InboxEmail, InboxThread, InboxThreadDetail } from '~/types/api'
 import { useAdvisorStore } from '~/stores/advisor'
 import { useAuthStore } from '~/stores/auth'
+import { consumeStream } from '~/utils/stream'
 import { errorStatus } from '~/utils/errors'
 import { copy } from '~/utils/copy'
+
+// Abort streaming when leaving a thread, logging out, or starting over.
+let activeAssist: AbortController | null = null
 
 export const useInboxStore = defineStore('inbox', {
   state: () => ({
@@ -16,19 +20,25 @@ export const useInboxStore = defineStore('inbox', {
     opening: false,
     replyingThreadId: null as string | null,
     accepting: false,
+    assistingThreadId: null as string | null,
+    replyDraft: '',
     error: '',
     threadError: '',
     replyError: '',
     acceptError: '',
     advisorError: '',
+    assistError: '',
   }),
   getters: {
     unreadCount: state => state.threads.filter(thread => thread.unread).length,
   },
   actions: {
+    cancelAssist() {
+      activeAssist?.abort()
+      activeAssist = null
+      this.assistingThreadId = null
+    },
     async load(force = false) {
-      // A forced refresh during a load (e.g. right after sending an application) runs
-      // once that load finishes, so new threads are never missed.
       if (this.loading) {
         if (force) this.refreshQueued = true
         return
@@ -54,7 +64,7 @@ export const useInboxStore = defineStore('inbox', {
       }
     },
     async open(threadId: string) {
-      // The latest click wins: a slower earlier request is ignored when it returns.
+      if (this.selectedThreadId !== threadId) this.cancelAssist()
       this.selectedThreadId = threadId
       this.activeThread = null
       this.opening = true
@@ -62,14 +72,18 @@ export const useInboxStore = defineStore('inbox', {
       this.replyError = ''
       this.acceptError = ''
       this.advisorError = ''
+      this.assistError = ''
+      this.replyDraft = ''
       const userId = useAuthStore().user?.id
       try {
-        // GET marks the thread as read on the backend. Only clear the dot on success.
         const detail = await useApi().getInboxThread(threadId)
         if (useAuthStore().user?.id !== userId || this.selectedThreadId !== threadId) return
         this.activeThread = detail
         const thread = this.threads.find(item => item.threadId === threadId)
         if (thread) thread.unread = false
+        // Thread-tagged messages are held in the same global advisor conversation.
+        const advisor = useAdvisorStore()
+        if (!advisor.loaded) void advisor.load()
       } catch (error) {
         if (errorStatus(error) === 401) return void useAuthStore().expire()
         if (this.selectedThreadId === threadId) this.threadError = copy.threadLoadError
@@ -92,11 +106,7 @@ export const useInboxStore = defineStore('inbox', {
       this.replyingThreadId = threadId
       this.replyError = ''
       try {
-        // The server waits for the bank agent's reply; the typing indicator remains
-        // visible throughout that request while our optimistic email is shown.
         await useApi().replyToThread(threadId, message)
-        // POST succeeded: never encourage a second reply just because refreshing
-        // the messages fails (the bank might already have processed this one).
         try {
           const fresh = await useApi().getInboxThread(threadId)
           if (useAuthStore().user?.id !== userId) return true
@@ -112,8 +122,6 @@ export const useInboxStore = defineStore('inbox', {
           void useAuthStore().expire()
           return false
         }
-        // A failed response may have saved the email on the server. Prefer a fresh
-        // history over leaving an unconfirmed optimistic message behind.
         try {
           const fresh = await useApi().getInboxThread(threadId)
           if (this.selectedThreadId === threadId && useAuthStore().user?.id === userId) this.activeThread = fresh
@@ -144,9 +152,6 @@ export const useInboxStore = defineStore('inbox', {
         this.accepting = false
         return false
       }
-
-      // Acceptance succeeded. From here, refresh/trigger errors must not imply that
-      // the user can accept again (the backend rejects a second acceptance).
       try {
         const api = useApi()
         const [threads, detail] = await Promise.all([api.getInbox(), api.getInboxThread(threadId)])
@@ -156,21 +161,112 @@ export const useInboxStore = defineStore('inbox', {
         if (this.selectedThreadId === threadId) this.activeThread = detail
       } catch (error) {
         if (errorStatus(error) === 401) void useAuthStore().expire()
-        // Retain the server-confirmed accepted status even if refresh is offline.
         this.threads.forEach(thread => { thread.status = thread.threadId === threadId ? 'ACCEPTED' : 'CLOSED' })
         if (this.activeThread?.threadId === threadId) this.activeThread.status = 'ACCEPTED'
       } finally {
         this.accepting = false
       }
-
-      // Notify the advisor without a user chat bubble. Failure does not roll back
-      // acceptance, since the bank's decision was committed first.
       const advisor = useAdvisorStore()
       if (!advisor.loaded) await advisor.load()
       if (!advisor.loaded || !await advisor.send({ trigger: 'OFFER_ACCEPTED', threadId })) {
         this.advisorError = copy.inboxAdvisorError
       }
       return true
+    },
+    /** The inbox assistant uses the shared chat history; reply drafts are never sent automatically. */
+    async assist(question: string): Promise<boolean> {
+      const text = question.trim()
+      const threadId = this.activeThread?.threadId
+      const advisor = useAdvisorStore()
+      if (!threadId || !text || this.assistingThreadId || advisor.sending) return false
+      if (!advisor.loaded) await advisor.load()
+      if (!advisor.loaded || this.selectedThreadId !== threadId) {
+        this.assistError = copy.inboxAssistLoadError
+        return false
+      }
+      const userId = useAuthStore().user?.id
+      const controller = new AbortController()
+      activeAssist = controller
+      this.assistingThreadId = threadId
+      this.assistError = ''
+      const createdAt = new Date().toISOString()
+      const userIdLocal = -Date.now()
+      const replyIdLocal = userIdLocal - 1
+      advisor.messages.push({ id: userIdLocal, role: 'user', text, createdAt, corrected: false, threadId })
+      advisor.messages.push({ id: replyIdLocal, role: 'advisor', text: '', createdAt, corrected: false, threadId })
+      let completed = false
+      let failed = false
+      let savedReplyId: number | null = null
+      try {
+        const api = useApi()
+        const response = await api.assistThread(threadId, text, controller.signal)
+        await consumeStream(response, event => {
+          if (controller.signal.aborted) return
+          const reply = advisor.messages.find(message => message.id === replyIdLocal || (savedReplyId !== null && message.id === savedReplyId && message.threadId === threadId))
+          switch (event.type) {
+            case 'text':
+              if (reply) reply.text += event.data.delta
+              break
+            case 'draft_reply':
+              if (event.data.threadId === this.selectedThreadId && event.data.threadId === threadId) {
+                this.replyDraft = event.data.body
+              }
+              break
+            case 'profile_updated':
+              advisor.mergeProfile(event.data.fields)
+              break
+            case 'property_updated':
+              advisor.profile.property = event.data.property
+              break
+            case 'bank_picker':
+              advisor.bankOptions = event.data.banks
+              break
+            case 'corrected':
+              if (reply) {
+                reply.text = event.data.text
+                reply.corrected = true
+              }
+              break
+            case 'done':
+              if (reply) reply.id = event.data.messageId
+              savedReplyId = event.data.messageId
+              completed = true
+              break
+            case 'error':
+              failed = true
+              this.assistError = event.data.message
+              break
+          }
+        }, controller.signal)
+        if (!completed && !failed) throw new Error('Stream ended before done')
+        if (failed) return false
+        // Server owns the IDs and saves thread-tagged messages to the main conversation.
+        try {
+          const history = await api.getChat()
+          if (!controller.signal.aborted && useAuthStore().user?.id === userId) advisor.messages = history
+        } catch (error) {
+          if (errorStatus(error) === 401) void useAuthStore().expire()
+          // Keep the streamed messages visible if refreshing history fails.
+        }
+        return !controller.signal.aborted
+      } catch (error) {
+        if (controller.signal.aborted) return false
+        if (errorStatus(error) === 401) {
+          void useAuthStore().expire()
+          return false
+        }
+        this.assistError = copy.inboxAssistError
+        return false
+      } finally {
+        // If an interrupted request may have been saved server-side, it will reappear on reload.
+        if (!completed || controller.signal.aborted) {
+          advisor.messages = advisor.messages.filter(message => message.id !== replyIdLocal && message.id !== userIdLocal)
+        }
+        if (activeAssist === controller) {
+          activeAssist = null
+          this.assistingThreadId = null
+        }
+      }
     },
   },
 })

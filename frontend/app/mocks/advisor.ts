@@ -1,5 +1,5 @@
-import type { ApplicationResult, BankOption, ChatMessage, InboxEmail, InboxThread, InboxThreadDetail, MortgageOffer, Profile, ProfileField, Property, PropertyField, StreamEvent } from '~/types/api'
 import type { ChatInput } from '~/composables/useApi'
+import type { ApplicationResult, BankOption, ChatMessage, InboxEmail, MortgageOffer, InboxThread, InboxThreadDetail, Profile, ProfileField, Property, PropertyField, StreamEvent } from '~/types/api'
 import { mergeProfileFields } from '~/utils/profile'
 
 // Explicit development-only mock. Never sends or stores passwords. It intentionally
@@ -157,7 +157,85 @@ export function mockGetThread(threadId: string): InboxThreadDetail {
   return { threadId, bank: thread.bank, status: thread.status, emails: state.emails[threadId] || [] }
 }
 
-/** A reply is persisted first. The API promise resolves only after the bank responds. */
+/** One response stream for out-of-band chat triggers, without a user bubble. */
+function mockTriggerReply(answer: string): Response {
+  const user = current()
+  const state = data(user)
+  const encoder = new TextEncoder()
+  const id = state.nextId++
+  state.messages.push({ id, role: 'advisor', text: answer, createdAt: new Date().toISOString(), corrected: false })
+  save(user, state)
+  return new Response(new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(`event:text\ndata:${JSON.stringify({ delta: answer })}\n\n`))
+      controller.enqueue(encoder.encode(`event:done\ndata:${JSON.stringify({ messageId: id })}\n\n`))
+      controller.close()
+    },
+  }), { headers: { 'Content-Type': 'text/event-stream' } })
+}
+
+function mockOfferAccepted(threadId: string): Response {
+  const thread = inboxData(current()).threads.find(item => item.threadId === threadId && item.status === 'ACCEPTED')
+  if (!thread) throw Object.assign(new Error('Offer not accepted'), { status: 409 })
+  return mockTriggerReply(`You accepted ${thread.bank.name}'s mortgage offer. Next, arrange signing, any required property valuation, and home insurance with the bank.`)
+}
+
+function mockApplicationSent(applicationId: string): Response {
+  // The mock owns only applications via its persisted bank threads. Validate the ID
+  // format and that there really are threads before generating an advisor response.
+  const inbox = inboxData(current())
+  if (!/^mock-application-\d+$/.test(applicationId) || !inbox.threads.length) {
+    throw Object.assign(new Error('Application not found'), { status: 404 })
+  }
+  const banks = [...new Set(inbox.threads.map(item => item.bank.name))].join(', ')
+  return mockTriggerReply(`Your application has been sent to ${banks}. Open the Inbox to read their responses, and ask me for help explaining offers or drafting replies.`)
+}
+
+/** Streaming advisor turns from the inbox; saved in the SAME mock conversation as chat. */
+export function mockAssist(threadId: string, text: string): Response {
+  const user = current()
+  const inbox = inboxData(user)
+  const thread = inbox.threads.find(item => item.threadId === threadId)
+  if (!thread) throw Object.assign(new Error('Thread not found'), { status: 404 })
+  if (!text.trim()) throw Object.assign(new Error('Question required'), { status: 400 })
+  const history = data(user)
+  const createdAt = new Date().toISOString()
+  history.messages.push({ id: history.nextId++, role: 'user', text: text.trim(), createdAt, corrected: false, threadId })
+  save(user, history)
+
+  const offer = inbox.emails[threadId]?.find(item => item.offer)?.offer
+  const wantsDraft = /\b(draft|reply|respond|negotiate|margin)\b/i.test(text)
+  const answer = wantsDraft
+    ? `Here is a suggested reply to ${thread.bank.name}. You can edit it before sending. Nothing has been sent to the bank.`
+    : offer
+      ? `${thread.bank.name} has offered €${offer.amount.toLocaleString('en-US')} over ${offer.termYears} years at ${offer.euriborPct}% Euribor plus a ${offer.marginPct}% margin (${offer.ratePct}% total). The simulated monthly payment is €${offer.monthlyPayment}. Review the conditions and expiry before deciding.`
+      : `${thread.bank.name} has asked for more information. You can reply here, or ask me to draft a response.`
+  const draft = `Hello ${thread.bank.name},\n\nThank you for your response. Could you please clarify the offer conditions and let me know if a lower margin is possible?\n\nBest regards`
+  const encoder = new TextEncoder()
+  let cancelled = false
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const emit = (event: StreamEvent) => controller.enqueue(encoder.encode(`event:${event.type}\ndata:${JSON.stringify(event.data)}\n\n`))
+      try {
+        const parts = answer.match(/.{1,22}/gs) ?? [answer]
+        for (const delta of parts) {
+          await new Promise(resolve => setTimeout(resolve, 45))
+          if (cancelled) return
+          emit({ type: 'text', data: { delta } })
+        }
+        if (wantsDraft) emit({ type: 'draft_reply', data: { threadId, body: draft } })
+        const id = history.nextId++
+        history.messages.push({ id, role: 'advisor', text: answer, createdAt: new Date().toISOString(), corrected: false, threadId })
+        save(user, history)
+        emit({ type: 'done', data: { messageId: id } })
+        controller.close()
+      } catch (error) { controller.error(error) }
+    },
+    cancel() { cancelled = true },
+  })
+  return new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+}
+
 export async function mockReplyToThread(threadId: string, body: string): Promise<void> {
   const user = current()
   const state = inboxData(user)
@@ -175,8 +253,6 @@ export async function mockReplyToThread(threadId: string, body: string): Promise
   })
   state.emails[threadId] = emails
   write(inboxKey(user), state)
-
-  // Like #78, the bank replies within this same POST request.
   await new Promise(resolve => setTimeout(resolve, 1200))
   const latest = inboxData(user)
   const updated = latest.threads.find(item => item.threadId === threadId)
@@ -228,32 +304,13 @@ export function mockAcceptOffer(threadId: string, emailId: string | number): voi
   write(inboxKey(user), state)
 }
 
-/** Follow the offer-accepted chat trigger without producing a user chat bubble. */
-function mockOfferAccepted(threadId: string): Response {
-  const user = current()
-  const accepted = inboxData(user).threads.find(thread => thread.threadId === threadId && thread.status === 'ACCEPTED')
-  if (!accepted) throw Object.assign(new Error('Offer not accepted'), { status: 409 })
-  const state = data(user)
-  const answer = `You have accepted ${accepted.bank.name}'s offer. Next, arrange the signing, property valuation if required, and home insurance with the bank.`
-  const encoder = new TextEncoder()
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      const emit = (event: StreamEvent) => controller.enqueue(encoder.encode(`event:${event.type}\ndata:${JSON.stringify(event.data)}\n\n`))
-      const id = state.nextId++
-      state.messages.push({ id, role: 'advisor', text: answer, createdAt: new Date().toISOString(), corrected: false })
-      save(user, state)
-      emit({ type: 'text', data: { delta: answer } })
-      emit({ type: 'done', data: { messageId: id } })
-      controller.close()
-    },
-  })
-  return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
-}
-
 export function mockSend(input: ChatInput): Response {
-  if (typeof input !== 'string') return mockOfferAccepted(input.threadId)
+  if (typeof input !== 'string') {
+    return input.trigger === 'OFFER_ACCEPTED'
+      ? mockOfferAccepted(input.threadId)
+      : mockApplicationSent(input.applicationId)
+  }
   const text = input
-
   const user = current()
   const state = data(user)
   state.messages.push({ id: state.nextId++, role: 'user', text, createdAt: new Date().toISOString(), corrected: false })

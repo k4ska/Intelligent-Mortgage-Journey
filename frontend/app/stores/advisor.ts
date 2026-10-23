@@ -45,6 +45,7 @@ export const useAdvisorStore = defineStore('advisor', {
     async startOver(): Promise<boolean> {
       // A reply still streaming must not land in the new conversation.
       this.cancel()
+      useInboxStore().cancelAssist()
       try {
         const messages = await useApi().resetChat()
         this.$reset()
@@ -71,7 +72,7 @@ export const useAdvisorStore = defineStore('advisor', {
     },
     async send(input: ChatInput): Promise<boolean> {
       const text = typeof input === 'string' ? input.trim() : null
-      if ((text !== null && !text) || this.sending || !this.loaded) return false
+      if ((text !== null && !text) || this.sending || useInboxStore().assistingThreadId || !this.loaded) return false
       const controller = new AbortController()
       activeSend = controller
       const { signal } = controller
