@@ -1,8 +1,10 @@
 import type { AgentStatus, ApplicationResult, ChatMessage, DocumentType, DocumentView, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
-import { mockChat, mockDocuments, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockReset, mockSend, mockSubmitApplication, mockUploadDocument } from '~/mocks/advisor'
+import { mockAcceptOffer, mockChat, mockDocuments, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockReplyToThread, mockReset, mockSend, mockSubmitApplication, mockUploadDocument } from '~/mocks/advisor'
 
 export interface AuthUser { id: string; email: string }
-export type ChatInput = string | { trigger: 'DOCUMENT_UPLOADED'; documentId: string }
+export type ChatInput = string
+  | { trigger: 'DOCUMENT_UPLOADED'; documentId: string }
+  | { trigger: 'OFFER_ACCEPTED'; threadId: string }
 
 /** All backend URLs and the optional explicit mock switch live in one place. */
 export function useApi() {
@@ -61,6 +63,13 @@ export function useApi() {
     getInboxThread: (threadId: string): Promise<InboxThreadDetail> => mock
       ? later(() => mockGetThread(threadId))
       : request<InboxThreadDetail>(`/inbox/${encodeURIComponent(threadId)}`),
+
+    replyToThread: (threadId: string, body: string): Promise<unknown> => mock
+      ? mockReplyToThread(threadId, body)
+      : request<unknown>(`/inbox/${encodeURIComponent(threadId)}/reply`, { method: 'POST', body: { body } }),
+    acceptOffer: (threadId: string, emailId: string | number): Promise<unknown> => mock
+      ? later(() => mockAcceptOffer(threadId, emailId))
+      : request<unknown>(`/inbox/${encodeURIComponent(threadId)}/accept`, { method: 'POST', body: { emailId } }),
 
     // EventSource cannot POST JSON; fetch provides the ReadableStream we need.
     sendMessage: async (input: ChatInput, signal?: AbortSignal): Promise<Response> => {

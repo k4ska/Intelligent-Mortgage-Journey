@@ -1,5 +1,5 @@
 import type { ChatInput } from '~/composables/useApi'
-import type { ApplicationResult, BankOption, ChatMessage, DocumentType, DocumentView, InboxEmail, InboxThread, InboxThreadDetail, Profile, ProfileField, Property, PropertyField, StreamEvent } from '~/types/api'
+import type { ApplicationResult, BankOption, ChatMessage, DocumentType, DocumentView, InboxEmail, InboxThread, InboxThreadDetail, MortgageOffer, Profile, ProfileField, Property, PropertyField, StreamEvent } from '~/types/api'
 import { mergeProfileFields } from '~/utils/profile'
 
 // Explicit development-only mock. Never sends or stores passwords. It intentionally
@@ -103,7 +103,7 @@ export function mockUploadDocument(type: DocumentType, file: File): DocumentView
 }
 
 /** The trigger's reply has no user bubble, just like the backend. */
-function mockDocumentTrigger(input: Exclude<ChatInput, string>): Response {
+function mockDocumentTrigger(input: Extract<ChatInput, { trigger: 'DOCUMENT_UPLOADED' }>): Response {
   const user = current()
   const state = data(user)
   const document = checklist(state).find(doc => doc.id === input.documentId)
@@ -275,8 +275,105 @@ export function mockGetThread(threadId: string): InboxThreadDetail {
   return { threadId, bank: thread.bank, status: thread.status, emails: state.emails[threadId] || [] }
 }
 
+/** A reply is persisted first. The API promise resolves only after the bank responds. */
+export async function mockReplyToThread(threadId: string, body: string): Promise<void> {
+  const user = current()
+  const state = inboxData(user)
+  const thread = state.threads.find(item => item.threadId === threadId)
+  if (!thread) throw Object.assign(new Error('Thread not found'), { status: 404 })
+  if (!body.trim()) throw Object.assign(new Error('Empty reply'), { status: 400 })
+  if (['ACCEPTED', 'DECLINED'].includes(thread.status)) {
+    throw Object.assign(new Error('Thread is no longer open'), { status: 409 })
+  }
+  const emails = state.emails[threadId] || []
+  emails.push({
+    id: `mock-email-${state.nextId++}`, from: 'USER', type: 'reply',
+    subject: `Re: ${emails.at(-1)?.subject ?? 'Mortgage application'}`, body: body.trim(),
+    offer: null, createdAt: new Date().toISOString(),
+  })
+  state.emails[threadId] = emails
+  write(inboxKey(user), state)
+  // A closed thread takes the user's last "no thanks" but gets no bank answer.
+  if (thread.status === 'CLOSED') return
+
+  // Like #78, the bank replies within this same POST request.
+  await new Promise(resolve => setTimeout(resolve, 1200))
+  const latest = inboxData(user)
+  const updated = latest.threads.find(item => item.threadId === threadId)
+  if (!updated || ['CLOSED', 'ACCEPTED'].includes(updated.status)) return
+  const existingOffer = latest.emails[threadId]?.some(email => email.type === 'offer')
+  const validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const offer: MortgageOffer = {
+    amount: 150000, termYears: 25, euriborPct: 2.5, marginPct: 1.8,
+    ratePct: 4.3, monthlyPayment: 817, validUntil,
+    conditions: ['Property valuation accepted by the bank', 'Home insurance before disbursement'],
+  }
+  const answer = existingOffer
+    ? 'Thank you for your message. At this time, these are our current offer terms.'
+    : 'Thank you for the additional information. We can offer you the following mortgage terms.'
+  const email: InboxEmail = {
+    id: `mock-email-${latest.nextId++}`, from: 'BANK', type: 'offer',
+    subject: 'Your mortgage offer', body: answer, offer, createdAt: new Date().toISOString(),
+  }
+  latest.emails[threadId]!.push(email)
+  updated.status = 'OFFER'
+  updated.unread = true
+  updated.lastEmail = { subject: email.subject, preview: answer, createdAt: email.createdAt }
+  write(inboxKey(user), latest)
+}
+
+export function mockAcceptOffer(threadId: string, emailId: string | number): void {
+  const user = current()
+  const state = inboxData(user)
+  const thread = state.threads.find(item => item.threadId === threadId)
+  if (!thread) throw Object.assign(new Error('Thread not found'), { status: 404 })
+  if (state.threads.some(item => item.status === 'ACCEPTED')) {
+    throw Object.assign(new Error('An offer is already accepted'), { status: 409 })
+  }
+  const email = state.emails[threadId]?.find(item => String(item.id) === String(emailId))
+  if (thread.status !== 'OFFER' && thread.status !== 'NEGOTIATING') throw Object.assign(new Error('No open offer'), { status: 409 })
+  if (!email || email.from !== 'BANK' || email.type !== 'offer' || !email.offer) {
+    throw Object.assign(new Error('Only a bank offer can be accepted'), { status: 400 })
+  }
+  for (const item of state.threads) item.status = item.threadId === threadId ? 'ACCEPTED' : 'CLOSED'
+  const message: InboxEmail = {
+    id: `mock-email-${state.nextId++}`, from: 'BANK', type: 'confirmation',
+    subject: 'Mortgage offer accepted',
+    body: 'We have received your acceptance. Please visit your branch to arrange signing the contract.',
+    offer: null, createdAt: new Date().toISOString(),
+  }
+  state.emails[threadId]!.push(message)
+  thread.unread = true
+  thread.lastEmail = { subject: message.subject, preview: message.body, createdAt: message.createdAt }
+  write(inboxKey(user), state)
+}
+
+/** Follow the offer-accepted chat trigger without producing a user chat bubble. */
+function mockOfferAccepted(threadId: string): Response {
+  const user = current()
+  const accepted = inboxData(user).threads.find(thread => thread.threadId === threadId && thread.status === 'ACCEPTED')
+  if (!accepted) throw Object.assign(new Error('Offer not accepted'), { status: 409 })
+  const state = data(user)
+  const answer = `You have accepted ${accepted.bank.name}'s offer. Next, arrange the signing, property valuation if required, and home insurance with the bank.`
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const emit = (event: StreamEvent) => controller.enqueue(encoder.encode(`event:${event.type}\ndata:${JSON.stringify(event.data)}\n\n`))
+      const id = state.nextId++
+      state.messages.push({ id, role: 'advisor', text: answer, createdAt: new Date().toISOString(), corrected: false })
+      save(user, state)
+      emit({ type: 'text', data: { delta: answer } })
+      emit({ type: 'done', data: { messageId: id } })
+      controller.close()
+    },
+  })
+  return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
+}
+
 export function mockSend(input: ChatInput): Response {
-  if (typeof input !== 'string') return mockDocumentTrigger(input)
+  if (typeof input !== 'string') {
+    return input.trigger === 'OFFER_ACCEPTED' ? mockOfferAccepted(input.threadId) : mockDocumentTrigger(input)
+  }
   const text = input
   const user = current()
   const state = data(user)
