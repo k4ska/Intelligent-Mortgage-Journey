@@ -20,11 +20,16 @@ import org.junit.jupiter.api.TestFactory;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.seb.mortgage.advisor.AdvisorAgent;
 import com.seb.mortgage.advisor.AdvisorOrchestrator;
 import com.seb.mortgage.advisor.Phases;
 import com.seb.mortgage.advisor.StreamEvent;
+import com.seb.mortgage.bank.Application;
+import com.seb.mortgage.bank.ApplicationRepository;
+import com.seb.mortgage.bank.BankAgent;
+import com.seb.mortgage.bank.EmailGateway;
 import com.seb.mortgage.documents.Document;
 import com.seb.mortgage.documents.DocumentService;
 import com.seb.mortgage.documents.DocumentType;
@@ -66,11 +71,22 @@ class AdvisorScenarios {
 	private static final Pattern NEGATION = Pattern.compile("(?i)\\b(not|no|never|cannot|can't|can’t|won't|won’t|"
 			+ "unless|if|whether)\\b");
 
+	/** The advisor saying it sent something itself; it only ever drafts (#80). */
+	private static final Pattern SENT = Pattern.compile("(?i)\\b(i('ve| have)? sent|i('ve| have) emailed|"
+			+ "i('ll| will) send)\\b");
+
+	private static final String LHV_OFFER = "We are pleased to offer you a mortgage of 150 000 EUR for 25 years. "
+			+ "Interest: 6-month Euribor (2.10%) plus a margin of 1.80%, so 3.90% today. Monthly payment: 783 EUR. "
+			+ "Conditions: a property valuation and home insurance. Valid until 30.11.2026.";
+
 	@Autowired AdvisorOrchestrator orchestrator;
 	@Autowired ProfileService profile;
 	@Autowired PropertyService property;
 	@Autowired DocumentService documents;
 	@Autowired Phases phases;
+	@Autowired ApplicationRepository applications;
+	@Autowired EmailGateway gateway;
+	@Autowired JdbcTemplate jdbc;
 
 	private final ListAppender<ILoggingEvent> advisorLog = new ListAppender<>();
 
@@ -234,6 +250,80 @@ class AdvisorScenarios {
 		});
 	}
 
+	// ---- At the banks (#80) ----
+
+	@TestFactory
+	Stream<DynamicTest> explainAnOfferWithItsNumbers() {
+		return runs("next to a thread, an offer is explained with its numbers", chat -> {
+			chat.say(ALL_FACTS);
+			chat.applied();
+			Turn turn = chat.ask("Explain this offer");
+
+			assertThat(turn.reply()).containsPattern("1[.,]8").containsPattern("3[.,]9|783");
+			assertThat(turn.types()).doesNotContain("draft_reply");
+			chat.noCorrections();
+		});
+	}
+
+	@TestFactory
+	Stream<DynamicTest> helpMeReplyFillsTheReplyBox() {
+		return runs("help me reply fills the reply box, nothing is sent", chat -> {
+			chat.say(ALL_FACTS);
+			chat.applied();
+			Turn turn = chat.ask("Help me reply: I'd like to ask for a lower margin.");
+
+			assertThat(turn.tools()).contains("draftReply");
+			assertThat(turn.types()).contains("draft_reply");
+			assertThat(turn.draft()).isNotBlank().doesNotContainPattern(SENT.pattern());
+			assertThat(turn.reply()).doesNotContainPattern(SENT.pattern());
+			assertThat(gateway.emails(chat.lhv)).as("emails in LHV's thread").hasSize(1);
+			chat.noCorrections();
+		});
+	}
+
+	@TestFactory
+	Stream<DynamicTest> inTheChatADraftIsForTheInbox() {
+		return runs("in the chat, a draft is for the inbox", chat -> {
+			chat.say(ALL_FACTS);
+			chat.applied();
+			Turn turn = chat.say("Can you write a reply to LHV asking for a lower margin?");
+
+			assertThat(turn.types()).doesNotContain("draft_reply");
+			assertThat(turn.reply()).doesNotContainPattern(SENT.pattern())
+					.containsPattern("(?i)\\b(inbox|next to|thread)\\b");
+		});
+	}
+
+	@TestFactory
+	Stream<DynamicTest> afterApplyingWhatEachBankSaid() {
+		return runs("after applying, what each bank said", chat -> {
+			chat.say(ALL_FACTS);
+			chat.applied();
+			Turn turn = chat.record(orchestrator.applicationSent(chat.userId, chat.applicationId).collectList().block(),
+					"(sent the application to SEB and LHV)");
+
+			assertThat(turn.reply()).contains("SEB").contains("LHV");
+			chat.noCorrections();
+		});
+	}
+
+	@TestFactory
+	Stream<DynamicTest> afterAcceptingTheNextSteps() {
+		return runs("after accepting, the next steps", chat -> {
+			chat.say(ALL_FACTS);
+			chat.applied();
+			jdbc.update("UPDATE email_thread SET status = 'ACCEPTED' WHERE id = ?", chat.lhv);
+			jdbc.update("UPDATE email_thread SET status = 'CLOSED' WHERE id = ?", chat.seb);
+			Turn turn = chat.record(orchestrator.offerAccepted(chat.userId, chat.lhv).collectList().block(),
+					"(accepted LHV's offer)");
+
+			assertThat(turn.reply().toLowerCase(Locale.ROOT)).containsAnyOf("notary", "insurance")
+					.contains("seb");
+			assertThat(turn.reply()).doesNotContainPattern(SENT.pattern());
+			chat.noCorrections();
+		});
+	}
+
 	// ---- The harness ----
 
 	private Stream<DynamicTest> runs(String name, Consumer<Chat> scenario) {
@@ -257,12 +347,15 @@ class AdvisorScenarios {
 		return found;
 	}
 
-	/** One turn: the event types, the reply as the user saw it, and the tools that ran. */
-	record Turn(List<String> types, String reply, List<String> tools) {}
+	/** One turn: the event types, the reply as the user saw it, the tools that ran, and any draft. */
+	record Turn(List<String> types, String reply, List<String> tools, String draft) {}
 
 	/** One run of a scenario: a fresh user and what happened in their conversation. */
 	private final class Chat {
 		private final UUID userId;
+		private UUID applicationId;
+		private UUID seb;
+		private UUID lhv;
 		private final List<Turn> turns = new ArrayList<>();
 		private final StringBuilder transcript = new StringBuilder();
 
@@ -291,10 +384,34 @@ class AdvisorScenarios {
 			transcript.append("\n(skipped ahead: a property and an affordability result)");
 		}
 
+		/** The user applied to SEB (who asks a question) and LHV (who makes an offer). */
+		void applied() {
+			applicationId = applications.save(new Application(userId, "{}", "[\"seb\",\"lhv\"]")).getId();
+			seb = gateway.createThread(applicationId, userId, "seb").getId();
+			gateway.addBankEmail(seb, new BankAgent.Draft("question", "Your mortgage application",
+					"Thank you for your application. Before we can make an offer, please tell us how long you "
+							+ "have worked at your current employer."));
+			lhv = gateway.createThread(applicationId, userId, "lhv").getId();
+			gateway.addBankEmail(lhv, new BankAgent.Draft("offer", "Your mortgage offer", LHV_OFFER));
+			transcript.append("\n(applied to SEB and LHV; LHV offered: ").append(LHV_OFFER).append(')');
+		}
+
+		/** The user asks next to LHV's thread in the inbox. */
+		Turn ask(String text) {
+			transcript.append("\nUSER (next to LHV's thread): ").append(text);
+			return record(orchestrator.assist(userId, lhv, text).collectList().block());
+		}
+
+		Turn record(List<StreamEvent> events, String what) {
+			transcript.append('\n').append(what);
+			return record(events);
+		}
+
 		private Turn record(List<StreamEvent> events) {
 			List<String> types = new ArrayList<>();
 			StringBuilder text = new StringBuilder();
 			String corrected = null;
+			String draft = null;
 			for (StreamEvent event : events) {
 				if (types.isEmpty() || !types.getLast().equals(event.type())) {
 					types.add(event.type());
@@ -302,15 +419,19 @@ class AdvisorScenarios {
 				switch (event.type()) {
 					case "text" -> text.append(event.data().get("delta"));
 					case "corrected" -> corrected = (String) event.data().get("text");
+					case "draft_reply" -> draft = (String) event.data().get("body");
 					default -> { }
 				}
 			}
 			String reply = corrected != null ? corrected : text.toString();
-			Turn turn = new Turn(types, reply, lastTurnsTools());
+			Turn turn = new Turn(types, reply, lastTurnsTools(), draft);
 			turns.add(turn);
 			transcript.append("\nADVISOR").append(turn.tools().isEmpty() ? "" : " " + turn.tools())
 					.append(corrected != null ? " (corrected; it first said: " + text + ")" : "").append(": ")
 					.append(reply);
+			if (draft != null) {
+				transcript.append("\n(draft in the reply box: ").append(draft).append(')');
+			}
 			return turn;
 		}
 
