@@ -20,6 +20,8 @@ export interface ChatMessage {
   createdAt: string
   /** True when the verifier replaced the original streamed advisor reply. */
   corrected: boolean
+  /** Present on messages written by the advisor next to a bank thread (#80). */
+  threadId?: string | null
 }
 
 // ---- Profile and property (GET /api/profile) ----
@@ -115,13 +117,14 @@ export type StreamEvent =
   | { type: 'profile_updated', data: { fields: ProfileField[] } }
   | { type: 'property_updated', data: { property: Property } }
   | { type: 'bank_picker', data: { banks: BankOption[] } }
+  | { type: 'draft_reply', data: { threadId: string, body: string } }
   | { type: 'document_status', data: { type: DocumentType, label: string, status: DocumentStatus, whereToGet: string, why: string, tips: string, fileName: string | null } }
   // The verifier replaced the reply that just streamed with a safe version (#67).
   | { type: 'corrected', data: { messageId: number, text: string } }
   | { type: 'done', data: { messageId: number } }
   | { type: 'error', data: { message: string } }
 
-// ---- Applications and inbox (#51) ----
+// ---- Applications and inbox (#51, #79) ----
 
 export interface ApplicationResult {
   applicationId: string

@@ -1,10 +1,11 @@
 import type { AgentStatus, ApplicationResult, ChatMessage, DocumentType, DocumentView, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
-import { mockAcceptOffer, mockChat, mockDocuments, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockReplyToThread, mockReset, mockSend, mockSubmitApplication, mockUploadDocument } from '~/mocks/advisor'
+import { mockAcceptOffer, mockAssist, mockChat, mockDocuments, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockReplyToThread, mockReset, mockSend, mockSubmitApplication, mockUploadDocument } from '~/mocks/advisor'
 
 export interface AuthUser { id: string; email: string }
 export type ChatInput = string
   | { trigger: 'DOCUMENT_UPLOADED'; documentId: string }
   | { trigger: 'OFFER_ACCEPTED'; threadId: string }
+  | { trigger: 'APPLICATION_SENT'; applicationId: string }
 
 /** All backend URLs and the optional explicit mock switch live in one place. */
 export function useApi() {
@@ -20,11 +21,24 @@ export function useApi() {
   // Run mocks asynchronously so their errors reject like real requests instead of throwing.
   const later = <T>(fn: () => T): Promise<T> => Promise.resolve().then(fn)
 
+  /** Shared POST-SSE transport for both the main chat and inbox advisor.
+   *  EventSource cannot POST JSON; fetch provides the ReadableStream we need. */
+  const postStream = async (path: string, body: unknown, signal?: AbortSignal): Promise<Response> => {
+    const response = await fetch(`${base}${path}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify(body),
+      signal,
+    })
+    if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status })
+    if (!response.body) throw new Error('Missing SSE response body')
+    return response
+  }
+
   return {
     isMock: mock,
-    getMe: (): Promise<AuthUser> => mock
-      ? later(mockMe)
-      : request<AuthUser>('/auth/me'),
+    getMe: (): Promise<AuthUser> => mock ? later(mockMe) : request<AuthUser>('/auth/me'),
     register: (email: string, password: string): Promise<AuthUser> => mock
       ? later(() => mockRegister(email))
       : request<AuthUser>('/auth/register', { method: 'POST', body: { email, password } }),
@@ -63,38 +77,17 @@ export function useApi() {
     getInboxThread: (threadId: string): Promise<InboxThreadDetail> => mock
       ? later(() => mockGetThread(threadId))
       : request<InboxThreadDetail>(`/inbox/${encodeURIComponent(threadId)}`),
-
     replyToThread: (threadId: string, body: string): Promise<unknown> => mock
       ? mockReplyToThread(threadId, body)
       : request<unknown>(`/inbox/${encodeURIComponent(threadId)}/reply`, { method: 'POST', body: { body } }),
     acceptOffer: (threadId: string, emailId: string | number): Promise<unknown> => mock
       ? later(() => mockAcceptOffer(threadId, emailId))
       : request<unknown>(`/inbox/${encodeURIComponent(threadId)}/accept`, { method: 'POST', body: { emailId } }),
-
-    // EventSource cannot POST JSON; fetch provides the ReadableStream we need.
-    sendMessage: async (input: ChatInput, signal?: AbortSignal): Promise<Response> => {
-      if (mock) return mockSend(input)
-
-      const response = await fetch(`${base}/chat/messages`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'text/event-stream',
-        },
-        body: JSON.stringify(typeof input === 'string' ? { text: input } : input),
-        signal,
-      })
-
-      if (!response.ok) {
-        throw Object.assign(new Error(`HTTP ${response.status}`), {
-          status: response.status,
-        })
-      }
-
-      if (!response.body) throw new Error('Missing SSE response body')
-
-      return response
-    },
+    sendMessage: (input: ChatInput, signal?: AbortSignal): Promise<Response> => mock
+      ? later(() => mockSend(input))
+      : postStream('/chat/messages', typeof input === 'string' ? { text: input } : input, signal),
+    assistThread: (threadId: string, text: string, signal?: AbortSignal): Promise<Response> => mock
+      ? later(() => mockAssist(threadId, text))
+      : postStream(`/inbox/${encodeURIComponent(threadId)}/assist`, { text }, signal),
   }
 }

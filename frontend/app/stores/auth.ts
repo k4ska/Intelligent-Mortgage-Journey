@@ -21,7 +21,9 @@ export const useAuthStore = defineStore('auth', {
       const advisor = useAdvisorStore()
       advisor.cancel()
       advisor.$reset()
-      useInboxStore().$reset()
+      const inbox = useInboxStore()
+      inbox.cancelAssist()
+      inbox.$reset()
     },
     /** The server session is gone (any API call returned 401): drop local state and re-login. */
     async expire() {
