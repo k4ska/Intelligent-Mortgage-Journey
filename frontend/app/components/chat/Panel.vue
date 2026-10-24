@@ -30,6 +30,7 @@ async function submitApplication() {
     const result = await useApi().sendApplication(bankIds)
     advisor.bankOptions = []
     selectedBankIds.value = []
+    // #51 creates bank emails immediately; refresh the shared unread badge and list.
     await inbox.load(true)
     // Application creation is committed; a failed advisor notification does not undo it.
     applicationAdvisorError.value = ''
@@ -59,7 +60,7 @@ watch(scrollKey, async () => {
 
 async function send() {
   const text = draft.value.trim()
-  if (!text || advisor.sending || !advisor.loaded) return
+  if (!text || advisor.sending || advisor.uploading || !advisor.loaded) return
   draft.value = ''
   await advisor.send(text)
 }
@@ -109,8 +110,8 @@ function onKeydown(event: KeyboardEvent) {
       </div>
       <p v-if="advisor.sending" class="mb-2 text-xs text-[var(--ui-text-muted)]">{{ copy.sending }}</p>
       <form class="flex items-end gap-2" @submit.prevent="send">
-        <textarea v-model="draft" :placeholder="copy.chatPlaceholder" :aria-label="copy.chatPlaceholder" class="app-input min-h-12 max-h-36 flex-1 resize-y" rows="2" :disabled="!advisor.loaded || advisor.sending" @keydown="onKeydown" />
-        <UButton type="submit" size="lg" icon="i-lucide-arrow-up" :aria-label="copy.send" :disabled="!draft.trim() || !advisor.loaded || advisor.sending" :loading="advisor.sending" />
+        <textarea v-model="draft" :placeholder="copy.chatPlaceholder" :aria-label="copy.chatPlaceholder" class="app-input min-h-12 max-h-36 flex-1 resize-y" rows="2" :disabled="!advisor.loaded || advisor.sending || !!advisor.uploading" @keydown="onKeydown" />
+        <UButton type="submit" size="lg" icon="i-lucide-arrow-up" :aria-label="copy.send" :disabled="!draft.trim() || !advisor.loaded || advisor.sending || !!advisor.uploading" :loading="advisor.sending" />
       </form>
       <p class="mt-2 text-xs text-[var(--ui-text-dimmed)]">{{ copy.chatHint }}</p>
     </div>

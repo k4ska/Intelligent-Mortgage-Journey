@@ -133,6 +133,7 @@ export interface ApplicationResult {
 
 export type InboxThreadStatus = 'OPEN' | 'OFFER' | 'NEGOTIATING' | 'ACCEPTED' | 'DECLINED' | 'CLOSED'
 
+/** Mirrors OfferCalculator.Offer on the bank backend (#78). */
 export interface MortgageOffer {
   amount: number
   termYears: number

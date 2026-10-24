@@ -29,7 +29,7 @@ watch(() => `${inbox.selectedThreadId}:${threadMessages.value.length}:${lastMess
   if (assistantLog.value) assistantLog.value.scrollTop = assistantLog.value.scrollHeight
 })
 
-const canReply = computed(() => !!inbox.activeThread && ['OPEN', 'OFFER', 'NEGOTIATING'].includes(inbox.activeThread.status))
+const canReply = computed(() => !!inbox.activeThread && ['OPEN', 'OFFER', 'NEGOTIATING', 'CLOSED'].includes(inbox.activeThread.status))
 
 function formatTime(value: string) {
   const date = new Date(value)
@@ -152,7 +152,7 @@ async function confirmAcceptance() {
                 >{{ copy.inboxAccept }}</UButton>
               </div>
             </article>
-            <p v-if="inbox.replyingThreadId === inbox.activeThread.threadId" class="flex items-center gap-2 text-sm text-[var(--ui-text-muted)]" role="status">
+            <p v-if="inbox.replyingThreadId === inbox.activeThread.threadId && inbox.activeThread.status !== 'CLOSED'" class="flex items-center gap-2 text-sm text-[var(--ui-text-muted)]" role="status">
               <UIcon name="i-lucide-loader-circle" class="animate-spin" aria-hidden="true" />
               {{ inbox.activeThread.bank.name }} {{ copy.inboxTyping }}
             </p>

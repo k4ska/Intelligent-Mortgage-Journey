@@ -1,8 +1,9 @@
-import type { AgentStatus, ApplicationResult, ChatMessage, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
-import { mockAssist, mockAcceptOffer, mockChat, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockReplyToThread, mockReset, mockSend, mockSubmitApplication } from '~/mocks/advisor'
+import type { AgentStatus, ApplicationResult, ChatMessage, DocumentType, DocumentView, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
+import { mockAcceptOffer, mockAssist, mockChat, mockDocuments, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockReplyToThread, mockReset, mockSend, mockSubmitApplication, mockUploadDocument } from '~/mocks/advisor'
 
 export interface AuthUser { id: string; email: string }
 export type ChatInput = string
+  | { trigger: 'DOCUMENT_UPLOADED'; documentId: string }
   | { trigger: 'OFFER_ACCEPTED'; threadId: string }
   | { trigger: 'APPLICATION_SENT'; applicationId: string }
 
@@ -10,13 +11,18 @@ export type ChatInput = string
 export function useApi() {
   const { public: config } = useRuntimeConfig()
   const base = config.apiBase
+
+  // Runtime environment variables can arrive as strings from Docker.
   const mock = String(config.mockApi) === 'true'
 
   const request = <T>(path: string, options: Parameters<typeof $fetch>[1] = {}) =>
     $fetch<T>(`${base}${path}`, { credentials: 'same-origin', ...options })
+
+  // Run mocks asynchronously so their errors reject like real requests instead of throwing.
   const later = <T>(fn: () => T): Promise<T> => Promise.resolve().then(fn)
 
-  /** Shared POST-SSE transport for both the main chat and inbox advisor. */
+  /** Shared POST-SSE transport for both the main chat and inbox advisor.
+   *  EventSource cannot POST JSON; fetch provides the ReadableStream we need. */
   const postStream = async (path: string, body: unknown, signal?: AbortSignal): Promise<Response> => {
     const response = await fetch(`${base}${path}`, {
       method: 'POST',
@@ -39,16 +45,35 @@ export function useApi() {
     login: (email: string, password: string): Promise<AuthUser> => mock
       ? later(() => mockLogin(email))
       : request<AuthUser>('/auth/login', { method: 'POST', body: { email, password } }),
-    logout: (): Promise<void> => mock ? later(mockLogout) : request<void>('/auth/logout', { method: 'POST' }),
-    getChat: (): Promise<ChatMessage[]> => mock ? later(mockChat) : request<ChatMessage[]>('/chat'),
+    logout: (): Promise<void> => mock
+      ? later(mockLogout)
+      : request<void>('/auth/logout', { method: 'POST' }),
+    getChat: (): Promise<ChatMessage[]> => mock
+      ? later(mockChat)
+      : request<ChatMessage[]>('/chat'),
+    // Wipes the user's conversation, profile, property, documents and bank emails.
     resetChat: (): Promise<ChatMessage[]> => mock
-      ? later(mockReset) : request<ChatMessage[]>('/chat/reset', { method: 'POST' }),
-    getProfile: (): Promise<Profile> => mock ? later(mockProfile) : request<Profile>('/profile'),
+      ? later(mockReset)
+      : request<ChatMessage[]>('/chat/reset', { method: 'POST' }),
+    getProfile: (): Promise<Profile> => mock
+      ? later(mockProfile)
+      : request<Profile>('/profile'),
+    getDocuments: (): Promise<DocumentView[]> => mock
+      ? later(mockDocuments)
+      : request<DocumentView[]>('/documents'),
+    uploadDocument: (type: DocumentType, file: File): Promise<DocumentView> => {
+      if (mock) return later(() => mockUploadDocument(type, file))
+      const form = new FormData()
+      form.append('file', file)
+      return request<DocumentView>(`/documents/${encodeURIComponent(type)}`, { method: 'POST', body: form })
+    },
     getAgentStatus: () => request<AgentStatus>('/agent/status'),
     sendApplication: (bankIds: string[]): Promise<ApplicationResult> => mock
       ? later(() => mockSubmitApplication(bankIds))
       : request<ApplicationResult>('/applications', { method: 'POST', body: { bankIds } }),
-    getInbox: (): Promise<InboxThread[]> => mock ? later(mockGetInbox) : request<InboxThread[]>('/inbox'),
+    getInbox: (): Promise<InboxThread[]> => mock
+      ? later(mockGetInbox)
+      : request<InboxThread[]>('/inbox'),
     getInboxThread: (threadId: string): Promise<InboxThreadDetail> => mock
       ? later(() => mockGetThread(threadId))
       : request<InboxThreadDetail>(`/inbox/${encodeURIComponent(threadId)}`),
