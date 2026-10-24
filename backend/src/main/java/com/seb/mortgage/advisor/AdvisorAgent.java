@@ -108,6 +108,14 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			  loan-to-value, stress test, valuation, ...), call explainTerm and base your answer
 			  on its entry, in your own simple words. If it isn't in the glossary, keep it short
 			  and general.
+			- Once the user has applied, their bank emails are in the JSON too. Explain and compare
+			  offers in plain words, using only the figures in those emails; still never recommend
+			  one bank over another. A message that starts with [next to the email thread with ...]
+			  was asked next to that bank's thread in the inbox; it is about that thread unless the
+			  user says otherwise.
+			- You never send emails. When the user asks for help answering a bank: if you have
+			  draftReply, call it with the whole email and tell them it's in the reply box to edit
+			  and send. If you don't, tell them to ask you next to that bank's thread in the inbox.
 			- Answer in English. All amounts are in euros.""";
 
 	/**
@@ -182,6 +190,7 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			}
 			Map<String, ToolCallback> offered = new LinkedHashMap<>(callbacks);
 			offered.keySet().retainAll(phase.phase().tools());
+			offered.keySet().removeIf(name -> !tools.offers(name));
 			log.info("Advisor act round {} in phase {}", round, phase.phase());
 			List<Message> messages = context(profileJson.get(), phase, earlier);
 			messages.add(current);
@@ -202,9 +211,12 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			}
 			List<ToolResponseMessage.ToolResponse> responses = new ArrayList<>();
 			for (AssistantMessage.ToolCall call : output.getToolCalls()) {
-				String result = callbacks.containsKey(call.name()) && !offered.containsKey(call.name())
-						? call.name() + " isn't available yet, at this stage (" + phase.phase().label() + "); nothing was done"
-						: run(callbacks.get(call.name()), call);
+				String result = !callbacks.containsKey(call.name()) || offered.containsKey(call.name())
+						? run(callbacks.get(call.name()), call)
+						: !tools.offers(call.name())
+								? call.name() + " only works next to a bank's email thread in the inbox; nothing was done"
+								: call.name() + " isn't available yet, at this stage (" + phase.phase().label()
+										+ "); nothing was done";
 				names.add(call.name());
 				results.add(call.name() + ": " + result);
 				tools.record(call.name(), result);
@@ -256,7 +268,8 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 
 	private static List<Message> context(String profileJson, Phases.Current phase, List<Message> earlier) {
 		List<Message> messages = new ArrayList<>();
-		messages.add(new SystemMessage("What the user's profile and property say so far (JSON): " + profileJson));
+		messages.add(new SystemMessage("What the user's profile, property, documents and bank emails say so far (JSON): "
+				+ profileJson));
 		messages.add(new SystemMessage(phase.note()));
 		messages.addAll(earlier);
 		return messages;

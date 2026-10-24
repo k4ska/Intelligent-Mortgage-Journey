@@ -14,7 +14,8 @@ import java.util.UUID;
 
 /**
  * One message in a conversation, from the user or the advisor. The id is an increasing
- * number, so it also gives the order (two messages can share a timestamp).
+ * number, so it also gives the order (two messages can share a timestamp). Messages written
+ * next to a bank's email thread in the inbox carry that thread's id (#80).
  */
 @Entity
 @Table(name = "message")
@@ -40,6 +41,9 @@ public class Message {
 	@Column(nullable = false)
 	private boolean corrected;
 
+	/** The bank thread the message was written next to, or null in the chat. */
+	private UUID threadId;
+
 	@Column(nullable = false, updatable = false)
 	private Instant createdAt;
 
@@ -47,9 +51,14 @@ public class Message {
 	}
 
 	public Message(UUID conversationId, Role role, String text) {
+		this(conversationId, role, text, null);
+	}
+
+	public Message(UUID conversationId, Role role, String text, UUID threadId) {
 		this.conversationId = conversationId;
 		this.role = role;
 		this.text = text;
+		this.threadId = threadId;
 		this.createdAt = Instant.now();
 	}
 
@@ -81,5 +90,9 @@ public class Message {
 
 	public Instant getCreatedAt() {
 		return createdAt;
+	}
+
+	public UUID getThreadId() {
+		return threadId;
 	}
 }
