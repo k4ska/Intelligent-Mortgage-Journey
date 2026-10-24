@@ -53,7 +53,7 @@ watch(scrollKey, async () => {
 
 async function send() {
   const text = draft.value.trim()
-  if (!text || advisor.sending || !advisor.loaded) return
+  if (!text || advisor.sending || advisor.uploading || !advisor.loaded) return
   draft.value = ''
   await advisor.send(text)
 }
@@ -76,7 +76,8 @@ function onKeydown(event: KeyboardEvent) {
     <div ref="list" class="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5" role="log" aria-live="polite" aria-relevant="additions text">
       <p v-if="advisor.loading" class="text-center text-sm text-[var(--ui-text-muted)]">{{ copy.loading }}</p>
       <div v-for="message in advisor.messages" :key="message.id" :class="['flex', message.role === 'user' ? 'justify-end' : 'justify-start']">
-        <div :class="['max-w-[87%] rounded-2xl px-4 py-3 text-sm leading-6 whitespace-pre-wrap break-words', message.role === 'user' ? 'rounded-br-sm bg-[var(--ui-primary)] text-white' : 'rounded-bl-sm bg-[var(--ui-bg-muted)] text-[var(--ui-text)]']">
+        <p v-if="message.role === 'system'" class="mx-auto max-w-[90%] rounded-lg bg-[var(--ui-bg-muted)] px-3 py-1.5 text-center text-xs leading-5 text-[var(--ui-text-muted)]" role="note">{{ message.text }}</p>
+        <div v-else :class="['max-w-[87%] rounded-2xl px-4 py-3 text-sm leading-6 whitespace-pre-wrap break-words', message.role === 'user' ? 'rounded-br-sm bg-[var(--ui-primary)] text-white' : 'rounded-bl-sm bg-[var(--ui-bg-muted)] text-[var(--ui-text)]']">
           <div>{{ message.text || (advisor.sending && message.role === 'advisor' ? '…' : '') }}</div>
           <span v-if="message.role === 'advisor' && message.corrected" class="mt-2 inline-flex items-center gap-1 rounded-md border border-[var(--ui-border)] px-2 py-0.5 text-xs text-[var(--ui-text-muted)]" :title="copy.correctedTooltip" :aria-label="`${copy.correctedLabel}. ${copy.correctedTooltip}`" role="note" tabindex="0">
             <UIcon name="i-lucide-info" aria-hidden="true" />
@@ -110,8 +111,8 @@ function onKeydown(event: KeyboardEvent) {
       </div>
       <p v-if="advisor.sending" class="mb-2 text-xs text-[var(--ui-text-muted)]">{{ copy.sending }}</p>
       <form class="flex items-end gap-2" @submit.prevent="send">
-        <textarea v-model="draft" :placeholder="copy.chatPlaceholder" :aria-label="copy.chatPlaceholder" class="app-input min-h-12 max-h-36 flex-1 resize-y" rows="2" :disabled="!advisor.loaded || advisor.sending" @keydown="onKeydown" />
-        <UButton type="submit" size="lg" icon="i-lucide-arrow-up" :aria-label="copy.send" :disabled="!draft.trim() || !advisor.loaded || advisor.sending" :loading="advisor.sending" />
+        <textarea v-model="draft" :placeholder="copy.chatPlaceholder" :aria-label="copy.chatPlaceholder" class="app-input min-h-12 max-h-36 flex-1 resize-y" rows="2" :disabled="!advisor.loaded || advisor.sending || !!advisor.uploading" @keydown="onKeydown" />
+        <UButton type="submit" size="lg" icon="i-lucide-arrow-up" :aria-label="copy.send" :disabled="!draft.trim() || !advisor.loaded || advisor.sending || !!advisor.uploading" :loading="advisor.sending" />
       </form>
       <p class="mt-2 text-xs text-[var(--ui-text-dimmed)]">{{ copy.chatHint }}</p>
     </div>

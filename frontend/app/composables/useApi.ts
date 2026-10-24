@@ -1,8 +1,10 @@
-import type { AgentStatus, ApplicationResult, ChatMessage, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
-import { mockChat, mockReset, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockSend, mockSubmitApplication, mockReplyToThread, mockAcceptOffer } from '~/mocks/advisor'
+import type { AgentStatus, ApplicationResult, ChatMessage, DocumentType, DocumentView, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
+import { mockAcceptOffer, mockChat, mockDocuments, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockReplyToThread, mockReset, mockSend, mockSubmitApplication, mockUploadDocument } from '~/mocks/advisor'
 
 export interface AuthUser { id: string; email: string }
-export type ChatInput = string | { trigger: 'OFFER_ACCEPTED'; threadId: string }
+export type ChatInput = string
+  | { trigger: 'DOCUMENT_UPLOADED'; documentId: string }
+  | { trigger: 'OFFER_ACCEPTED'; threadId: string }
 
 /** All backend URLs and the optional explicit mock switch live in one place. */
 export function useApi() {
@@ -35,13 +37,22 @@ export function useApi() {
     getChat: (): Promise<ChatMessage[]> => mock
       ? later(mockChat)
       : request<ChatMessage[]>('/chat'),
-    // Wipes the user's conversation, profile, property and bank emails; returns the greeting.
+    // Wipes the user's conversation, profile, property, documents and bank emails.
     resetChat: (): Promise<ChatMessage[]> => mock
       ? later(mockReset)
       : request<ChatMessage[]>('/chat/reset', { method: 'POST' }),
     getProfile: (): Promise<Profile> => mock
       ? later(mockProfile)
       : request<Profile>('/profile'),
+    getDocuments: (): Promise<DocumentView[]> => mock
+      ? later(mockDocuments)
+      : request<DocumentView[]>('/documents'),
+    uploadDocument: (type: DocumentType, file: File): Promise<DocumentView> => {
+      if (mock) return later(() => mockUploadDocument(type, file))
+      const form = new FormData()
+      form.append('file', file)
+      return request<DocumentView>(`/documents/${encodeURIComponent(type)}`, { method: 'POST', body: form })
+    },
     getAgentStatus: () => request<AgentStatus>('/agent/status'),
     sendApplication: (bankIds: string[]): Promise<ApplicationResult> => mock
       ? later(() => mockSubmitApplication(bankIds))
