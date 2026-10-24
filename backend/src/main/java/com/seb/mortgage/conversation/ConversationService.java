@@ -31,7 +31,13 @@ public class ConversationService {
 
 	@Transactional
 	public Message append(UUID userId, Message.Role role, String text) {
-		return messages.save(new Message(conversationFor(userId).getId(), role, text));
+		return append(userId, role, text, null);
+	}
+
+	/** @param threadId the bank thread the message was written next to (#80), or null in the chat */
+	@Transactional
+	public Message append(UUID userId, Message.Role role, String text, UUID threadId) {
+		return messages.save(new Message(conversationFor(userId).getId(), role, text, threadId));
 	}
 
 	/** Deletes the conversation; the next {@link #history} starts again with the greeting. */

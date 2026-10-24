@@ -7,6 +7,7 @@ import com.seb.mortgage.property.PropertyView;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * One event in the stream of an advisor turn: the SSE event name and its JSON data.
@@ -45,6 +46,11 @@ public record StreamEvent(String type, Map<String, Object> data) {
 	/** Shows the bank picker card under the chat. */
 	public static StreamEvent bankPicker(List<BankOption> banks) {
 		return new StreamEvent("bank_picker", Map.of("banks", banks));
+	}
+
+	/** A reply the advisor drafted for the user to edit and send to a bank (#80); never sent by itself. */
+	public static StreamEvent draftReply(UUID threadId, String body) {
+		return new StreamEvent("draft_reply", Map.of("threadId", threadId, "body", body));
 	}
 
 	/** The verifier replaced the reply that just streamed with a safe version (#67). */

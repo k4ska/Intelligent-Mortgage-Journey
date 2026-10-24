@@ -24,10 +24,15 @@ import java.util.UUID;
 @RequestMapping("/api/chat")
 public class ChatController {
 
-	public record MessageView(Long id, String role, String text, Instant createdAt, boolean corrected) {}
+	/** @param threadId the bank thread the message was written next to in the inbox (#80), or null */
+	public record MessageView(Long id, String role, String text, Instant createdAt, boolean corrected,
+			UUID threadId) {}
 
-	/** Either what the user typed, or a trigger for something that happened outside the chat. */
-	public record ChatRequest(String text, String trigger, UUID documentId) {}
+	/**
+	 * Either what the user typed, or a trigger for something that happened outside the chat,
+	 * with the id it is about.
+	 */
+	public record ChatRequest(String text, String trigger, UUID documentId, UUID applicationId, UUID threadId) {}
 
 	private final ConversationService conversations;
 	private final AdvisorOrchestrator orchestrator;
@@ -47,7 +52,7 @@ public class ChatController {
 	public List<MessageView> history() {
 		return conversations.history(currentUser.id()).stream()
 				.map(m -> new MessageView(m.getId(), m.getRole().name().toLowerCase(Locale.ROOT),
-						m.getText(), m.getCreatedAt(), m.isCorrected()))
+						m.getText(), m.getCreatedAt(), m.isCorrected(), m.getThreadId()))
 				.toList();
 	}
 
@@ -74,22 +79,29 @@ public class ChatController {
 	}
 
 	private Flux<StreamEvent> trigger(ChatRequest request) {
-		if (!"DOCUMENT_UPLOADED".equals(request.trigger())) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown trigger: " + request.trigger());
-		}
-		if (request.documentId() == null) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "documentId is required");
-		}
+		UUID userId = currentUser.id();
 		try {
-			return orchestrator.documentUploaded(currentUser.id(), request.documentId());
+			return switch (request.trigger()) {
+				case "DOCUMENT_UPLOADED" -> orchestrator.documentUploaded(userId, required(request.documentId(), "documentId"));
+				case "APPLICATION_SENT" -> orchestrator.applicationSent(userId, required(request.applicationId(), "applicationId"));
+				case "OFFER_ACCEPTED" -> orchestrator.offerAccepted(userId, required(request.threadId(), "threadId"));
+				default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown trigger: " + request.trigger());
+			};
 		} catch (NoSuchElementException e) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such document");
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Not found");
 		} catch (IllegalStateException e) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
 		}
 	}
 
-	private static Flux<ServerSentEvent<Map<String, Object>>> toSse(Flux<StreamEvent> events) {
+	private static UUID required(UUID id, String name) {
+		if (id == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, name + " is required");
+		}
+		return id;
+	}
+
+	static Flux<ServerSentEvent<Map<String, Object>>> toSse(Flux<StreamEvent> events) {
 		return events.map(event -> ServerSentEvent.builder(event.data()).event(event.type()).build());
 	}
 }

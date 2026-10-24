@@ -33,7 +33,7 @@ public enum Phase {
 			List.of("showBankPicker")),
 	AT_THE_BANKS("at the banks",
 			"Their application is with the banks. Help them understand, compare and answer the banks' emails.",
-			List.of());
+			List.of("draftReply"));
 
 	private final String label;
 	private final String focus;

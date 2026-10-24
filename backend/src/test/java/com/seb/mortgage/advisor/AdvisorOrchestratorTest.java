@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,12 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 
+import com.seb.mortgage.bank.Application;
+import com.seb.mortgage.bank.ApplicationRepository;
+import com.seb.mortgage.bank.BankAgent;
+import com.seb.mortgage.bank.EmailGateway;
 import com.seb.mortgage.conversation.ConversationService;
 import com.seb.mortgage.conversation.Message;
 import com.seb.mortgage.documents.Document;
@@ -138,6 +144,10 @@ class AdvisorOrchestratorTest {
 			static final String CONFIRMS = "Yes, that's right";
 			static final String CORRECTS = "No, it's 2,400";
 			static final String TO_THE_BANKS = "Send my application to the banks";
+			static final String LHV_OFFER = "We can offer you 150000 euros over 25 years at a margin of 1.8%.";
+			static final String HELP_REPLY = "Help me reply";
+			static final String DRAFT = "Thank you for the offer. Could you lower the margin from 1.8%?";
+			static final String TRIGGERED = "Here is what happened.";
 
 			volatile String verdict = APPROVE;
 			final AtomicInteger verifierCalls = new AtomicInteger();
@@ -171,6 +181,10 @@ class AdvisorOrchestratorTest {
 				if (messages.getLast() instanceof SystemMessage note && note.getText().startsWith("The user just uploaded")) {
 					actPrompt = prompt;
 					return new ChatResponse(List.of(new Generation(new AssistantMessage(READ_BACK))));
+				}
+				if (messages.getLast() instanceof SystemMessage note && note.getText().startsWith("The user just")) {
+					actPrompt = prompt;
+					return new ChatResponse(List.of(new Generation(new AssistantMessage(TRIGGERED))));
 				}
 				int lastUser = 0;
 				for (int i = 0; i < messages.size(); i++) {
@@ -206,6 +220,9 @@ class AdvisorOrchestratorTest {
 				if (user.equals(CORRECTS) && round == 1) {
 					return toolCall("", "updateProfile",
 							"{\"fields\":[{\"key\":\"netIncome\",\"value\":\"2400\",\"quote\":\"it's 2,400\"}]}");
+				}
+				if (user.endsWith(HELP_REPLY) && round == 1) {
+					return toolCall("Drafting.", "draftReply", "{\"body\":\"" + DRAFT + "\"}");
 				}
 				if (user.equals(TO_THE_BANKS) && round == 1) {
 					return toolCall("Sending it.", "showBankPicker", "{}");
@@ -482,8 +499,124 @@ class AdvisorOrchestratorTest {
 					.contains(ConversationService.GREETING)
 					.contains("I earn 2350 a month")
 					.contains("Hello there")
-					.contains("What the user's profile and property say so far")
+					.contains("What the user's profile, property, documents and bank emails say so far")
 					.endsWith("What do you know about me?");
+		}
+	
+
+		// ---- The advisor at the banks (#80) ----
+
+		@Autowired ApplicationRepository applications;
+		@Autowired EmailGateway gateway;
+		@Autowired JdbcTemplate jdbc;
+
+		/** An application to SEB and LHV; LHV's thread has an offer. Returns the threads, SEB's first. */
+		private List<UUID> applied(UUID userId) {
+			UUID applicationId = applications.save(new Application(userId, "{}", "[\"seb\",\"lhv\"]")).getId();
+			UUID seb = gateway.createThread(applicationId, userId, "seb").getId();
+			gateway.addBankEmail(seb, new BankAgent.Draft("question", "Your application", "What is your income?"));
+			UUID lhv = gateway.createThread(applicationId, userId, "lhv").getId();
+			gateway.addBankEmail(lhv, new BankAgent.Draft("offer", "Your offer", FakeChatModel.LHV_OFFER));
+			return List.of(seb, lhv);
+		}
+
+		@Test
+		void nextToAThreadTheAdvisorDraftsAReplyButSendsNothing() {
+			UUID userId = UUID.randomUUID();
+			UUID lhv = applied(userId).get(1);
+
+			List<StreamEvent> events = orchestrator.assist(userId, lhv, FakeChatModel.HELP_REPLY).collectList().block();
+
+			assertThat(events).contains(StreamEvent.draftReply(lhv, FakeChatModel.DRAFT));
+			assertThat(events).extracting(StreamEvent::type).endsWith("done");
+			// The advisor saw the bank's email and which thread the question was asked next to.
+			assertThat(toolNames(model.actPrompts.getFirst())).contains("draftReply");
+			assertThat(model.actPrompts.getFirst().getContents()).contains(FakeChatModel.LHV_OFFER)
+					.endsWith("[next to the email thread with LHV] " + FakeChatModel.HELP_REPLY);
+			// The draft went past the verifier for its tone.
+			assertThat(model.verifierCalls).hasValue(1);
+			// Both messages are in the one conversation, tagged with the thread; the user's as they wrote it.
+			List<Message> history = conversations.history(userId);
+			assertThat(history.subList(history.size() - 2, history.size()))
+					.extracting(Message::getRole, Message::getText, Message::getThreadId)
+					.containsExactly(tuple(Message.Role.USER, FakeChatModel.HELP_REPLY, lhv),
+							tuple(Message.Role.ADVISOR, "Got it. How much do you earn per month?", lhv));
+			// The draft itself is never an email: the thread still has only the bank's.
+			assertThat(gateway.emails(lhv)).hasSize(1);
+		}
+
+		@Test
+		void aDraftTheVerifierRejectsIsReplacedByItsCalmerVersion() {
+			UUID userId = UUID.randomUUID();
+			UUID lhv = applied(userId).get(1);
+			model.verdict = FakeChatModel.REJECT;
+
+			List<StreamEvent> events = orchestrator.assist(userId, lhv, FakeChatModel.HELP_REPLY).collectList().block();
+
+			assertThat(events).contains(StreamEvent.draftReply(lhv, FakeChatModel.SAFE_REPLY))
+					.doesNotContain(StreamEvent.draftReply(lhv, FakeChatModel.DRAFT));
+		}
+
+		@Test
+		void inTheChatTheAdvisorCannotDraft() {
+			UUID userId = UUID.randomUUID();
+			UUID lhv = applied(userId).get(1);
+			orchestrator.assist(userId, lhv, "Explain this offer").collectList().block();
+
+			List<StreamEvent> events = orchestrator.send(userId, FakeChatModel.HELP_REPLY).collectList().block();
+
+			assertThat(toolNames(model.actPrompts.getFirst())).doesNotContain("draftReply");
+			assertThat(events).extracting(StreamEvent::type).doesNotContain("draft_reply");
+			assertThat(model.replyPrompt.getContents())
+					.contains("draftReply only works next to a bank's email thread in the inbox");
+			// Chat turns see the bank emails, and what was asked in the inbox and where.
+			assertThat(model.actPrompts.getFirst().getContents()).contains(FakeChatModel.LHV_OFFER)
+					.contains("[next to the email thread with LHV] Explain this offer");
+		}
+
+		@Test
+		void aThreadIsOnlyItsOwners() {
+			UUID lhv = applied(UUID.randomUUID()).get(1);
+
+			assertThatThrownBy(() -> orchestrator.assist(UUID.randomUUID(), lhv, "Explain this offer"))
+					.isInstanceOf(NoSuchElementException.class);
+		}
+
+		@Test
+		void afterSendingTheApplicationTheAdvisorSaysWhatTheBanksSaid() {
+			UUID userId = UUID.randomUUID();
+			applied(userId);
+			UUID applicationId = jdbc.queryForObject(
+					"SELECT id FROM mortgage_application WHERE user_id = ?", UUID.class, userId);
+
+			List<StreamEvent> events = orchestrator.applicationSent(userId, applicationId).collectList().block();
+
+			assertThat(events).extracting(StreamEvent::type).containsExactly("text", "done");
+			assertThat(conversations.history(userId)).extracting(Message::getRole, Message::getText)
+					.contains(tuple(Message.Role.SYSTEM, "Sent the application to SEB and LHV"));
+			assertThat(model.actPrompt.getInstructions().getLast().getText())
+					.startsWith("The user just sent their application to SEB and LHV.");
+			assertThat(model.actPrompt.getContents()).contains(FakeChatModel.LHV_OFFER, "What is your income?");
+			assertThatThrownBy(() -> orchestrator.applicationSent(UUID.randomUUID(), applicationId))
+					.isInstanceOf(NoSuchElementException.class);
+		}
+
+		@Test
+		void afterAcceptingTheAdvisorGivesTheNextSteps() {
+			UUID userId = UUID.randomUUID();
+			UUID lhv = applied(userId).get(1);
+			assertThatThrownBy(() -> orchestrator.offerAccepted(userId, lhv)).isInstanceOf(IllegalStateException.class);
+			jdbc.update("UPDATE email_thread SET status = 'ACCEPTED' WHERE id = ?", lhv);
+
+			List<StreamEvent> events = orchestrator.offerAccepted(userId, lhv).collectList().block();
+
+			assertThat(events).extracting(StreamEvent::type).containsExactly("text", "done");
+			assertThat(conversations.history(userId)).extracting(Message::getText)
+					.contains("Accepted the offer from LHV");
+			assertThat(model.actPrompt.getInstructions().getLast().getText())
+					.startsWith("The user just accepted LHV's offer.")
+					.contains("notary", "home insurance", "Their threads with SEB are now closed",
+							"next to that bank's thread in the inbox");
 		}
 	}
 }
