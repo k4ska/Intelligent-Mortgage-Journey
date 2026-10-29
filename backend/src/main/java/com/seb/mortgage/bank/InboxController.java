@@ -7,6 +7,8 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -14,6 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.seb.mortgage.auth.CurrentUser;
 
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 /** The user's read-only inbox: one thread per bank they applied to. */
 @RestController
 @RequestMapping("/api/inbox")
@@ -30,18 +34,40 @@ public class InboxController {
 			Instant createdAt) {}
 
 	public record ThreadDetail(UUID threadId, BankController.BankOption bank, String status, List<EmailView> emails) {}
+	public record ReplyRequest(String body) {}
+	public record AcceptRequest(UUID emailId) {}
 
 	private final CurrentUser currentUser;
 	private final EmailThreadRepository threads;
 	private final EmailRepository emails;
 	private final BankCatalogService banks;
+	private final ObjectMapper mapper;
+	private final InboxService service;
 
 	public InboxController(CurrentUser currentUser, EmailThreadRepository threads, EmailRepository emails,
-			BankCatalogService banks) {
+			BankCatalogService banks, ObjectMapper mapper, InboxService service) {
 		this.currentUser = currentUser;
 		this.threads = threads;
 		this.emails = emails;
 		this.banks = banks;
+		this.mapper = mapper;
+		this.service = service;
+	}
+
+	@PostMapping("/{threadId}/reply")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void reply(@PathVariable UUID threadId, @RequestBody(required = false) ReplyRequest request) {
+		service.reply(threadId);
+	}
+
+	@PostMapping("/{threadId}/accept")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void accept(@PathVariable UUID threadId, @RequestBody AcceptRequest request) {
+		if (request == null || request.emailId() == null) {
+			throw new org.springframework.web.server.ResponseStatusException(HttpStatus.BAD_REQUEST,
+					"An offer email is required");
+		}
+		service.accept(threadId, request.emailId());
 	}
 
 	@GetMapping
@@ -65,8 +91,17 @@ public class InboxController {
 		return new ThreadDetail(thread.getId(), bank(thread.getBankId()), thread.getStatus().name(),
 				emails.findByThreadIdOrderByCreatedAtAsc(threadId).stream()
 						.map(email -> new EmailView(email.getId(), email.getFrom(), email.getType(),
-								email.getSubject(), email.getBody(), null, email.getCreatedAt()))
+								email.getSubject(), email.getBody(), offer(email), email.getCreatedAt()))
 						.toList());
+	}
+
+	private Object offer(Email email) {
+		if (email.getOfferJson() == null) return null;
+		try {
+			return mapper.readTree(email.getOfferJson());
+		} catch (JacksonException e) {
+			return null;
+		}
 	}
 
 	static String preview(String body) {

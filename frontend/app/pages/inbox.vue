@@ -49,10 +49,8 @@ function statusClass(status: InboxThreadStatus) {
 }
 
 async function sendReply() {
-  const body = inbox.replyDraft.trim()
-  if (!body) return
   const threadId = inbox.selectedThreadId
-  if (await inbox.reply(body) && inbox.selectedThreadId === threadId) inbox.replyDraft = ''
+  if (await inbox.reply('') && inbox.selectedThreadId === threadId) inbox.replyDraft = ''
 }
 
 async function askAdvisor(prompt = question.value) {
@@ -123,13 +121,19 @@ async function confirmAcceptance() {
             <span :class="['shrink-0 rounded-md px-2 py-0.5 text-xs font-medium', statusClass(inbox.activeThread.status)]">{{ copy.inboxStatus[inbox.activeThread.status] }}</span>
           </div>
           <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 lg:p-5" aria-live="polite">
-            <article v-for="email in inbox.activeThread.emails" :key="email.id" class="rounded-xl border border-[var(--ui-border)] p-4">
+            <article
+              v-for="email in inbox.activeThread.emails"
+              :key="email.id"
+              :class="email.from === 'BANK' && email.type === 'confirmation'
+                ? 'rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950'
+                : 'rounded-xl border border-[var(--ui-border)] p-4'"
+            >
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <span class="text-sm font-semibold">{{ email.from === 'BANK' ? inbox.activeThread.bank.name : copy.fromYou }}</span>
                 <time class="text-xs text-[var(--ui-text-muted)]" :datetime="email.createdAt">{{ formatTime(email.createdAt) }}</time>
               </div>
-              <h3 class="mt-3 font-semibold">{{ email.subject }}</h3>
-              <p class="mt-3 whitespace-pre-wrap break-words text-sm leading-6">{{ email.body }}</p>
+              <h3 :class="['mt-3 font-semibold', email.from === 'BANK' && email.type === 'confirmation' ? 'text-green-800 dark:text-green-200' : '']">{{ email.subject }}</h3>
+              <p :class="['mt-3 whitespace-pre-wrap break-words text-sm leading-6', email.from === 'BANK' && email.type === 'confirmation' ? 'text-green-800 dark:text-green-200' : '']">{{ email.body }}</p>
               <div v-if="email.offer" class="mt-4 space-y-3 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-bg-muted)] p-4">
                 <h4 class="font-semibold">{{ copy.inboxOfferTitle }}</h4>
                 <dl class="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
@@ -160,14 +164,17 @@ async function confirmAcceptance() {
           <div v-if="canReply" class="shrink-0 space-y-2 border-t border-[var(--ui-border)] p-4">
             <p v-if="inbox.replyError" class="text-sm text-red-600" role="alert">{{ inbox.replyError }}</p>
             <form class="space-y-2" @submit.prevent="sendReply">
-              <label for="bank-reply" class="block text-sm font-medium">{{ copy.inboxReplyPlaceholder }}</label>
-              <textarea id="bank-reply" v-model="inbox.replyDraft" rows="3" class="app-input w-full resize-y" :placeholder="copy.inboxReplyPlaceholder" :disabled="!!inbox.replyingThreadId || inbox.accepting" />
+              <p class="text-sm text-[var(--ui-text-muted)]">{{ copy.inboxReplyPlaceholder }}</p>
               <div class="flex justify-end">
-                <UButton type="submit" icon="i-lucide-send" :disabled="!inbox.replyDraft.trim() || !!inbox.replyingThreadId || inbox.accepting" :loading="!!inbox.replyingThreadId">{{ copy.inboxReplySend }}</UButton>
+                <UButton type="submit" icon="i-lucide-send" :disabled="!!inbox.replyingThreadId || inbox.accepting" :loading="!!inbox.replyingThreadId">{{ copy.inboxReplySend }}</UButton>
               </div>
             </form>
           </div>
-          <p v-if="inbox.acceptError || inbox.advisorError" class="border-t border-[var(--ui-border)] p-4 text-sm text-red-600" role="alert">{{ inbox.acceptError || inbox.advisorError }}</p>
+          <p v-if="inbox.acceptError" class="border-t border-[var(--ui-border)] p-4 text-sm text-red-600" role="alert">{{ inbox.acceptError }}</p>
+          <p v-else-if="inbox.activeThread.status === 'ACCEPTED'" class="flex items-center gap-2 border-t border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-200" role="status">
+            <UIcon name="i-lucide-circle-check" aria-hidden="true" />
+            {{ copy.inboxAcceptedNotice }}
+          </p>
         </template>
         <div v-else class="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-sm text-[var(--ui-text-muted)]">
           <UIcon name="i-lucide-mail-open" class="text-3xl" />

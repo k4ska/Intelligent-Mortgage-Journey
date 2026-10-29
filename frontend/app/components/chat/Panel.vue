@@ -11,12 +11,13 @@ const auth = useAuthStore()
 const selectedBankIds = ref<string[]>([])
 const submittingApplication = ref(false)
 const applicationError = ref('')
-const applicationAdvisorError = ref('')
+const applicationSent = ref(false)
+const hasStartedChat = computed(() => advisor.messages.some(message => message.role === 'user' && !message.threadId))
 
 watch(() => advisor.bankOptions, () => {
   selectedBankIds.value = []
   applicationError.value = ''
-  applicationAdvisorError.value = ''
+  applicationSent.value = false
 })
 
 async function submitApplication() {
@@ -26,17 +27,17 @@ async function submitApplication() {
   if (!bankIds.length || submittingApplication.value) return
   submittingApplication.value = true
   applicationError.value = ''
+  applicationSent.value = false
   try {
     const result = await useApi().sendApplication(bankIds)
     advisor.bankOptions = []
     selectedBankIds.value = []
     // #51 creates bank emails immediately; refresh the shared unread badge and list.
     await inbox.load(true)
-    // Application creation is committed; a failed advisor notification does not undo it.
-    applicationAdvisorError.value = ''
-    if (!await advisor.send({ trigger: 'APPLICATION_SENT', applicationId: result.applicationId })) {
-      applicationAdvisorError.value = copy.applicationAdvisorError
-    }
+    // Application creation is committed; the optional advisor notification does not affect it.
+    await advisor.send({ trigger: 'APPLICATION_SENT', applicationId: result.applicationId })
+    advisor.error = ''
+    applicationSent.value = true
   } catch (error) {
     if (errorStatus(error) === 401) return void auth.expire()
     applicationError.value = copy.applicationError
@@ -103,7 +104,10 @@ function onKeydown(event: KeyboardEvent) {
     </div>
 
     <div class="shrink-0 border-t border-[var(--ui-border)] p-4">
-      <p v-if="applicationAdvisorError" class="mb-2 text-sm text-red-600" role="alert">{{ applicationAdvisorError }}</p>
+      <p v-if="applicationSent" class="mb-2 flex items-center gap-2 text-sm font-medium text-green-700 dark:text-green-300" role="status">
+        <UIcon name="i-lucide-circle-check" aria-hidden="true" />
+        {{ copy.applicationSentNotice }}
+      </p>
       <div v-if="advisor.error" role="alert" class="mb-3 flex items-center justify-between gap-2 text-sm text-red-600">
         <span>{{ advisor.error }}</span>
         <UButton v-if="!advisor.loaded" variant="soft" color="neutral" size="xs" @click="advisor.load()">{{ copy.retry }}</UButton>
@@ -113,7 +117,7 @@ function onKeydown(event: KeyboardEvent) {
         <textarea v-model="draft" :placeholder="copy.chatPlaceholder" :aria-label="copy.chatPlaceholder" class="app-input min-h-12 max-h-36 flex-1 resize-y" rows="2" :disabled="!advisor.loaded || advisor.sending || !!advisor.uploading" @keydown="onKeydown" />
         <UButton type="submit" size="lg" icon="i-lucide-arrow-up" :aria-label="copy.send" :disabled="!draft.trim() || !advisor.loaded || advisor.sending || !!advisor.uploading" :loading="advisor.sending" />
       </form>
-      <p class="mt-2 text-xs text-[var(--ui-text-dimmed)]">{{ copy.chatHint }}</p>
+      <p v-if="copy.chatHint && !hasStartedChat" class="mt-2 text-xs text-[var(--ui-text-dimmed)]">{{ copy.chatHint }}</p>
     </div>
   </section>
 </template>

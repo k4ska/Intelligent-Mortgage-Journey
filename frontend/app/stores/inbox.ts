@@ -26,7 +26,6 @@ export const useInboxStore = defineStore('inbox', {
     threadError: '',
     replyError: '',
     acceptError: '',
-    advisorError: '',
     assistError: '',
   }),
   getters: {
@@ -74,7 +73,6 @@ export const useInboxStore = defineStore('inbox', {
       this.threadError = ''
       this.replyError = ''
       this.acceptError = ''
-      this.advisorError = ''
       this.assistError = ''
       this.replyDraft = ''
       const userId = useAuthStore().user?.id
@@ -98,7 +96,7 @@ export const useInboxStore = defineStore('inbox', {
     async reply(body: string): Promise<boolean> {
       const thread = this.activeThread
       const message = body.trim()
-      if (!thread || !message || this.replyingThreadId || this.accepting || !['OPEN', 'OFFER', 'NEGOTIATING', 'CLOSED'].includes(thread.status)) return false
+      if (!thread || this.replyingThreadId || this.accepting || !['OPEN', 'OFFER', 'NEGOTIATING', 'CLOSED'].includes(thread.status)) return false
       const threadId = thread.threadId
       const userId = useAuthStore().user?.id
       const optimisticId = `pending-${Date.now()}`
@@ -115,6 +113,7 @@ export const useInboxStore = defineStore('inbox', {
         await useApi().replyToThread(threadId, message)
         // POST succeeded: never encourage a second reply just because refreshing
         // the messages fails (the bank might already have processed this one).
+        useAdvisorStore().error = ''
         try {
           const fresh = await useApi().getInboxThread(threadId)
           if (useAuthStore().user?.id !== userId) return true
@@ -152,7 +151,6 @@ export const useInboxStore = defineStore('inbox', {
       if (this.activeThread.status === 'ACCEPTED' || offer?.from !== 'BANK' || offer.type !== 'offer' || !offer.offer) return false
       this.accepting = true
       this.acceptError = ''
-      this.advisorError = ''
       const userId = useAuthStore().user?.id
       try {
         await useApi().acceptOffer(threadId, emailId)
@@ -185,9 +183,7 @@ export const useInboxStore = defineStore('inbox', {
       // acceptance, since the bank's decision was committed first.
       const advisor = useAdvisorStore()
       if (!advisor.loaded) await advisor.load()
-      if (!advisor.loaded || !await advisor.send({ trigger: 'OFFER_ACCEPTED', threadId })) {
-        this.advisorError = copy.inboxAdvisorError
-      }
+      if (advisor.loaded) await advisor.send({ trigger: 'OFFER_ACCEPTED', threadId })
       return true
     },
     /** The inbox assistant uses the shared chat history; reply drafts are never sent automatically. */

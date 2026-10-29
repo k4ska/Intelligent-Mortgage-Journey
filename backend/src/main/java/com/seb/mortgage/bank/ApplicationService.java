@@ -60,7 +60,10 @@ public class ApplicationService {
 		List<ThreadResult> results = new ArrayList<>();
 		for (BankCatalogService.Bank bank : selected) {
 			EmailThread thread = emailGateway.createThread(application.getId(), userId, bank.id());
-			emailGateway.addBankEmail(thread.getId(), agent.initialReply(bank, application.getSnapshotJson()));
+			BankAgent.Draft draft = agent.initialReply(bank, application.getSnapshotJson());
+			OfferCalculator.Decision decision = agent.decision(bank, application.getSnapshotJson());
+			OfferCalculator.Offer offer = decision.offer();
+			emailGateway.addBankEmail(thread.getId(), draft, offer);
 			results.add(new ThreadResult(thread.getId(), bank.id(), thread.getStatus().name()));
 		}
 		return new ApplicationResult(application.getId(), results);
