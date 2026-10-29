@@ -36,4 +36,8 @@ public class EmailThread {
 	public boolean isUnread() { return unread; }
 	public Instant getCreatedAt() { return createdAt; }
 	public void markRead() { unread = false; }
+	public void markUnread() { unread = true; }
+	public void setStatus(Status status) { this.status = status; }
+	public void accept() { this.status = Status.ACCEPTED; }
+	public void close() { this.status = Status.CLOSED; }
 }

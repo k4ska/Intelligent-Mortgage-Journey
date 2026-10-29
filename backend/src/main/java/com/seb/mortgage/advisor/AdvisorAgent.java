@@ -82,16 +82,10 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			  go to the banks: if you have showBankPicker, call it (never on your own). If you
 			  don't, they aren't ready yet: say it's a little early, name the next thing or two
 			  that is still needed (from the note, not the whole list), and carry on with that.
-			- Once the user knows whether they can afford the home, or when they ask what a bank
-			  needs, call requestDocument once with all the documents a bank will need from them
-			  (co-applicant ones only with a co-applicant; the valuation and purchase agreement
-			  once they have picked a home). Then name exactly those documents, one short line
-			  each with why the bank needs it and where to get it, as it says, then only the one
-			  or two tips that matter most for this user (the rest show in their documents
-			  panel); never add other documents or details. If they don't have them yet, that's
-			  fine: they can upload them later and the conversation carries on. If you don't have
-			  requestDocument yet, say you'll go through the documents once you know what they
-			  can afford.
+			- Documents are optional in this prototype. Do not ask for or require an ID card,
+			  passport, payslip, bank statement, proof of down payment or any other document
+			  before applying. If the user asks about documents, explain that this demo lets them
+			  skip that step and continue to the bank picker.
 			- After the user uploads a document you get a note with the values read from it.
 			  Tell the user what you read and ask whether it's right. When they say yes, call
 			  confirmDocument with their words; when they correct a value, save the right value

@@ -35,20 +35,12 @@ public class Phases {
 			ProfileKey.HAS_CO_APPLICANT, ProfileKey.MONTHLY_DEBT_PAYMENTS);
 
 	/**
-	 * The documents a bank needs before it makes an offer. The valuation and the purchase
-	 * agreement come later: banks make their offer on condition of them.
-	 */
-	static final List<DocumentType> REQUIRED_DOCUMENTS = List.of(DocumentType.ID, DocumentType.PAYSLIP,
-			DocumentType.BANK_STATEMENT, DocumentType.DOWN_PAYMENT_PROOF, DocumentType.CO_APPLICANT_ID,
-			DocumentType.CO_APPLICANT_PAYSLIP);
-
-	/**
 	 * What {@link #readiness} found: ready, or what is still missing in the order the advisor
 	 * should ask for it.
 	 *
 	 * @param facts     profile facts that are missing or not confirmed, by profile key
 	 * @param property  property values that are missing or not confirmed, or "a property" without one
-	 * @param documents required documents that aren't confirmed yet
+	 * @param documents retained for the optional document flow; not required before applying
 	 */
 	public record Readiness(List<String> facts, List<String> property, List<DocumentView> documents) {
 		public boolean ready() {
@@ -139,7 +131,7 @@ public class Phases {
 		}
 		boolean documentsAskedFor = documents.checklist(userId).stream()
 				.anyMatch(document -> document.status() != Document.Status.NOT_NEEDED_YET);
-		if (conversations.hasDiscussedAffordability(userId) || documentsAskedFor) {
+		if (documentsAskedFor) {
 			return Phase.DOCUMENTS;
 		}
 		if (KEY_FACTS.stream().anyMatch(key -> !profile.has(userId, key))) {
@@ -174,11 +166,6 @@ public class Phases {
 					.forEach(field -> home.add(field.key() + " (not confirmed)"));
 		}
 
-		List<DocumentView> notConfirmed = documents.checklist(userId).stream()
-				.filter(document -> REQUIRED_DOCUMENTS.contains(document.type()))
-				.filter(document -> documents.applies(userId, document.type()))
-				.filter(document -> document.status() != Document.Status.CONFIRMED)
-				.toList();
-		return new Readiness(facts, home, notConfirmed);
+		return new Readiness(facts, home, List.of());
 	}
 }

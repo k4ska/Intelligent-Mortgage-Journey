@@ -24,13 +24,12 @@ public enum Phase {
 			"Check whether they can afford the home they have in mind and explain the result in plain words.",
 			List.of()),
 	DOCUMENTS("documents",
-			"Ask for the documents a bank will need, explain where to get each one, and confirm the values read "
-					+ "from the ones they upload.",
-			List.of("requestDocument", "confirmDocument", "checkReadiness")),
+			"Documents are optional in this prototype and can be skipped before applying.",
+			List.of("confirmDocument")),
 	READY("ready",
-			"Everything a bank needs is confirmed. Tell the user they're ready and offer to send their "
-					+ "application to the banks.",
-			List.of("showBankPicker")),
+			"The profile and property facts needed for this prototype are confirmed. Tell the user they're "
+					+ "ready and offer to send their application to the banks.",
+			List.of("showBankPicker", "confirmDocument")),
 	AT_THE_BANKS("at the banks",
 			"Their application is with the banks. Help them understand, compare and answer the banks' emails.",
 			List.of());

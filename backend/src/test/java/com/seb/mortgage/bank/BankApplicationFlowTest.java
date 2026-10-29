@@ -25,6 +25,8 @@ import com.seb.mortgage.profile.ProfileKey;
 import com.seb.mortgage.profile.ProfileService;
 import com.seb.mortgage.property.PropertyKey;
 import com.seb.mortgage.property.PropertyService;
+import com.seb.mortgage.property.PropertyKey;
+import com.seb.mortgage.property.PropertyService;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -37,6 +39,7 @@ class BankApplicationFlowTest {
 	@Autowired MockMvc mvc;
 	@Autowired ObjectMapper mapper;
 	@Autowired ProfileService profile;
+	@Autowired PropertyService properties;
 	@Autowired PropertyService property;
 	@Autowired ApplicationRepository applications;
 
@@ -95,6 +98,29 @@ class BankApplicationFlowTest {
 		String notAsked = body(withIncome, apply(withIncome, "[\"seb\"]").path("threads").get(0).path("threadId").asString());
 		assertThat(asked).contains("monthly net income");
 		assertThat(notAsked).doesNotContain("net income");
+	}
+
+	@Test
+	void aBankEmailStoresTheCalculatedOfferAndUpdatesTheThreadStatus() throws Exception {
+		LoggedIn user = login();
+		profile.save(user.userId(), ProfileKey.NET_INCOME, "5000",
+				ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED);
+		profile.save(user.userId(), ProfileKey.SAVINGS, "40000",
+				ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED);
+		properties.updateFromChat(user.userId(), java.util.Map.of(
+				PropertyKey.TYPE, "APARTMENT",
+				PropertyKey.PRICE, "200000",
+				PropertyKey.LOCATION, "Tallinn"), ProfileField.Status.CONFIRMED, true);
+
+		JsonNode result = apply(user, "[\"seb\"]");
+		String threadId = result.path("threads").get(0).path("threadId").asString();
+
+		mvc.perform(get("/api/inbox/" + threadId).session(user.session()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("OFFER"))
+				.andExpect(jsonPath("$.emails[0].type").value("offer"))
+				.andExpect(jsonPath("$.emails[0].offer.amount").value(160000.0))
+				.andExpect(jsonPath("$.emails[0].offer.termYears").value(25));
 	}
 
 	@Test
