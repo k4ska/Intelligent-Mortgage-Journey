@@ -29,6 +29,19 @@ watch(() => `${inbox.selectedThreadId}:${threadMessages.value.length}:${lastMess
   if (assistantLog.value) assistantLog.value.scrollTop = assistantLog.value.scrollHeight
 })
 
+const replyInput = ref<HTMLTextAreaElement | null>(null)
+
+// The reply box grows with its text (an advisor draft is several paragraphs), up to
+// about half the screen; past that it scrolls.
+async function fitReply() {
+  await nextTick()
+  const box = replyInput.value
+  if (!box) return
+  box.style.height = 'auto'
+  box.style.height = `${Math.min(box.scrollHeight + 2, window.innerHeight * 0.45)}px`
+}
+watch(() => [inbox.replyDraft, inbox.selectedThreadId], fitReply)
+
 const canReply = computed(() => !!inbox.activeThread && ['OPEN', 'OFFER', 'NEGOTIATING', 'CLOSED'].includes(inbox.activeThread.status))
 
 function formatTime(value: string) {
@@ -180,7 +193,7 @@ async function confirmAcceptance() {
             <p v-if="inbox.replyError" class="text-sm text-red-600" role="alert">{{ inbox.replyError }}</p>
             <form class="space-y-2" @submit.prevent="sendReply">
               <label for="bank-reply" class="block text-sm font-medium">{{ copy.inboxReplyPlaceholder }}</label>
-              <textarea id="bank-reply" v-model="inbox.replyDraft" rows="3" class="app-input w-full resize-y" :placeholder="copy.inboxReplyPlaceholder" :disabled="!!inbox.replyingThreadId || inbox.accepting" />
+              <textarea id="bank-reply" ref="replyInput" v-model="inbox.replyDraft" rows="4" class="app-input w-full resize-y" :placeholder="copy.inboxReplyPlaceholder" :disabled="!!inbox.replyingThreadId || inbox.accepting" />
               <div class="flex justify-end">
                 <UButton type="submit" icon="i-lucide-send" :disabled="!inbox.replyDraft.trim() || !!inbox.replyingThreadId || inbox.accepting" :loading="!!inbox.replyingThreadId">{{ copy.inboxReplySend }}</UButton>
               </div>
