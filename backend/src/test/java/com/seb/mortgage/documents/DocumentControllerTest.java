@@ -96,16 +96,16 @@ class DocumentControllerTest {
 				.andExpect(status().isBadRequest());
 	}
 
-	/** #73: the advisor asks for a document before it can be uploaded. */
+	/** Documents are optional: the user can upload one the advisor never asked for. */
 	@Test
-	void aDocumentNobodyAskedForCantBeUploaded() throws Exception {
+	void aDocumentNobodyAskedForCanStillBeUploaded() throws Exception {
 		LoggedIn user = login();
 
 		mvc.perform(multipart("/api/documents/PAYSLIP").file(file("a.pdf")).session(user.session()))
-				.andExpect(status().isConflict())
-				.andExpect(jsonPath("$.error").value("Your advisor hasn't asked for this document yet"));
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("UPLOADED"));
 		mvc.perform(get("/api/documents").session(user.session()))
-				.andExpect(jsonPath("$[1].status").value("NOT_NEEDED_YET"));
+				.andExpect(jsonPath("$[1].status").value("UPLOADED"));
 	}
 
 	/** The upload trigger through the chat endpoint. This test runs without an API key, so nothing is read. */

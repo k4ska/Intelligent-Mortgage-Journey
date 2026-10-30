@@ -48,6 +48,7 @@ async function submitApplication() {
 
 const draft = ref('')
 const list = ref<HTMLElement | null>(null)
+const input = ref<HTMLTextAreaElement | null>(null)
 // Only the newest message changes while streaming, so the count and its text are enough.
 const scrollKey = computed(() => {
   const last = advisor.messages.at(-1)
@@ -64,6 +65,9 @@ async function send() {
   if (!text || advisor.sending || advisor.uploading || !advisor.loaded) return
   draft.value = ''
   await advisor.send(text)
+  // The box is disabled while the advisor answers, which drops the focus; give it back.
+  await nextTick()
+  input.value?.focus()
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -87,16 +91,16 @@ function onKeydown(event: KeyboardEvent) {
     </div>
 
     <div v-if="advisor.bankOptions.length" class="shrink-0 border-t border-[var(--ui-border)] p-4">
-      <div class="max-h-64 overflow-y-auto rounded-xl border border-[var(--ui-border)] bg-[var(--ui-bg-muted)] p-4">
+      <div class="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-bg-muted)] p-4">
         <h3 class="text-base font-semibold">{{ copy.bankPickerTitle }}</h3>
         <p class="mt-1 text-sm text-[var(--ui-text-muted)]">{{ copy.bankPickerHint }}</p>
-        <form class="mt-3 space-y-3" @submit.prevent="submitApplication">
-          <label v-for="bank in advisor.bankOptions" :key="bank.id" class="flex cursor-pointer items-center gap-3 text-sm">
+        <form class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-3" @submit.prevent="submitApplication">
+          <label v-for="bank in advisor.bankOptions" :key="bank.id" class="flex cursor-pointer items-center gap-2 text-sm">
             <input v-model="selectedBankIds" type="checkbox" :value="bank.id" :disabled="submittingApplication" class="size-4 accent-[var(--ui-primary)]" />
             <span>{{ bank.name }}</span>
           </label>
-          <p v-if="applicationError" class="text-sm text-red-600" role="alert">{{ applicationError }}</p>
-          <UButton type="submit" icon="i-lucide-send" :loading="submittingApplication" :disabled="!selectedBankIds.length || submittingApplication">
+          <p v-if="applicationError" class="w-full text-sm text-red-600" role="alert">{{ applicationError }}</p>
+          <UButton class="ml-auto" type="submit" icon="i-lucide-send" :loading="submittingApplication" :disabled="!selectedBankIds.length || submittingApplication">
             {{ submittingApplication ? copy.sendingApplication : copy.sendApplication }}
           </UButton>
         </form>
@@ -114,7 +118,7 @@ function onKeydown(event: KeyboardEvent) {
       </div>
       <p v-if="advisor.sending" class="mb-2 text-xs text-[var(--ui-text-muted)]">{{ copy.sending }}</p>
       <form class="flex items-end gap-2" @submit.prevent="send">
-        <textarea v-model="draft" :placeholder="copy.chatPlaceholder" :aria-label="copy.chatPlaceholder" class="app-input min-h-12 max-h-36 flex-1 resize-y" rows="2" :disabled="!advisor.loaded || advisor.sending || !!advisor.uploading" @keydown="onKeydown" />
+        <textarea ref="input" v-model="draft" :placeholder="copy.chatPlaceholder" :aria-label="copy.chatPlaceholder" class="app-input min-h-12 max-h-36 flex-1 resize-y" rows="2" :disabled="!advisor.loaded || advisor.sending || !!advisor.uploading" @keydown="onKeydown" />
         <UButton type="submit" size="lg" icon="i-lucide-arrow-up" :aria-label="copy.send" :disabled="!draft.trim() || !advisor.loaded || advisor.sending || !!advisor.uploading" :loading="advisor.sending" />
       </form>
       <p v-if="copy.chatHint && !hasStartedChat" class="mt-2 text-xs text-[var(--ui-text-dimmed)]">{{ copy.chatHint }}</p>

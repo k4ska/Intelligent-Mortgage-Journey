@@ -76,18 +76,17 @@ public class DocumentService implements DocumentSnapshotProvider {
 	}
 
 	/**
-	 * Records an uploaded file (only its name); a new file replaces an earlier one. Only a
-	 * document the advisor asked for can be uploaded (#73): the advisor confirms what is read
-	 * from it in the documents phase, which starts with that request.
+	 * Records an uploaded file (only its name); a new file replaces an earlier one. Documents
+	 * are optional (2026-10-30), so the user can upload one the advisor never asked for; the
+	 * advisor then confirms what is read from it in the documents phase.
 	 *
 	 * @throws IllegalArgumentException for a co-applicant document when there is no co-applicant
-	 * @throws IllegalStateException    when the advisor hasn't asked for this document yet
 	 */
 	@Transactional
 	public DocumentView upload(UUID userId, DocumentType type, String fileName) {
 		checkApplies(userId, type);
 		Document document = documents.findByUserIdAndType(userId, type)
-				.orElseThrow(() -> new IllegalStateException("Your advisor hasn't asked for this document yet"));
+				.orElseGet(() -> new Document(userId, type));
 		document.uploaded(cleanFileName(fileName));
 		return view(documents.save(document));
 	}

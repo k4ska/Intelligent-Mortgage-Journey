@@ -80,7 +80,7 @@ export const useAdvisorStore = defineStore('advisor', {
         }
       } catch (error) {
         if (errorStatus(error) === 401) return void useAuthStore().expire()
-        this.documentError = errorStatus(error) === 409 ? copy.documentNotRequested : copy.documentUploadError
+        this.documentError = copy.documentUploadError
         await this.refreshDocuments()
       } finally {
         this.uploading = null

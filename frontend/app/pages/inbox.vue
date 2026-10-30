@@ -29,6 +29,19 @@ watch(() => `${inbox.selectedThreadId}:${threadMessages.value.length}:${lastMess
   if (assistantLog.value) assistantLog.value.scrollTop = assistantLog.value.scrollHeight
 })
 
+const replyInput = ref<HTMLTextAreaElement | null>(null)
+
+// The reply box grows with its text (an advisor draft is several paragraphs), up to
+// about half the screen; past that it scrolls.
+async function fitReply() {
+  await nextTick()
+  const box = replyInput.value
+  if (!box) return
+  box.style.height = 'auto'
+  box.style.height = `${Math.min(box.scrollHeight + 2, window.innerHeight * 0.45)}px`
+}
+watch(() => [inbox.replyDraft, inbox.selectedThreadId], fitReply)
+
 const canReply = computed(() => !!inbox.activeThread && ['OPEN', 'OFFER', 'NEGOTIATING', 'CLOSED'].includes(inbox.activeThread.status))
 
 function formatTime(value: string) {
@@ -55,11 +68,24 @@ async function sendReply() {
   if (await inbox.reply(body) && inbox.selectedThreadId === threadId) inbox.replyDraft = ''
 }
 
+const questionInput = ref<HTMLTextAreaElement | null>(null)
+
 async function askAdvisor(prompt = question.value) {
   const text = prompt.trim()
   if (!text) return
   const threadId = inbox.selectedThreadId
   if (await inbox.assist(text) && inbox.selectedThreadId === threadId) question.value = ''
+  // The box is disabled while the advisor answers, which drops the focus; give it back.
+  await nextTick()
+  questionInput.value?.focus()
+}
+
+// Like the chat: Enter asks, Shift+Enter is a new line.
+function onQuestionKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault()
+    void askAdvisor()
+  }
 }
 
 function askToAccept(email: InboxEmail) {
@@ -167,7 +193,7 @@ async function confirmAcceptance() {
             <p v-if="inbox.replyError" class="text-sm text-red-600" role="alert">{{ inbox.replyError }}</p>
             <form class="space-y-2" @submit.prevent="sendReply">
               <label for="bank-reply" class="block text-sm font-medium">{{ copy.inboxReplyPlaceholder }}</label>
-              <textarea id="bank-reply" v-model="inbox.replyDraft" rows="3" class="app-input w-full resize-y" :placeholder="copy.inboxReplyPlaceholder" :disabled="!!inbox.replyingThreadId || inbox.accepting" />
+              <textarea id="bank-reply" ref="replyInput" v-model="inbox.replyDraft" rows="4" class="app-input w-full resize-y" :placeholder="copy.inboxReplyPlaceholder" :disabled="!!inbox.replyingThreadId || inbox.accepting" />
               <div class="flex justify-end">
                 <UButton type="submit" icon="i-lucide-send" :disabled="!inbox.replyDraft.trim() || !!inbox.replyingThreadId || inbox.accepting" :loading="!!inbox.replyingThreadId">{{ copy.inboxReplySend }}</UButton>
               </div>
@@ -207,7 +233,7 @@ async function confirmAcceptance() {
             <UButton size="xs" color="neutral" variant="soft" :disabled="!!inbox.assistingThreadId || advisor.sending || !advisor.loaded" @click="askAdvisor(copy.inboxDraftPrompt)">{{ copy.inboxDraftPrompt }}</UButton>
           </div>
           <form class="flex items-end gap-2" @submit.prevent="askAdvisor()">
-            <textarea v-model="question" rows="2" class="app-input min-w-0 flex-1 resize-y" :placeholder="copy.inboxAskPlaceholder" :aria-label="copy.inboxAskPlaceholder" :disabled="!!inbox.assistingThreadId || advisor.sending || !advisor.loaded" />
+            <textarea ref="questionInput" v-model="question" rows="2" class="app-input min-w-0 flex-1 resize-y" :placeholder="copy.inboxAskPlaceholder" :aria-label="copy.inboxAskPlaceholder" :disabled="!!inbox.assistingThreadId || advisor.sending || !advisor.loaded" @keydown="onQuestionKeydown" />
             <UButton type="submit" icon="i-lucide-arrow-up" :aria-label="copy.inboxAskSend" :disabled="!question.trim() || !!inbox.assistingThreadId || advisor.sending || !advisor.loaded" :loading="!!inbox.assistingThreadId" />
           </form>
         </div>
