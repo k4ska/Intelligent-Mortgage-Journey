@@ -96,7 +96,7 @@ export const useInboxStore = defineStore('inbox', {
     async reply(body: string): Promise<boolean> {
       const thread = this.activeThread
       const message = body.trim()
-      if (!thread || this.replyingThreadId || this.accepting || !['OPEN', 'OFFER', 'NEGOTIATING', 'CLOSED'].includes(thread.status)) return false
+      if (!thread || !message || this.replyingThreadId || this.accepting || !['OPEN', 'OFFER', 'NEGOTIATING', 'CLOSED'].includes(thread.status)) return false
       const threadId = thread.threadId
       const userId = useAuthStore().user?.id
       const optimisticId = `pending-${Date.now()}`

@@ -49,8 +49,10 @@ function statusClass(status: InboxThreadStatus) {
 }
 
 async function sendReply() {
+  const body = inbox.replyDraft.trim()
+  if (!body) return
   const threadId = inbox.selectedThreadId
-  if (await inbox.reply('') && inbox.selectedThreadId === threadId) inbox.replyDraft = ''
+  if (await inbox.reply(body) && inbox.selectedThreadId === threadId) inbox.replyDraft = ''
 }
 
 async function askAdvisor(prompt = question.value) {
@@ -164,9 +166,10 @@ async function confirmAcceptance() {
           <div v-if="canReply" class="shrink-0 space-y-2 border-t border-[var(--ui-border)] p-4">
             <p v-if="inbox.replyError" class="text-sm text-red-600" role="alert">{{ inbox.replyError }}</p>
             <form class="space-y-2" @submit.prevent="sendReply">
-              <p class="text-sm text-[var(--ui-text-muted)]">{{ copy.inboxReplyPlaceholder }}</p>
+              <label for="bank-reply" class="block text-sm font-medium">{{ copy.inboxReplyPlaceholder }}</label>
+              <textarea id="bank-reply" v-model="inbox.replyDraft" rows="3" class="app-input w-full resize-y" :placeholder="copy.inboxReplyPlaceholder" :disabled="!!inbox.replyingThreadId || inbox.accepting" />
               <div class="flex justify-end">
-                <UButton type="submit" icon="i-lucide-send" :disabled="!!inbox.replyingThreadId || inbox.accepting" :loading="!!inbox.replyingThreadId">{{ copy.inboxReplySend }}</UButton>
+                <UButton type="submit" icon="i-lucide-send" :disabled="!inbox.replyDraft.trim() || !!inbox.replyingThreadId || inbox.accepting" :loading="!!inbox.replyingThreadId">{{ copy.inboxReplySend }}</UButton>
               </div>
             </form>
           </div>

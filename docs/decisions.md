@@ -3,6 +3,13 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-30 - The user writes their own reply to a bank
+
+- The inbox reply box is a text field again, and `POST /api/inbox/{threadId}/reply` stores
+  the user's `body` (400 if blank) instead of a fixed confirmation. The advisor's
+  `draftReply` (#80) fills that box, and the user edits and sends it. The bank still
+  answers straight away with its fixed confirmation.
+
 ## 2026-10-30 - Documents are optional before applying
 
 - The prototype no longer shows the documents panel from the start and does not require
