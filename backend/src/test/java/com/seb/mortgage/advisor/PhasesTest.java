@@ -114,8 +114,9 @@ class PhasesTest {
 				.doesNotContain("requestDocument");
 		assertThat(Phase.DOCUMENTS.tools()).contains("updateProfile", "checkAffordability")
 				.contains("confirmDocument").doesNotContain("requestDocument");
-		assertThat(Phase.READY.tools()).contains("showBankPicker");
-		assertThat(Phase.AT_THE_BANKS.tools()).isEqualTo(Phase.READY.tools());
+		assertThat(Phase.READY.tools()).contains("showBankPicker").doesNotContain("draftReply");
+		// #80: only at the banks can the advisor draft a reply to one.
+		assertThat(Phase.AT_THE_BANKS.tools()).containsAll(Phase.READY.tools()).contains("draftReply");
 	}
 
 	// ---- checkReadiness ----

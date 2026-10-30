@@ -11,7 +11,6 @@ import com.seb.mortgage.auth.CurrentUser;
 
 @Service
 public class InboxService {
-	private static final String USER_REPLY = "Thank you. I confirm that you may continue reviewing my mortgage application.";
 	private static final String BANK_REPLY = "Thank you for your reply. We have received it and will send you any additional information as soon as possible.";
 
 	private final CurrentUser currentUser;
@@ -28,14 +27,14 @@ public class InboxService {
 	}
 
 	@Transactional
-	public void reply(UUID threadId) {
+	public void reply(UUID threadId, String body) {
 		EmailThread thread = owned(threadId);
 		if (thread.getStatus() == EmailThread.Status.ACCEPTED || thread.getStatus() == EmailThread.Status.DECLINED) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "This thread cannot receive a reply");
 		}
 		Email last = emails.findByThreadIdOrderByCreatedAtAsc(threadId).stream().reduce((a, b) -> b).orElse(null);
 		String subject = last == null ? "Mortgage application" : "Re: " + last.getSubject();
-		gateway.addUserEmail(threadId, subject, USER_REPLY);
+		gateway.addUserEmail(threadId, subject, body);
 		if (thread.getStatus() != EmailThread.Status.CLOSED) {
 			gateway.addBankEmail(threadId,
 					new BankAgent.Draft("confirmation", "We will be in touch soon", BANK_REPLY), null);

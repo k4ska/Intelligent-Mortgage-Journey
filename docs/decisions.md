@@ -3,6 +3,13 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-30 - The user writes their own reply to a bank
+
+- The inbox reply box is a text field again, and `POST /api/inbox/{threadId}/reply` stores
+  the user's `body` (400 if blank) instead of a fixed confirmation. The advisor's
+  `draftReply` (#80) fills that box, and the user edits and sends it. The bank still
+  answers straight away with its fixed confirmation.
+
 ## 2026-10-30 - Documents are optional before applying
 
 - The prototype no longer shows the documents panel from the start and does not require
@@ -20,6 +27,27 @@ re-litigated.
 - Offers are stored as JSON on the email and returned by the inbox detail endpoint. New
   offer and decline emails update the thread status and unread flag. Migration V6 adds
   the nullable offer column; V5 remains available for the advisor-thread changes.
+
+## 2026-10-24 - The advisor next to a bank thread (#80)
+
+- `POST /api/inbox/{threadId}/assist` lives in the advisor package
+  (`InboxAssistController`), not in `bank.InboxController`: the bank package may not
+  call the advisor. It runs the same turn as the chat, in the same conversation; both
+  messages get the thread's id (`message.thread_id`, null in the chat), and the advisor
+  reads them as `[next to the email thread with LHV] ...`.
+- The advisor reads the user's bank emails through `EmailGateway` (new read methods),
+  the one place the two sides meet. Once the user has applied, the threads (the last 6
+  emails each) are in the JSON the advisor gets each step, so the number check and the
+  verifier accept figures from the banks' emails.
+- `draftReply(body)` has no thread id: it drafts for the thread the user is asking next
+  to, so a draft can't land in another bank's reply box. It is only offered in inbox
+  turns at the banks; in the chat the advisor says to ask next to the thread. A draft
+  must pass the number check (figures from the bank's emails, the profile or the user's
+  words), then the verifier checks the tone; a rejected draft is replaced by its rewrite.
+  Accepted and declined threads get no drafts; closed ones do (the last "no thanks").
+- The `APPLICATION_SENT` and `OFFER_ACCEPTED` triggers each add a `system` note to the
+  conversation, like an upload. `OFFER_ACCEPTED` needs the thread to be `ACCEPTED` (409
+  otherwise); that status comes with #78.
 
 ## 2026-10-21 - The application snapshot has the property and documents (#86)
 

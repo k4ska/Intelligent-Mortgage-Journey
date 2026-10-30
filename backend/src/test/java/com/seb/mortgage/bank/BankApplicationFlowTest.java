@@ -167,6 +167,32 @@ class BankApplicationFlowTest {
 	}
 
 	@Test
+	void aReplyIsSentAsTheUserWroteItAndTheBankAnswers() throws Exception {
+		LoggedIn user = login();
+		String threadId = apply(user, "[\"seb\"]").path("threads").get(0).path("threadId").asString();
+
+		mvc.perform(post("/api/inbox/" + threadId + "/reply").session(user.session())
+						.contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"  Could you lower the margin?  \"}"))
+				.andExpect(status().isNoContent());
+
+		mvc.perform(get("/api/inbox/" + threadId).session(user.session()))
+				.andExpect(jsonPath("$.emails", hasSize(3)))
+				.andExpect(jsonPath("$.emails[1].from").value("USER"))
+				.andExpect(jsonPath("$.emails[1].body").value("Could you lower the margin?"))
+				.andExpect(jsonPath("$.emails[2].from").value("BANK"));
+	}
+
+	@Test
+	void anEmptyReplyIsABadRequest() throws Exception {
+		LoggedIn user = login();
+		String threadId = apply(user, "[\"seb\"]").path("threads").get(0).path("threadId").asString();
+
+		mvc.perform(post("/api/inbox/" + threadId + "/reply").session(user.session())
+						.contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"   \"}"))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void aUserCannotOpenSomeoneElsesThread() throws Exception {
 		LoggedIn owner = login();
 		String threadId = apply(owner, "[\"seb\"]").path("threads").get(0).path("threadId").asString();

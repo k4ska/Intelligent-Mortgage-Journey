@@ -3,6 +3,8 @@ package com.seb.mortgage.bank;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import tools.jackson.core.JacksonException;
@@ -48,5 +50,17 @@ public class DatabaseEmailGateway implements EmailGateway {
 	@Override @Transactional
 	public Email addUserEmail(UUID threadId, String subject, String body) {
 		return emails.save(new Email(threadId, Email.Sender.USER, "reply", subject, body));
+	}
+	@Override @Transactional(readOnly = true)
+	public List<EmailThread> threads(UUID userId) {
+		return threads.findByUserIdOrderByCreatedAtAsc(userId);
+	}
+	@Override @Transactional(readOnly = true)
+	public Optional<EmailThread> thread(UUID userId, UUID threadId) {
+		return threads.findByIdAndUserId(threadId, userId);
+	}
+	@Override @Transactional(readOnly = true)
+	public List<Email> emails(UUID threadId) {
+		return emails.findByThreadIdOrderByCreatedAtAsc(threadId);
 	}
 }

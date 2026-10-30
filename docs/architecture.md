@@ -91,7 +91,7 @@ and next to an email thread in the inbox. Both write to the **same conversation*
 | `explainTerm(topic)` | Looks up the `Explanations` glossary (the old `ExplainAgent`'s job) | — |
 | `checkReadiness()` | Plain-code check: are all required fields, the property and the required documents (ID, payslip, bank statement, proof of down payment; the co-applicant's ID and payslip with one) confirmed? Returns what's missing | — |
 | `showBankPicker()` | Only allowed when `checkReadiness()` passes | `bank_picker` |
-| `draftReply(threadId, body)` | Inbox only: puts a draft in the reply box; the user edits and sends | `draft_reply` |
+| `draftReply(body)` | Inbox only, for the thread the user asks next to: puts a draft in its reply box (after the number check and the verifier); the user edits and sends | `draft_reply` |
 
 **2. Document reader agent.** Called when a document is uploaded. We never really read
 the file.
@@ -288,7 +288,9 @@ GET  /api/auth/me                               -> user | 401
 ### Chat: one streaming endpoint for every advisor turn
 
 ```
-GET  /api/chat                        -> message history
+GET  /api/chat                        -> message history: [{ id, role, text, createdAt,
+                                         corrected, threadId }]; threadId is set on
+                                         messages written next to a bank thread
 POST /api/chat/messages   (SSE)       { text }                                 the user typed
                                       { trigger: "DOCUMENT_UPLOADED", documentId }
                                       { trigger: "APPLICATION_SENT",  applicationId }
@@ -388,8 +390,8 @@ POST /api/inbox/{threadId}/assist  (SSE) { text } -> the advisor next to the thr
 3. The bank orchestrator runs each bank: the offer calculator decides offer, question
    or decline → the bank agent writes the email → the verifier checks it → it's stored
    through the email gateway.
-4. The frontend sends `{ trigger: "APPLICATION_SENT" }` → the advisor: "I sent it to SEB
-   and LHV, here's what they said...".
+4. The frontend sends `{ trigger: "APPLICATION_SENT", applicationId }` → a `system` note
+   ("Sent the application to SEB and LHV") and the advisor: "here's what they said...".
 
 **Negotiate**
 1. In the inbox, the user asks the advisor to push for a lower margin → `draftReply`
@@ -401,9 +403,9 @@ POST /api/inbox/{threadId}/assist  (SSE) { text } -> the advisor next to the thr
 **Accept**
 1. `POST /accept` → thread `ACCEPTED`, the bank sends a confirmation ("visit your branch
    to sign"), the other threads become `CLOSED`.
-2. `{ trigger: "OFFER_ACCEPTED" }` → the advisor sums up the next steps (notary, down
-   payment, home insurance) and offers to draft a polite "no thanks" for each other bank,
-   which the user sends. Closed threads accept that last message but get no bank answer.
+2. `{ trigger: "OFFER_ACCEPTED", threadId }` → the advisor sums up the next steps (notary,
+   down payment, home insurance) and offers to draft a polite "no thanks" for each other
+   bank, next to that bank's thread, which the user sends. Closed threads accept that last message but get no bank answer.
 
 ## 7. Backend package layout (target)
 

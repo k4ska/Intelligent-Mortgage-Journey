@@ -2,6 +2,7 @@ package com.seb.mortgage.advisor;
 
 import com.seb.mortgage.agent.Explanations;
 import com.seb.mortgage.bank.BankCatalogService;
+import com.seb.mortgage.bank.EmailThread;
 import com.seb.mortgage.documents.DocumentService;
 import com.seb.mortgage.documents.DocumentType;
 import com.seb.mortgage.documents.DocumentView;
@@ -24,7 +25,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
@@ -86,14 +89,31 @@ class AdvisorTools {
 	private final Phases phases;
 	private final UserStatements stated;
 	private final Consumer<StreamEvent> emit;
+	/** The bank thread an inbox turn is about (#80); null in the chat. */
+	private final Inbox inbox;
 	/** Every tool call this turn and what it returned, for the number check (#67). */
 	private final List<ToolUse> used = new CopyOnWriteArrayList<>();
 
 	record ToolUse(String name, String result) {}
 
+	/**
+	 * An inbox turn (#80): the thread the user asks next to, how drafts to it are checked,
+	 * and everything the user has said, this turn included.
+	 */
+	record Inbox(BankThreads.BankThread thread, ReplyDrafts drafts, List<String> said) {}
+
+	/** Tools that only work next to a bank thread in the inbox. */
+	static final Set<String> INBOX_TOOLS = Set.of("draftReply");
+
 	AdvisorTools(UUID userId, ProfileService profile, PropertyService property, ListingReader listings,
 			BankCatalogService banks, LoanProfileAssembler loans, DocumentService documents, Phases phases,
 			UserStatements stated, Consumer<StreamEvent> emit) {
+		this(userId, profile, property, listings, banks, loans, documents, phases, stated, emit, null);
+	}
+
+	AdvisorTools(UUID userId, ProfileService profile, PropertyService property, ListingReader listings,
+			BankCatalogService banks, LoanProfileAssembler loans, DocumentService documents, Phases phases,
+			UserStatements stated, Consumer<StreamEvent> emit, Inbox inbox) {
 		this.userId = userId;
 		this.profile = profile;
 		this.property = property;
@@ -104,6 +124,12 @@ class AdvisorTools {
 		this.phases = phases;
 		this.stated = stated;
 		this.emit = emit;
+		this.inbox = inbox;
+	}
+
+	/** Whether this turn can offer the tool: the inbox tools only next to a thread. */
+	boolean offers(String name) {
+		return inbox != null || !INBOX_TOOLS.contains(name);
 	}
 
 	/** Called by the advisor for each tool it ran this turn. */
@@ -540,5 +566,33 @@ class AdvisorTools {
 				.toList()));
 		return "The bank picker is now shown under the chat. Tell the user they can tick one or more "
 				+ "banks there and send the application.";
+	}
+
+	@Tool(name = "draftReply", description = """
+			Put a reply to the bank in the reply box of the thread the user is looking at, for the
+			user to edit and send themselves. Call it when the user asks for help answering the
+			bank (a question, a lower margin, a polite "no thanks"). Write the whole email: short,
+			polite and calm, in the user's voice, using only figures from the bank's emails, the
+			profile and the user's own words. You never send anything yourself.""")
+	String draftReply(@ToolParam(description = "The email body, ready to edit and send") String body) {
+		if (inbox == null) {
+			return "Drafts only work next to a bank's email thread in the inbox; nothing was drafted.";
+		}
+		BankThreads.BankThread thread = inbox.thread();
+		if (thread.status() == EmailThread.Status.ACCEPTED || thread.status() == EmailThread.Status.DECLINED) {
+			return "The thread with " + thread.bank() + " is " + thread.status().name().toLowerCase(Locale.ROOT)
+					+ ", so the user can't reply there any more; nothing was drafted.";
+		}
+		if (body == null || body.isBlank()) {
+			return "Nothing was drafted: the body is empty.";
+		}
+		ReplyDrafts.Checked checked = inbox.drafts().check(userId, thread, body.strip(), inbox.said());
+		if (!checked.passed()) {
+			return "Not drafted: " + checked.problem() + ". Draft it again with only those figures, or none.";
+		}
+		emit.accept(StreamEvent.draftReply(thread.threadId(), checked.body()));
+		return "The draft is now in the reply box for " + thread.bank() + ": \"" + checked.body() + "\" Tell the "
+				+ "user in a sentence that it's there for them to edit and send; don't repeat it in full, and "
+				+ "don't say it was sent.";
 	}
 }

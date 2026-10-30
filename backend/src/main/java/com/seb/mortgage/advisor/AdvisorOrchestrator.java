@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
 
@@ -22,6 +23,7 @@ import com.seb.mortgage.agent.VerifierAgent;
 import com.seb.mortgage.conversation.ConversationService;
 import com.seb.mortgage.conversation.Message;
 import com.seb.mortgage.bank.BankCatalogService;
+import com.seb.mortgage.bank.EmailThread;
 import com.seb.mortgage.documents.Document;
 import com.seb.mortgage.documents.DocumentReader;
 import com.seb.mortgage.documents.DocumentService;
@@ -67,13 +69,15 @@ public class AdvisorOrchestrator {
 	private final DocumentService documents;
 	private final DocumentReader reader;
 	private final Phases phases;
+	private final BankThreads bankThreads;
+	private final ReplyDrafts drafts;
 	private final ObjectMapper objectMapper;
 
 	public AdvisorOrchestrator(ObjectProvider<AdvisorAgent> advisor, ObjectProvider<VerifierAgent> verifier,
 			ConversationService conversations,
 			ProfileService profile, PropertyService property, ListingReader listings, BankCatalogService banks,
 			LoanProfileAssembler loans, DocumentService documents, DocumentReader reader, Phases phases,
-			ObjectMapper objectMapper) {
+			BankThreads bankThreads, ReplyDrafts drafts, ObjectMapper objectMapper) {
 		this.advisor = advisor;
 		this.verifier = verifier;
 		this.conversations = conversations;
@@ -85,6 +89,8 @@ public class AdvisorOrchestrator {
 		this.documents = documents;
 		this.reader = reader;
 		this.phases = phases;
+		this.bankThreads = bankThreads;
+		this.drafts = drafts;
 		this.objectMapper = objectMapper;
 	}
 
@@ -93,7 +99,93 @@ public class AdvisorOrchestrator {
 		conversations.append(userId, Message.Role.USER, userText);
 		List<Message> visible = visible(earlier);
 		UserStatements stated = UserStatements.from(userTexts(visible), userText);
-		return turn(userId, visible, new UserMessage(userText), userText, stated);
+		return turn(userId, visible, new UserMessage(userText), userText, stated, null);
+	}
+
+	/**
+	 * A question asked next to a bank's email thread in the inbox (#80): the same advisor and
+	 * the same conversation as the chat, with both messages tagged with the thread. Only here
+	 * can the advisor draft a reply to the bank.
+	 *
+	 * @throws NoSuchElementException if the user has no such thread
+	 */
+	public Flux<StreamEvent> assist(UUID userId, UUID threadId, String userText) {
+		BankThreads.BankThread thread = bankThreads.find(userId, threadId).orElseThrow();
+		List<Message> earlier = conversations.history(userId);
+		conversations.append(userId, Message.Role.USER, userText, threadId);
+		List<Message> visible = visible(earlier);
+		List<String> said = new ArrayList<>(userTexts(visible));
+		UserStatements stated = UserStatements.from(List.copyOf(said), userText);
+		said.add(userText);
+		return turn(userId, visible, new UserMessage(nextTo(thread.bank(), userText)), userText, stated,
+				new AdvisorTools.Inbox(thread, drafts, said));
+	}
+
+	/**
+	 * The {@code APPLICATION_SENT} trigger (#80): the banks have already answered, so the
+	 * advisor tells the user what each one said.
+	 *
+	 * @throws NoSuchElementException if the user has no such application
+	 */
+	public Flux<StreamEvent> applicationSent(UUID userId, UUID applicationId) {
+		List<BankThreads.BankThread> threads = bankThreads.ofApplication(userId, applicationId);
+		if (threads.isEmpty()) {
+			throw new NoSuchElementException("No such application");
+		}
+		String names = names(threads);
+		return noted(userId, "Sent the application to " + names, "The user just sent their application to " + names
+				+ ". Each bank has already answered; their emails are in the JSON. Tell the user in a few short "
+				+ "lines what each bank said (an offer, a question or a decline), using only the figures in those "
+				+ "emails, and that they can read and answer each bank in the inbox, where you can explain an offer "
+				+ "or draft a reply with them.");
+	}
+
+	/**
+	 * The {@code OFFER_ACCEPTED} trigger (#80): the next steps in real life, and an offer to
+	 * help say no to the other banks.
+	 *
+	 * @throws NoSuchElementException if the user has no such thread
+	 * @throws IllegalStateException  if its offer isn't accepted
+	 */
+	public Flux<StreamEvent> offerAccepted(UUID userId, UUID threadId) {
+		BankThreads.BankThread accepted = bankThreads.find(userId, threadId).orElseThrow();
+		if (accepted.status() != EmailThread.Status.ACCEPTED) {
+			throw new IllegalStateException("This offer isn't accepted");
+		}
+		List<BankThreads.BankThread> others = bankThreads.all(userId).stream()
+				.filter(thread -> !thread.threadId().equals(threadId)).toList();
+		String note = "The user just accepted " + accepted.bank() + "'s offer. Congratulate them in one sentence, "
+				+ "then sum up the next steps in real life: signing the loan contract and the purchase at a notary, "
+				+ "paying the down payment, home insurance before the loan is paid out, and anything "
+				+ accepted.bank() + "'s last email asks for.";
+		if (!others.isEmpty()) {
+			note += " Their threads with " + names(others) + " are now closed. Offer to draft a short, polite "
+					+ "\"no thanks\" to each; they can ask you for it next to that bank's thread in the inbox.";
+		}
+		return noted(userId, "Accepted the offer from " + accepted.bank(), note);
+	}
+
+	private static String names(List<BankThreads.BankThread> threads) {
+		List<String> names = threads.stream().map(BankThreads.BankThread::bank).toList();
+		return names.size() == 1 ? names.getFirst()
+				: String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.getLast();
+	}
+
+	/**
+	 * A turn for something that happened outside the chat: a note the user sees in the
+	 * conversation, and what the advisor is told in place of a user message.
+	 */
+	private Flux<StreamEvent> noted(UUID userId, String shown, String note) {
+		List<Message> earlier = conversations.history(userId);
+		conversations.append(userId, Message.Role.SYSTEM, shown);
+		List<Message> visible = visible(earlier);
+		UserStatements stated = UserStatements.from(userTexts(visible), "");
+		return turn(userId, visible, new SystemMessage(note), note, stated, null);
+	}
+
+	/** How a message asked next to a bank's thread reads to the advisor. */
+	private static String nextTo(String bank, String text) {
+		return "[next to the email thread with " + bank + "] " + text;
 	}
 
 	/**
@@ -125,7 +217,7 @@ public class AdvisorOrchestrator {
 			}
 			events.add(StreamEvent.documentStatus(reading.document()));
 			String note = uploadNote(reading);
-			return Flux.fromIterable(events).concatWith(turn(userId, visible, new SystemMessage(note), note, stated));
+			return Flux.fromIterable(events).concatWith(turn(userId, visible, new SystemMessage(note), note, stated, null));
 		}).subscribeOn(Schedulers.boundedElastic())
 				.onErrorResume(e -> {
 					log.warn("Reading the uploaded document failed", e);
@@ -159,13 +251,17 @@ public class AdvisorOrchestrator {
 	 *
 	 * @param current     what the advisor answers: the user's message or a note (an upload)
 	 * @param currentText the same as text, for the checks
+	 * @param inbox       the bank thread an inbox turn is about (#80), or null in the chat
 	 */
 	private Flux<StreamEvent> turn(UUID userId, List<Message> visible,
-			org.springframework.ai.chat.messages.Message current, String currentText, UserStatements stated) {
+			org.springframework.ai.chat.messages.Message current, String currentText, UserStatements stated,
+			AdvisorTools.Inbox inbox) {
 		// Tools push their events here while the reply is still streaming.
 		Sinks.Many<StreamEvent> toolEvents = Sinks.many().unicast().onBackpressureBuffer();
 		AdvisorTools tools = new AdvisorTools(userId, profile, property, listings, banks, loans, documents, phases,
-				stated, event -> toolEvents.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(1))));
+				stated, event -> toolEvents.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(1))),
+				inbox);
+		UUID threadId = inbox == null ? null : inbox.thread().threadId();
 
 		StringBuilder reply = new StringBuilder();
 		Flux<StreamEvent> text = replyText(userId, visible, current, tools)
@@ -175,7 +271,7 @@ public class AdvisorOrchestrator {
 
 		return Flux.merge(text, toolEvents.asFlux())
 				// The verifier is a blocking call, so the end of the turn runs off the stream's thread.
-				.concatWith(Flux.defer(() -> finish(userId, reply.toString(), currentText, visible, tools))
+				.concatWith(Flux.defer(() -> finish(userId, threadId, reply.toString(), currentText, visible, tools))
 						.subscribeOn(Schedulers.boundedElastic()))
 				.onErrorResume(e -> {
 					log.warn("Advisor turn failed", e);
@@ -192,9 +288,9 @@ public class AdvisorOrchestrator {
 	 * flagged when the number check finds a figure that comes from nowhere, or when it
 	 * talked about money. A rejected reply is replaced by the verifier's safe version.
 	 */
-	private Flux<StreamEvent> finish(UUID userId, String reply, String userText, List<Message> earlier,
-			AdvisorTools tools) {
-		Long messageId = conversations.append(userId, Message.Role.ADVISOR, reply).getId();
+	private Flux<StreamEvent> finish(UUID userId, UUID threadId, String reply, String userText,
+			List<Message> earlier, AdvisorTools tools) {
+		Long messageId = conversations.append(userId, Message.Role.ADVISOR, reply, threadId).getId();
 		VerifierAgent checker = verifier.getIfAvailable();
 		if (checker == null || reply.isBlank() || reply.equals(OFFLINE_REPLY)) {
 			return Flux.just(StreamEvent.done(messageId));
@@ -237,8 +333,8 @@ public class AdvisorOrchestrator {
 
 	private static String task(String userText, NumberCheck.Result numbers) {
 		String task = "A mortgage advisor's chat reply to a home buyer, answering their message: \"" + userText
-				+ "\". Figures may only come from the tool results, the profile, the property and the user's "
-				+ "own messages in the facts.";
+				+ "\". Figures may only come from the tool results, the profile, the property, the bank emails "
+				+ "and the user's own messages in the facts.";
 		return numbers.passed() ? task : task + " These figures in the draft appear in none of them: "
 				+ String.join(", ", numbers.unsupported()) + ".";
 	}
@@ -247,6 +343,7 @@ public class AdvisorOrchestrator {
 		Map<String, Object> facts = new LinkedHashMap<>();
 		facts.put("profile", profile.fields(userId));
 		facts.put("property", property.active(userId).orElse(null));
+		facts.put("bankEmails", bankThreads.all(userId));
 		facts.put("toolResults", tools.used().stream().map(use -> use.name() + ": " + use.result()).toList());
 		List<String> said = new ArrayList<>(earlier.stream()
 				.filter(m -> m.getRole() == Message.Role.USER).map(Message::getText).toList());
@@ -261,7 +358,7 @@ public class AdvisorOrchestrator {
 		if (agent == null) {
 			return Flux.just(OFFLINE_REPLY);
 		}
-		return Flux.defer(() -> agent.reply(toPrompt(earlier), current, () -> profileJson(userId), tools))
+		return Flux.defer(() -> agent.reply(toPrompt(userId, earlier), current, () -> profileJson(userId), tools))
 				.onErrorResume(TokenBudgetExceededException.class, e -> Flux.just(OFFLINE_REPLY));
 	}
 
@@ -270,10 +367,16 @@ public class AdvisorOrchestrator {
 		return earlier.subList(Math.max(0, earlier.size() - HISTORY_LIMIT), earlier.size());
 	}
 
-	private static List<org.springframework.ai.chat.messages.Message> toPrompt(List<Message> earlier) {
+	/** The conversation as the advisor sees it; what the user asked in the inbox says which bank's thread it was. */
+	private List<org.springframework.ai.chat.messages.Message> toPrompt(UUID userId, List<Message> earlier) {
+		Map<UUID, String> threadBanks = new LinkedHashMap<>();
+		if (earlier.stream().anyMatch(m -> m.getThreadId() != null)) {
+			bankThreads.all(userId).forEach(thread -> threadBanks.put(thread.threadId(), thread.bank()));
+		}
 		return earlier.stream()
 				.<org.springframework.ai.chat.messages.Message>map(m -> switch (m.getRole()) {
-					case USER -> new UserMessage(m.getText());
+					case USER -> new UserMessage(threadBanks.containsKey(m.getThreadId())
+							? nextTo(threadBanks.get(m.getThreadId()), m.getText()) : m.getText());
 					case ADVISOR -> new AssistantMessage(m.getText());
 					case SYSTEM -> new SystemMessage(m.getText());
 				})
@@ -288,6 +391,10 @@ public class AdvisorOrchestrator {
 				.filter(document -> document.status() != Document.Status.NOT_NEEDED_YET)
 				.map(document -> document.type() + ": " + document.status().name().toLowerCase(Locale.ROOT))
 				.toList());
+		List<BankThreads.BankThread> threads = bankThreads.all(userId);
+		if (!threads.isEmpty()) {
+			known.put("bankEmails", threads);
+		}
 		return objectMapper.writeValueAsString(known);
 	}
 }

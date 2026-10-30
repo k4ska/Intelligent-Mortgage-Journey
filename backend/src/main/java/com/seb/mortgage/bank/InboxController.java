@@ -57,7 +57,11 @@ public class InboxController {
 	@PostMapping("/{threadId}/reply")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void reply(@PathVariable UUID threadId, @RequestBody(required = false) ReplyRequest request) {
-		service.reply(threadId);
+		if (request == null || request.body() == null || request.body().isBlank()) {
+			throw new org.springframework.web.server.ResponseStatusException(HttpStatus.BAD_REQUEST,
+					"A reply is required");
+		}
+		service.reply(threadId, request.body().strip());
 	}
 
 	@PostMapping("/{threadId}/accept")
