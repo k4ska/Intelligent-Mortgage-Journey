@@ -54,11 +54,4 @@ public class DocumentController {
 	public ErrorView invalidUpload(IllegalArgumentException e) {
 		return new ErrorView(e.getMessage());
 	}
-
-	/** A document the advisor hasn't asked for yet. */
-	@ExceptionHandler(IllegalStateException.class)
-	@ResponseStatus(HttpStatus.CONFLICT)
-	public ErrorView notAskedFor(IllegalStateException e) {
-		return new ErrorView(e.getMessage());
-	}
 }

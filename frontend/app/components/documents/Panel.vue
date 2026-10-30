@@ -5,12 +5,11 @@ import { copy } from '~/utils/copy'
 
 const advisor = useAdvisorStore()
 
-function upload(document: DocumentView, event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  // Allow the same file to be selected again if an upload failed.
-  input.value = ''
-  if (!file || document.status !== 'NEEDED') return
+// Documents are optional in the prototype and nobody reads the file, so one click
+// "uploads" a stand-in file; the document reader makes up the values.
+function upload(document: DocumentView) {
+  if (document.status !== 'NOT_NEEDED_YET' && document.status !== 'NEEDED') return
+  const file = new File([`Sample ${document.label}`], `${document.type.toLowerCase()}.pdf`, { type: 'application/pdf' })
   void advisor.uploadDocument(document.type, file)
 }
 </script>
@@ -32,7 +31,7 @@ function upload(document: DocumentView, event: Event) {
         :key="document.type"
         :class="[
           'rounded-xl border p-3 text-sm',
-          document.status === 'NOT_NEEDED_YET' ? 'border-[var(--ui-border)] opacity-60' : '',
+          document.status === 'NOT_NEEDED_YET' ? 'border-[var(--ui-border)]' : '',
           document.status === 'NEEDED' ? 'border-2 border-[var(--ui-primary)]' : '',
           document.status === 'UPLOADED' ? 'border-amber-500 bg-amber-50/70 dark:bg-amber-950/20' : '',
           document.status === 'CONFIRMED' ? 'border-green-600 bg-green-50/70 dark:bg-green-950/20' : '',
@@ -59,33 +58,25 @@ function upload(document: DocumentView, event: Event) {
             : document.status === 'NEEDED' ? copy.documentNeeded
               : document.status === 'UPLOADED' ? copy.documentUploaded : copy.documentConfirmed }}
         </p>
-        <p v-if="document.status === 'NOT_NEEDED_YET'" class="mt-1 text-xs leading-5">{{ copy.documentPreview }}</p>
         <p v-if="document.fileName" class="mt-1 break-all text-xs text-[var(--ui-text-muted)]">{{ document.fileName }}</p>
-        <p class="mt-2 leading-5">{{ document.why }}</p>
-        <p class="mt-2 text-xs leading-5 text-[var(--ui-text-muted)]">
-          <strong>{{ copy.documentWhereToGet }}:</strong> {{ document.whereToGet }}
-        </p>
         <details class="mt-2 text-xs">
-          <summary class="cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ui-primary)]">{{ copy.documentTips }}</summary>
-          <p class="mt-1 leading-5 text-[var(--ui-text-muted)]">{{ document.tips }}</p>
+          <summary class="cursor-pointer rounded text-[var(--ui-text-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ui-primary)]">{{ copy.documentDetails }}</summary>
+          <p class="mt-1 leading-5">{{ document.why }}</p>
+          <p class="mt-1 leading-5 text-[var(--ui-text-muted)]"><strong>{{ copy.documentWhereToGet }}:</strong> {{ document.whereToGet }}</p>
+          <p class="mt-1 leading-5 text-[var(--ui-text-muted)]"><strong>{{ copy.documentTips }}:</strong> {{ document.tips }}</p>
         </details>
-        <label
-          v-if="document.status === 'NEEDED'"
-          :class="[
-            'mt-3 inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--ui-primary)] px-3 py-2 text-xs font-semibold text-white focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--ui-primary)]',
-            advisor.sending || advisor.uploading ? 'cursor-not-allowed opacity-50' : '',
-          ]"
+        <UButton
+          v-if="document.status === 'NOT_NEEDED_YET' || document.status === 'NEEDED'"
+          class="mt-2"
+          size="xs"
+          icon="i-lucide-upload"
+          :aria-label="`${copy.documentUpload}: ${document.label}`"
+          :loading="advisor.uploading === document.type"
+          :disabled="!!advisor.uploading || advisor.sending || !advisor.loaded"
+          @click="upload(document)"
         >
-          <UIcon name="i-lucide-upload" aria-hidden="true" />
           {{ advisor.uploading === document.type ? copy.documentUploading : copy.documentUpload }}
-          <input
-            type="file"
-            class="sr-only"
-            :aria-label="`${copy.documentUpload}: ${document.label}`"
-            :disabled="!!advisor.uploading || advisor.sending"
-            @change="upload(document, $event)"
-          />
-        </label>
+        </UButton>
       </section>
     </div>
   </aside>

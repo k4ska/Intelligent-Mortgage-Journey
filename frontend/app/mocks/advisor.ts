@@ -90,9 +90,6 @@ export function mockUploadDocument(type: DocumentType, file: File): DocumentView
   const state = data(user)
   const document = checklist(state).find(item => item.type === type)
   if (!document) throw Object.assign(new Error('Document does not apply'), { status: 400 })
-  if (document.status === 'NOT_NEEDED_YET') {
-    throw Object.assign(new Error("Your advisor hasn't asked for this document yet"), { status: 409 })
-  }
   const updated: DocumentView = {
     ...document, id: document.id ?? `mock-${type.toLowerCase()}`,
     status: 'UPLOADED', fileName: file.name || 'document', values: {},

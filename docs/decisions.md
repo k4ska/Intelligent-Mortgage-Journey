@@ -3,6 +3,14 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-30 - The documents panel is back, with one-click sample uploads
+
+- Documents stay optional, but the panel is visible again with every document. Each one has
+  an Upload button that sends a stand-in file (nobody reads it; the document reader makes
+  up the values), and the advisor reads them back for the user to confirm as before.
+- `POST /api/documents/{type}` accepts a document the advisor never asked for, so the 409
+  "hasn't asked for this document yet" is gone.
+
 ## 2026-10-30 - The user writes their own reply to a bank
 
 - The inbox reply box is a text field again, and `POST /api/inbox/{threadId}/reply` stores

@@ -55,11 +55,24 @@ async function sendReply() {
   if (await inbox.reply(body) && inbox.selectedThreadId === threadId) inbox.replyDraft = ''
 }
 
+const questionInput = ref<HTMLTextAreaElement | null>(null)
+
 async function askAdvisor(prompt = question.value) {
   const text = prompt.trim()
   if (!text) return
   const threadId = inbox.selectedThreadId
   if (await inbox.assist(text) && inbox.selectedThreadId === threadId) question.value = ''
+  // The box is disabled while the advisor answers, which drops the focus; give it back.
+  await nextTick()
+  questionInput.value?.focus()
+}
+
+// Like the chat: Enter asks, Shift+Enter is a new line.
+function onQuestionKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault()
+    void askAdvisor()
+  }
 }
 
 function askToAccept(email: InboxEmail) {
@@ -207,7 +220,7 @@ async function confirmAcceptance() {
             <UButton size="xs" color="neutral" variant="soft" :disabled="!!inbox.assistingThreadId || advisor.sending || !advisor.loaded" @click="askAdvisor(copy.inboxDraftPrompt)">{{ copy.inboxDraftPrompt }}</UButton>
           </div>
           <form class="flex items-end gap-2" @submit.prevent="askAdvisor()">
-            <textarea v-model="question" rows="2" class="app-input min-w-0 flex-1 resize-y" :placeholder="copy.inboxAskPlaceholder" :aria-label="copy.inboxAskPlaceholder" :disabled="!!inbox.assistingThreadId || advisor.sending || !advisor.loaded" />
+            <textarea ref="questionInput" v-model="question" rows="2" class="app-input min-w-0 flex-1 resize-y" :placeholder="copy.inboxAskPlaceholder" :aria-label="copy.inboxAskPlaceholder" :disabled="!!inbox.assistingThreadId || advisor.sending || !advisor.loaded" @keydown="onQuestionKeydown" />
             <UButton type="submit" icon="i-lucide-arrow-up" :aria-label="copy.inboxAskSend" :disabled="!question.trim() || !!inbox.assistingThreadId || advisor.sending || !advisor.loaded" :loading="!!inbox.assistingThreadId" />
           </form>
         </div>
