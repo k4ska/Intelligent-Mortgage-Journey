@@ -1,5 +1,8 @@
 package com.seb.mortgage.bank;
 
+import java.math.BigDecimal;
+import java.util.Locale;
+
 import org.springframework.stereotype.Component;
 
 import tools.jackson.databind.ObjectMapper;
@@ -43,15 +46,35 @@ public class BankAgent {
 			case DECLINE -> new Draft("decline", "Your mortgage application from " + bank.name(),
 					bank.greeting() + " We are unable to approve this application because "
 							+ decision.reason());
-			case OFFER -> {
-				OfferCalculator.Offer offer = decision.offer();
-				yield new Draft("offer", "Your mortgage offer from " + bank.name(),
-						bank.greeting() + " We can offer €" + offer.amount() + " over "
-								+ offer.termYears() + " years at a total rate of " + offer.ratePct()
-								+ "% (Euribor " + offer.euriborPct() + "% plus margin "
-								+ offer.marginPct() + "). The estimated monthly payment is €" + offer.monthlyPayment()
-								+ ". The offer is valid until " + offer.validUntil() + ".");
-			}
+			case OFFER -> offerDraft(bank, decision.offer());
 		};
+	}
+
+	/**
+	 * The offer email, with the figures written the way the inbox shows them: "€140 000",
+	 * "1.75%", "€910.60". {@link BankEmailVerifier} reads them back the same way.
+	 */
+	static Draft offerDraft(BankCatalogService.Bank bank, OfferCalculator.Offer offer) {
+		return new Draft("offer", "Your mortgage offer from " + bank.name(),
+				bank.greeting() + " We can offer " + euros(offer.amount()) + " over " + offer.termYears()
+						+ " years at a total rate of " + percent(offer.ratePct()) + " (Euribor "
+						+ percent(offer.euriborPct()) + " plus a margin of " + percent(offer.marginPct())
+						+ "). The estimated monthly payment is " + cents(offer.monthlyPayment())
+						+ ". The offer is valid until " + offer.validUntil() + ".");
+	}
+
+	/** Whole euros with a space between thousands: "€140 000". */
+	private static String euros(double amount) {
+		return "€" + String.format(Locale.ROOT, "%,.0f", amount).replace(',', ' ');
+	}
+
+	/** Euros and cents: "€910.60". */
+	private static String cents(double amount) {
+		return "€" + String.format(Locale.ROOT, "%,.2f", amount).replace(',', ' ');
+	}
+
+	/** A rate without trailing zeros: "6.1%", "1.75%". */
+	private static String percent(double rate) {
+		return BigDecimal.valueOf(rate).stripTrailingZeros().toPlainString() + "%";
 	}
 }

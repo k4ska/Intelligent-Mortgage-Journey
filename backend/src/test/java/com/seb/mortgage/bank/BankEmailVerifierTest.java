@@ -26,8 +26,25 @@ class BankEmailVerifierTest {
 
 		BankAgent.Draft checked = verifier.verify(draft, decision, bank);
 
-		assertThat(checked.body()).contains("€160000").doesNotContain("€999999");
+		assertThat(checked.body()).contains("€160 000").doesNotContain("€999999");
 		assertThat(checked.type()).isEqualTo("offer");
+	}
+
+	@Test
+	void theOfferEmailWritesTheFiguresLikeTheInboxAndPassesTheCheck() {
+		BankAgent.Draft draft = BankAgent.offerDraft(bank, offer);
+
+		assertThat(draft.body()).contains("€160 000 over 25 years", "total rate of 6%", "Euribor 4.35%",
+				"margin of 1.65%", "€1 031.22", "until 2026-11-30").doesNotContain(".0 ", "€160000");
+		assertThat(verifier.verify(draft, decision, bank)).isSameAs(draft);
+	}
+
+	@Test
+	void groupedThousandsWithTheWrongAmountAreStillCaught() {
+		BankAgent.Draft draft = BankAgent.offerDraft(bank, offer);
+		BankAgent.Draft wrong = new BankAgent.Draft("offer", "Offer", draft.body().replace("€160 000", "€190 000"));
+
+		assertThat(verifier.verify(wrong, decision, bank).body()).contains("€160 000");
 	}
 
 	@Test
