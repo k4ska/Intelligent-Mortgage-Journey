@@ -55,12 +55,34 @@ public class BankAgent {
 	 * "1.75%", "€910.60". {@link BankEmailVerifier} reads them back the same way.
 	 */
 	static Draft offerDraft(BankCatalogService.Bank bank, OfferCalculator.Offer offer) {
-		return new Draft("offer", "Your mortgage offer from " + bank.name(),
-				bank.greeting() + " We can offer " + euros(offer.amount()) + " over " + offer.termYears()
-						+ " years at a total rate of " + percent(offer.ratePct()) + " (Euribor "
-						+ percent(offer.euriborPct()) + " plus a margin of " + percent(offer.marginPct())
-						+ "). The estimated monthly payment is " + cents(offer.monthlyPayment())
-						+ ". The offer is valid until " + offer.validUntil() + ".");
+		return new Draft("offer", "Your mortgage offer from " + bank.name(), bank.greeting() + " " + terms(offer));
+	}
+
+	/**
+	 * A better offer after the user asked for one (negotiation). The calculator set the
+	 * margin; {@code last} says the bank can't go lower. It is an {@code offer} email, so
+	 * the user can accept it like the first one.
+	 */
+	public Draft counterOffer(BankCatalogService.Bank bank, OfferCalculator.Offer offer, boolean last) {
+		Draft draft = new Draft("offer", "Our updated offer from " + bank.name(),
+				"Thank you for your message. We have looked at your application again and can lower our margin. "
+						+ terms(offer) + (last ? " This is our final offer." : ""));
+		return verifier.verify(draft, OfferCalculator.Decision.offer(offer), bank);
+	}
+
+	/** The answer when the user asks for more but the bank is already at its lowest margin. */
+	public Draft noBetterOffer(BankCatalogService.Bank bank) {
+		return new Draft("message", "Re: your mortgage offer from " + bank.name(),
+				"Thank you for your message. Our current offer is already the best we can do, so it stays "
+						+ "as it is. You are welcome to accept it while it is valid.");
+	}
+
+	private static String terms(OfferCalculator.Offer offer) {
+		return "We can offer " + euros(offer.amount()) + " over " + offer.termYears()
+				+ " years at a total rate of " + percent(offer.ratePct()) + " (Euribor "
+				+ percent(offer.euriborPct()) + " plus a margin of " + percent(offer.marginPct())
+				+ "). The estimated monthly payment is " + cents(offer.monthlyPayment())
+				+ ". The offer is valid until " + offer.validUntil() + ".";
 	}
 
 	/** Whole euros with a space between thousands: "€140 000". */

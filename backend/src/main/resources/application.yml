@@ -61,6 +61,8 @@ app:
       advisor: ${AGENT_REASONING_ADVISOR:low}
       verifier: ${AGENT_REASONING_VERIFIER:low}
       document-reader: ${AGENT_REASONING_DOCUMENT_READER:low}
+      # Only classifies a reply to an offer, so it needs no reasoning.
+      negotiation: ${AGENT_REASONING_NEGOTIATION:minimal}
   token-budget:
     # Daily LLM token budget. Once spent, the agents answer with the stub until midnight.
     # Default leaves ~10% headroom under the 5M/day gpt-5-mini limit, since the in-memory
