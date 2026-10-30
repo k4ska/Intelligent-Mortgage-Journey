@@ -3,6 +3,24 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-30 - Documents are optional before applying
+
+- The prototype no longer shows the documents panel from the start and does not require
+  ID, passport, payslip, bank statement or proof of down payment before sending an
+  application. Users can skip the document stage and continue to the banks.
+- Document upload and reading code remains available for a later milestone, but it is not
+  part of the pre-application readiness gate.
+
+## 2026-10-30 - Deterministic bank emails and stored offers
+
+- Bank email wording is generated from the calculator decision without an LLM in stub
+  mode. A deterministic verifier compares every numeric token in an offer email with the
+  calculator's amount, term, rates, payment and validity date; a mismatch is replaced by
+  a safe template.
+- Offers are stored as JSON on the email and returned by the inbox detail endpoint. New
+  offer and decline emails update the thread status and unread flag. Migration V6 adds
+  the nullable offer column; V5 remains available for the advisor-thread changes.
+
 ## 2026-10-24 - The advisor next to a bank thread (#80)
 
 - `POST /api/inbox/{threadId}/assist` lives in the advisor package

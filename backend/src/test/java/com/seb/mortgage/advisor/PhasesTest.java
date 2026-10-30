@@ -75,16 +75,16 @@ class PhasesTest {
 	}
 
 	@Test
-	void onceAffordabilityWasDiscussedItAsksForDocuments() {
+	void onceAffordabilityWasDiscussedTheUserCanGoToTheBanks() {
 		keyFacts();
 		home();
 		phases.affordabilityDiscussed(userId);
 
-		assertThat(phases.phase(userId)).isEqualTo(Phase.DOCUMENTS);
+		assertThat(phases.phase(userId)).isEqualTo(Phase.AFFORDABILITY);
 	}
 
 	@Test
-	void aDocumentAlreadyAskedForAlsoMeansTheDocumentsPhase() {
+	void aDocumentAlreadyAskedForUsesTheOptionalDocumentFlow() {
 		documents.request(userId, DocumentType.ID);
 
 		assertThat(phases.phase(userId)).isEqualTo(Phase.DOCUMENTS);
@@ -112,8 +112,8 @@ class PhasesTest {
 		assertThat(Phase.AFFORDABILITY.tools()).isEqualTo(Phase.PROPERTY.tools())
 				.contains("updateProfile", "checkAffordability", "suggestAffordableRange")
 				.doesNotContain("requestDocument");
-		assertThat(Phase.DOCUMENTS.tools()).contains("updateProfile", "checkAffordability", "requestDocument",
-				"confirmDocument", "checkReadiness").doesNotContain("showBankPicker");
+		assertThat(Phase.DOCUMENTS.tools()).contains("updateProfile", "checkAffordability")
+				.contains("confirmDocument").doesNotContain("requestDocument");
 		assertThat(Phase.READY.tools()).contains("showBankPicker").doesNotContain("draftReply");
 		// #80: only at the banks can the advisor draft a reply to one.
 		assertThat(Phase.AT_THE_BANKS.tools()).containsAll(Phase.READY.tools()).contains("draftReply");
@@ -128,9 +128,8 @@ class PhasesTest {
 		assertThat(readiness.ready()).isFalse();
 		assertThat(readiness.facts()).contains("netIncome", "savings", "hasCoApplicant", "monthlyDebtPayments");
 		assertThat(readiness.property()).containsExactly("a property");
-		assertThat(readiness.documents()).extracting(DocumentView::type).containsExactly(DocumentType.ID,
-				DocumentType.PAYSLIP, DocumentType.BANK_STATEMENT, DocumentType.DOWN_PAYMENT_PROOF);
-		assertThat(readiness.describe()).contains("ID (not asked for yet)");
+		assertThat(readiness.documents()).isEmpty();
+		assertThat(readiness.describe()).doesNotContain("documents:");
 	}
 
 	@Test
@@ -161,9 +160,7 @@ class PhasesTest {
 
 		Phases.Readiness readiness = phases.readiness(userId);
 
-		assertThat(readiness.documents()).extracting(DocumentView::type, DocumentView::status)
-				.containsExactly(tuple(DocumentType.PAYSLIP, Document.Status.UPLOADED));
-		assertThat(readiness.describe()).contains("PAYSLIP (uploaded, values not confirmed yet)");
+		assertThat(readiness.documents()).isEmpty();
 	}
 
 	@Test
@@ -181,8 +178,7 @@ class PhasesTest {
 
 		Phases.Readiness withoutTheirs = phases.readiness(userId);
 		assertThat(withoutTheirs.facts()).containsExactly("coApplicantNetIncome");
-		assertThat(withoutTheirs.documents()).extracting(DocumentView::type)
-				.containsExactly(DocumentType.CO_APPLICANT_ID, DocumentType.CO_APPLICANT_PAYSLIP);
+		assertThat(withoutTheirs.documents()).isEmpty();
 
 		save(ProfileKey.CO_APPLICANT_NET_INCOME, "2100");
 		confirmDocument(DocumentType.CO_APPLICANT_ID);
@@ -209,7 +205,7 @@ class PhasesTest {
 
 		String note = tools().showBankPicker();
 
-		assertThat(note).startsWith("Not ready yet").contains("a property").contains("PAYSLIP (not asked for yet)");
+		assertThat(note).startsWith("Not ready yet").contains("a property").doesNotContain("PAYSLIP");
 		assertThat(events).isEmpty();
 		assertThat(tools().checkReadiness()).startsWith("Not ready yet. Still needed:");
 	}
@@ -235,7 +231,7 @@ class PhasesTest {
 
 		assertThat(tools().checkAffordability()).startsWith("Affordable:");
 
-		assertThat(phases.phase(userId)).isEqualTo(Phase.DOCUMENTS);
+		assertThat(phases.phase(userId)).isEqualTo(Phase.READY);
 	}
 
 	@Test

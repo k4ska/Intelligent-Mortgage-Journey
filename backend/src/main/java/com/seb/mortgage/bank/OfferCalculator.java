@@ -77,24 +77,24 @@ public class OfferCalculator {
 
 		Map<String, String> fields = snapshot.fields().stream()
 				.collect(Collectors.toMap(ProfileFieldView::key, ProfileFieldView::value, (first, second) -> second));
+		if (!hasNumber(fields, "netIncome")) {
+			return Decision.question("the household's monthly net income");
+		}
+		if (!hasNumber(fields, "savings")) {
+			return Decision.question("the available down payment");
+		}
 		if (snapshot.property() == null) {
-			return Decision.question("Please provide the property price and details.");
+			return Decision.question("the property price and details");
 		}
 		double price = number(snapshot.property(), "price");
 		if (price <= 0) {
-			return Decision.question("Please provide a valid property price.");
-		}
-		if (!hasNumber(fields, "netIncome")) {
-			return Decision.question("Please provide the household's monthly net income.");
-		}
-		if (!hasNumber(fields, "savings")) {
-			return Decision.question("Please provide the available down payment.");
+			return Decision.question("a valid property price");
 		}
 		if (snapshot.documents().stream().anyMatch(document -> "valuation".equalsIgnoreCase(document.type()))
 				&& snapshot.documents().stream().noneMatch(document ->
 						"valuation".equalsIgnoreCase(document.type())
 								&& "confirmed".equalsIgnoreCase(document.status()))) {
-			return Decision.question("Please provide a confirmed valuation report.");
+			return Decision.question("a confirmed valuation report");
 		}
 
 		double savings = number(fields, "savings");
