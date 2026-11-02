@@ -132,6 +132,9 @@ class AdvisorOrchestratorTest {
 			static final String INVENTED_TEXT = "Thanks, I've saved your savings as €0.";
 			static final String SAVES_THEN_CHECKS = "I earn 2350 a month, can I afford it?";
 			static final String NEVER_STOPS = "check it again and again";
+			/** Starts writing a reply, then calls a tool after all (#138). */
+			static final String WRITES_THEN_CALLS = "What is Euribor anyway?";
+			static final String WRITTEN_FIRST = "Let me look that up. ";
 			static final String MAKES_UP = "What would I pay a month?";
 			static final String MADE_UP_REPLY = "You would pay about €1,234 a month.";
 			static final String APPROVE = "{\"approved\":true,\"rewrite\":null}";
@@ -231,7 +234,9 @@ class AdvisorOrchestratorTest {
 					return new ChatResponse(List.of(new Generation(new AssistantMessage(MADE_UP_REPLY))));
 				}
 				if (user.equals(NEVER_STOPS)) {
-					return toolCall("Again.", "checkAffordability", "{}");
+					// A new save that is refused every round: a save may always need another round.
+					return toolCall("Again.", "updateProfile",
+							"{\"fields\":[{\"key\":\"netIncome\",\"value\":\"" + round + "\",\"quote\":\"again\"}]}");
 				}
 				return new ChatResponse(List.of(new Generation(new AssistantMessage(round == 1 ? "Hello there" : "Done."))));
 			}
@@ -243,8 +248,22 @@ class AdvisorOrchestratorTest {
 				return new ChatResponse(List.of(new Generation(call)));
 			}
 
+			/** The first act round streams (#138); the reply step is the call after the tools. */
 			@Override
 			public Flux<ChatResponse> stream(Prompt prompt) {
+				List<org.springframework.ai.chat.messages.Message> messages = prompt.getInstructions();
+				boolean replyStep = messages.getLast() instanceof SystemMessage note
+						&& note.getText().startsWith("You just used your tools");
+				if (!replyStep) {
+					if (messages.getLast().getText().equals(WRITES_THEN_CALLS)) {
+						actPrompts.clear();
+						actPrompt = prompt;
+						actPrompts.add(prompt);
+						return Flux.just(new ChatResponse(List.of(new Generation(new AssistantMessage(WRITTEN_FIRST)))),
+								toolCall("", "explainTerm", "{\"topic\":\"Euribor\"}"));
+					}
+					return Flux.just(call(prompt));
+				}
 				replyPrompt = prompt;
 				return Flux.just("Got it. ", "How much do you earn per month?").map(text ->
 						new ChatResponse(List.of(new Generation(new AssistantMessage(text)))));
@@ -361,8 +380,8 @@ class AdvisorOrchestratorTest {
 
 			assertThat(events).extracting(StreamEvent::type).contains("profile_updated");
 			assertThat(profile.fields(userId)).extracting(f -> f.key() + "=" + f.value()).contains("netIncome=2350");
-			// Three act calls: save, check, then one that calls nothing.
-			assertThat(model.actPrompts).hasSize(3);
+			// Two act calls: save, then check. A check needs no follow-up, so no empty third round (#138).
+			assertThat(model.actPrompts).hasSize(2);
 			// #73: saving the last key fact moved the conversation on, so the next round could check.
 			assertThat(toolNames(model.actPrompts.get(0))).doesNotContain("checkAffordability");
 			assertThat(toolNames(model.actPrompts.get(1))).contains("checkAffordability");
@@ -372,7 +391,7 @@ class AdvisorOrchestratorTest {
 				assertThat(response.responseData()).isEqualTo("Saved: netIncome=2350.");
 			});
 			// The model never sees the text it wrote next to its calls, and neither does the user.
-			assertThat(model.actPrompts.get(2).getContents()).doesNotContain("Saving that.", "Now checking.");
+			assertThat(model.actPrompts.get(1).getContents()).doesNotContain("Saving that.");
 			assertThat(model.replyPrompt.getContents())
 					.contains("- updateProfile: Saved: netIncome=2350.")
 					.contains("- checkAffordability: Can't tell yet. Still missing: creditCardLimits")
@@ -422,8 +441,23 @@ class AdvisorOrchestratorTest {
 
 			assertThat(model.actPrompts).hasSize(AdvisorAgent.MAX_ACT_ROUNDS);
 			assertThat(events).extracting(StreamEvent::type).containsSubsequence("text", "done");
-			assertThat(model.replyPrompt.getContents().split("- checkAffordability:", -1))
+			assertThat(model.replyPrompt.getContents().split("- updateProfile:", -1))
 					.hasSize(AdvisorAgent.MAX_ACT_ROUNDS + 1);
+		}
+
+		/** #138: a reply without tools streams; if the model then calls a tool, the text starts again. */
+		@Test
+		void textBeforeAToolCallIsReplacedByTheReply() {
+			UUID userId = UUID.randomUUID();
+
+			List<StreamEvent> events = orchestrator.send(userId, FakeChatModel.WRITES_THEN_CALLS).collectList().block();
+
+			assertThat(events).extracting(StreamEvent::type).containsSubsequence("text", "text_restart", "text", "done");
+			assertThat(events.getFirst()).isEqualTo(StreamEvent.text(FakeChatModel.WRITTEN_FIRST));
+			assertThat(model.actPrompts).hasSize(1);
+			assertThat(model.replyPrompt.getContents()).contains("- explainTerm: Glossary entry for");
+			assertThat(conversations.history(userId)).last().extracting(Message::getText)
+					.isEqualTo("Got it. How much do you earn per month?");
 		}
 
 		/** #72: the upload is read, the advisor asks to confirm, and "yes" confirms it all. */

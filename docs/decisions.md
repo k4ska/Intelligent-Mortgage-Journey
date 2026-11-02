@@ -3,6 +3,21 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-11-02 - Faster advisor turns: the first act round streams, no empty last round (#138)
+
+- The first act round now streams. When the model calls no tools, its text is the reply,
+  as before, but it reaches the user as it is written instead of in one piece after "…".
+  If the model writes some text and then calls a tool, a `text_restart` event clears what
+  was shown and the reply call's text follows. The act + reply split (2026-10-19) is
+  unchanged: no reply is ever written right after a tool result.
+- A turn only acts again when the last round saved something (`updateProfile`,
+  `updateProperty`, `lookupListing`, `confirmDocument`), which a check may follow (#94),
+  or when a result asks for a follow-up (`Call suggestAffordableRange`, `Not drafted:`).
+  A call whose result repeats one from earlier in the turn (the model often saves the same
+  facts twice) doesn't count.
+  Otherwise it goes straight to the reply, which saves one model call (a few seconds) on
+  most tool turns: save, check, reply instead of save, check, an empty round, reply.
+
 ## 2026-11-02 - Charts in the chat are computed in code and saved with the reply
 
 - The advisor's `showRateChart` tool (#130) draws the payment at today's 6-month Euribor

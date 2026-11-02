@@ -309,6 +309,9 @@ stream and code path.
 
 ```
 text              { delta }                                 a piece of the reply
+text_restart      { }                                       the text so far wasn't the reply
+                                                            (the model wrote, then called a
+                                                            tool); clear it, the reply follows
 profile_updated   { fields: [{ key, value, source, status }] }
 property_updated  { property: { listingUrl, fields: [{ key, value, source, status }] } }
                     keys: type (APARTMENT | HOUSE | PLOT | NEW_BUILD), price, location,

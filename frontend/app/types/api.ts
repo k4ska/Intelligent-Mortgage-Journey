@@ -143,6 +143,8 @@ export interface BankOption {
 
 export type StreamEvent =
   | { type: 'text', data: { delta: string } }
+  /** The text streamed so far isn't the reply after all; clear it, the real one follows. */
+  | { type: 'text_restart', data: Record<string, never> }
   | { type: 'profile_updated', data: { fields: ProfileField[] } }
   | { type: 'property_updated', data: { property: Property } }
   | { type: 'bank_picker', data: { banks: BankOption[] } }
