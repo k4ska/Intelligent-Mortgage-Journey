@@ -61,6 +61,26 @@ class AdvisorToolsTest {
 		assertThat(note).isEqualTo("Saved: netIncome=2350.");
 	}
 
+	/** "about 2400" is an estimate: uncertain until the user says it again (#140). */
+	@Test
+	void aGuessIsSavedAsUncertainUntilTheUserStandsByIt() {
+		userSaid = "about 2400";
+		AdvisorTools firstTurn = tools();
+		String note = firstTurn.updateProfile(List.of(new FieldUpdate("netIncome", "2400", "about 2400")));
+		// Saving it again in the same turn is not the user standing by it.
+		firstTurn.updateProfile(List.of(new FieldUpdate("netIncome", "2400", "about 2400")));
+
+		assertThat(profile.fields(userId)).extracting(ProfileFieldView::status)
+				.containsExactly(ProfileField.Status.UNCERTAIN);
+		assertThat(note).contains("saved as uncertain: netIncome=2400").contains("ask once");
+
+		userSaid = "yeah roughly 2400";
+		tools().updateProfile(List.of(new FieldUpdate("netIncome", "2400", "roughly 2400")));
+
+		assertThat(profile.fields(userId)).extracting(ProfileFieldView::status)
+				.containsExactly(ProfileField.Status.CONFIRMED);
+	}
+
 	@Test
 	void aNewValueReplacesTheOldOne() {
 		tools().updateProfile(List.of(field("netIncome", "2350")));

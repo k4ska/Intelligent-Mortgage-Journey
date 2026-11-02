@@ -69,4 +69,38 @@ class UserStatementsTest {
 		assertThat(said("I have 0 savings").containsNumber("0")).isTrue();
 		assertThat(UserStatements.from(List.of("No, I'm buying alone"), "My income is 2000").containsNumber("0")).isFalse();
 	}
+
+	@Test
+	void aHedgeNextToTheValueMakesItAGuess() {
+		assertThat(UserStatements.from(List.of(), "about 2400").hedged("about 2400", "2400")).isTrue();
+		assertThat(UserStatements.from(List.of(), "idk maybe 1200").hedged("1200", "1200")).isTrue();
+		assertThat(UserStatements.from(List.of(), "I spend ~900 a month").hedged("900 a month", "900")).isTrue();
+		assertThat(UserStatements.from(List.of(), "2000 or so").hedged("2000", "2000")).isTrue();
+		assertThat(UserStatements.from(List.of(), "umbes 900").hedged("900", "900")).isTrue();
+		assertThat(UserStatements.from(List.of(), "about 40k saved").hedged("40k saved", "40000")).isTrue();
+		assertThat(UserStatements.from(List.of(), "I think I'm self-employed")
+				.hedged("I think I'm self-employed", "self-employed")).isTrue();
+	}
+
+	/** The stress test's messages (#115), and a quote of the whole message. */
+	@Test
+	void aHedgeOnlyCoversItsOwnClause() {
+		UserStatements stated = UserStatements.from(List.of(), "i earn about 2400 net a month, my partner earns 2100");
+		String whole = "i earn about 2400 net a month, my partner earns 2100";
+		assertThat(stated.hedged(whole, "2400")).isTrue();
+		assertThat(stated.hedged(whole, "2100")).isFalse();
+
+		UserStatements living = UserStatements.from(List.of(),
+				"we have 40000 saved, no other loans, no kids, idk maybe 1200 a month on living");
+		assertThat(living.hedged("no kids", "0")).isFalse();
+		assertThat(living.hedged("idk maybe 1200 a month on living", "1200")).isTrue();
+		assertThat(living.hedged("we have 40000 saved", "40000")).isFalse();
+
+		assertThat(UserStatements.from(List.of(), "I earn 2400 net a month and I have about 20000 saved")
+				.hedged("I earn 2400 net a month", "2400")).isFalse();
+		assertThat(UserStatements.from(List.of(), "hi, we're a couple thinking about buying our first apartment")
+				.hedged("we're a couple", "yes")).isFalse();
+		assertThat(UserStatements.from(List.of("about 2400"), "yes, 2400 is right").hedged("2400 is right", "2400"))
+				.isFalse();
+	}
 }
