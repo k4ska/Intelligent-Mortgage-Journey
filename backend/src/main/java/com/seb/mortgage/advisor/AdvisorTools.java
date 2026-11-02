@@ -27,6 +27,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -555,6 +556,12 @@ class AdvisorTools {
 			only when the user has asked to apply or go to the banks, never on your own. If the
 			user isn't ready yet, this tells you what is still missing; ask the user for it instead.""")
 	String showBankPicker() {
+		// Once an offer is accepted the journey is done; the banks would refuse a new application (#119).
+		Optional<String> accepted = phases.acceptedBank(userId);
+		if (accepted.isPresent()) {
+			return "The user already accepted " + accepted.get() + "'s offer, so they can't apply again and the "
+					+ "bank picker was not shown. Tell them kindly, and help with the next steps of that offer.";
+		}
 		// Only the advisor in the ready phase has this tool, but it checks again (#73).
 		Phases.Readiness readiness = phases.readiness(userId);
 		if (!readiness.ready()) {

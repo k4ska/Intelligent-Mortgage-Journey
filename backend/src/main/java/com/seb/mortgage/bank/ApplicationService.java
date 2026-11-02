@@ -5,8 +5,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.seb.mortgage.auth.CurrentUser;
 
@@ -54,6 +56,11 @@ public class ApplicationService {
 		}
 		List<BankCatalogService.Bank> selected = new LinkedHashSet<>(bankIds).stream().map(banks::find).toList();
 		UUID userId = currentUser.id();
+		// One accepted offer ends the journey: a new application could replace it (#119).
+		if (emailGateway.threads(userId).stream()
+				.anyMatch(thread -> thread.getStatus() == EmailThread.Status.ACCEPTED)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "You already accepted an offer");
+		}
 		Application application = applications.save(new Application(userId, snapshots.freeze(userId),
 				toJson(selected.stream().map(BankCatalogService.Bank::id).toList())));
 
