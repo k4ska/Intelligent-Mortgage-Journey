@@ -265,8 +265,15 @@ public class AdvisorOrchestrator {
 
 		StringBuilder reply = new StringBuilder();
 		Flux<StreamEvent> text = replyText(userId, visible, current, tools)
-				.doOnNext(reply::append)
-				.map(StreamEvent::text)
+				.map(piece -> {
+					// The first round's text turned out not to be the reply (#138): start it again.
+					if (AdvisorAgent.RESTART.equals(piece)) {
+						reply.setLength(0);
+						return StreamEvent.textRestart();
+					}
+					reply.append(piece);
+					return StreamEvent.text(piece);
+				})
 				.doFinally(signal -> toolEvents.tryEmitComplete());
 
 		return Flux.merge(text, toolEvents.asFlux())

@@ -220,6 +220,9 @@ export const useInboxStore = defineStore('inbox', {
             case 'text':
               if (reply) reply.text += event.data.delta
               break
+            case 'text_restart':
+              if (reply) reply.text = ''
+              break
             case 'draft_reply':
               if (event.data.threadId === this.selectedThreadId && event.data.threadId === threadId) {
                 this.replyDraft = event.data.body

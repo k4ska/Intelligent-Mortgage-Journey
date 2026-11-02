@@ -144,6 +144,11 @@ export const useAdvisorStore = defineStore('advisor', {
               if (reply) reply.text += event.data.delta
               break
             }
+            case 'text_restart': {
+              const reply = this.messages.find(message => message.id === replyId)
+              if (reply) reply.text = ''
+              break
+            }
             case 'profile_updated':
               this.mergeProfile(event.data.fields)
               break

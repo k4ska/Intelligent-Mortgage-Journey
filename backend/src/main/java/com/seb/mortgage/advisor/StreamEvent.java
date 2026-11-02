@@ -22,6 +22,11 @@ public record StreamEvent(String type, Map<String, Object> data) {
 		return new StreamEvent("text", Map.of("delta", delta));
 	}
 
+	/** The text streamed so far isn't the reply after all; the real one follows (#138). */
+	public static StreamEvent textRestart() {
+		return new StreamEvent("text_restart", Map.of());
+	}
+
 	public static StreamEvent profileUpdated(List<ProfileFieldView> fields) {
 		return new StreamEvent("profile_updated", Map.of("fields", fields));
 	}

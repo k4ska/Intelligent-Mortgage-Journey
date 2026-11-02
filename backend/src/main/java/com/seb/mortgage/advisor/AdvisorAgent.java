@@ -13,7 +13,8 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
+import reactor.core.publisher.SynchronousSink;
+import reactor.core.scheduler.Schedulers;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -129,6 +131,23 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 	 */
 	static final int MAX_ACT_ROUNDS = 3;
 
+	/**
+	 * Tools after which the advisor may need another act round: a saved fact can be checked
+	 * next (#94). After any other tool the turn goes straight to the reply (#138), unless its
+	 * result asks for a follow-up (see {@link #FOLLOW_UP}).
+	 */
+	static final Set<String> SAVE_TOOLS = Set.of("updateProfile", "updateProperty", "lookupListing",
+			"confirmDocument");
+
+	/** Results that ask the advisor to call a tool again: a range after "too expensive", a draft to redo. */
+	private static final List<String> FOLLOW_UP = List.of("Call suggestAffordableRange", "Not drafted:");
+
+	/**
+	 * Sent in place of a piece of text when the text streamed so far wasn't the reply after
+	 * all: the model wrote some, then called a tool, so the reply call writes the real one.
+	 */
+	static final String RESTART = "\u0000restart";
+
 	public AdvisorAgent(ChatClient.Builder chatClientBuilder) {
 		super(chatClientBuilder, SYSTEM);
 	}
@@ -136,11 +155,11 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 	/**
 	 * One turn, in two steps when the advisor uses a tool (#88):
 	 * <ol>
-	 * <li><b>Act</b>: the model sees the tools. If it calls none, its answer is the reply.
-	 * If it calls some, our code runs them and whatever text the model wrote next to the
-	 * calls is thrown away. Then it acts again, seeing its calls and what they returned,
-	 * so it can use one tool's result in the next (save the income, then check
-	 * affordability, #94), up to {@link #MAX_ACT_ROUNDS} rounds.</li>
+	 * <li><b>Act</b>: the model sees the tools. If it calls none, its answer is the reply, and
+	 * it streams to the user as it is written (#138). If it calls some, our code runs them
+	 * and whatever text the model wrote next to the calls is thrown away. Then, if a tool may
+	 * need a follow-up (a saved fact to check, #94), it acts again, seeing its calls and what
+	 * they returned, up to {@link #MAX_ACT_ROUNDS} rounds.</li>
 	 * <li><b>Reply</b>: a second call with no tools and no tool messages, just the
 	 * conversation and a note saying what the tools did. gpt-5-mini writing right after a
 	 * tool result was what produced doubled replies and notes to itself; a turn that looks
@@ -153,85 +172,157 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 	 * @param profileJson the user's profile fields and property as JSON, read fresh for each
 	 *                    step so the reply sees what the tools just saved
 	 * @param tools       this turn's tools, acting for this user
+	 * @return the reply's text as it streams; {@link #RESTART} means "forget the text so far"
 	 */
 	Flux<String> reply(List<Message> earlier, Message current, Supplier<String> profileJson, AdvisorTools tools) {
-		return Mono.fromCallable(() -> act(earlier, current, profileJson, tools))
-				.flatMapMany(act -> {
-					if (act.toolResults().isEmpty()) {
-						log.info("Advisor turn: no tools, one call");
-						return act.text() == null || act.text().isEmpty() ? Flux.<String>empty() : Flux.just(act.text());
-					}
-					log.info("Advisor turn: tools {} in {} act calls, then a reply call", act.toolNames(), act.calls());
-					// The reply keeps the focus the turn started with: a phase the tools just reached
-					// may ask for tools the reply step doesn't have (asking for documents, #73).
-					Phases.Current now = tools.phase();
-					return replyAfterTools(earlier, current, profileJson.get(),
-							new Phases.Current(act.startPhase(), now.readiness()), act.toolResults());
-				});
+		return Flux.defer(() -> {
+			Turn turn = new Turn(callbacks(tools));
+			Phases.Current phase = tools.phase();
+			turn.startPhase = phase.phase();
+			Map<String, ToolCallback> offered = turn.offered(phase, tools);
+			log.info("Advisor act round 1 in phase {}", phase.phase());
+			List<Message> messages = context(profileJson.get(), phase, earlier);
+			messages.add(current);
+			// Our code runs the tools, so ChatClient's own tool loop is switched off.
+			Flux<String> first = chatClient.prompt()
+					.messages(messages)
+					.tools(offered.values().toArray())
+					.advisors(AdvisorParams.toolCallingAdvisorAutoRegister(false))
+					.stream()
+					.chatResponse()
+					.handle((ChatResponse response, SynchronousSink<String> sink) -> {
+						AssistantMessage output = output(response);
+						if (output == null) {
+							return;
+						}
+						if (output.hasToolCalls()) {
+							turn.firstCalls.addAll(output.getToolCalls());
+							return;
+						}
+						String text = output.getText();
+						if (text != null && !text.isEmpty() && turn.firstCalls.isEmpty()) {
+							turn.streamed = true;
+							sink.next(text);
+						}
+					});
+			return first.concatWith(Flux.defer(() -> afterFirstRound(turn, phase, offered, earlier, current,
+					profileJson, tools)).subscribeOn(Schedulers.boundedElastic()));
+		});
 	}
 
-	/**
-	 * What the act step came to: the model's text (only when it called no tools), or the
-	 * tools it called and what they said, over {@code calls} model calls, and the phase the
-	 * turn started in.
-	 */
-	record Act(String text, List<String> toolNames, List<String> toolResults, int calls, Phase startPhase) {}
+	/** What a turn has done so far. */
+	private static final class Turn {
+		final Map<String, ToolCallback> callbacks;
+		final List<AssistantMessage.ToolCall> firstCalls = new ArrayList<>();
+		final List<String> names = new ArrayList<>();
+		final List<String> results = new ArrayList<>();
+		/** The earlier rounds' calls and what they returned, for the next round to build on. */
+		final List<Message> rounds = new ArrayList<>();
+		Phase startPhase;
+		int calls = 1;
+		/** Text of the first round already went to the user. */
+		boolean streamed;
 
-	private Act act(List<Message> earlier, Message current, Supplier<String> profileJson, AdvisorTools tools) {
+		Turn(Map<String, ToolCallback> callbacks) {
+			this.callbacks = callbacks;
+		}
+
+		Map<String, ToolCallback> offered(Phases.Current phase, AdvisorTools tools) {
+			Map<String, ToolCallback> offered = new LinkedHashMap<>(callbacks);
+			offered.keySet().retainAll(phase.phase().tools());
+			offered.keySet().removeIf(name -> !tools.offers(name));
+			return offered;
+		}
+	}
+
+	private static Map<String, ToolCallback> callbacks(AdvisorTools tools) {
 		Map<String, ToolCallback> callbacks = new LinkedHashMap<>();
 		for (ToolCallback callback : ToolCallbacks.from(tools)) {
 			callbacks.put(callback.getToolDefinition().name(), callback);
 		}
-		List<String> names = new ArrayList<>();
-		List<String> results = new ArrayList<>();
-		// The earlier rounds' calls and what they returned, for the next round to build on.
-		List<Message> rounds = new ArrayList<>();
-		Phase startPhase = null;
-		for (int round = 1; round <= MAX_ACT_ROUNDS; round++) {
+		return callbacks;
+	}
+
+	private static AssistantMessage output(ChatResponse response) {
+		return response == null || response.getResult() == null ? null : response.getResult().getOutput();
+	}
+
+	/**
+	 * After the first round: without tool calls its streamed text was the reply. Otherwise run
+	 * the tools, act on while a tool needs a follow-up, then reply.
+	 */
+	private Flux<String> afterFirstRound(Turn turn, Phases.Current phase, Map<String, ToolCallback> offered,
+			List<Message> earlier, Message current, Supplier<String> profileJson, AdvisorTools tools) {
+		if (turn.firstCalls.isEmpty()) {
+			log.info("Advisor turn: no tools, one call");
+			return Flux.empty();
+		}
+		boolean again = runRound(turn, distinct(turn.firstCalls), phase, offered, tools);
+		for (int round = 2; again && round <= MAX_ACT_ROUNDS; round++) {
 			// The phase is read again each round: a tool in the last one may have moved it on (#73).
-			Phases.Current phase = tools.phase();
-			if (startPhase == null) {
-				startPhase = phase.phase();
-			}
-			Map<String, ToolCallback> offered = new LinkedHashMap<>(callbacks);
-			offered.keySet().retainAll(phase.phase().tools());
-			offered.keySet().removeIf(name -> !tools.offers(name));
-			log.info("Advisor act round {} in phase {}", round, phase.phase());
-			List<Message> messages = context(profileJson.get(), phase, earlier);
+			Phases.Current now = tools.phase();
+			Map<String, ToolCallback> offeredNow = turn.offered(now, tools);
+			log.info("Advisor act round {} in phase {}", round, now.phase());
+			List<Message> messages = context(profileJson.get(), now, earlier);
 			messages.add(current);
-			messages.addAll(rounds);
-			// Our code runs the tools below, so ChatClient's own tool loop is switched off.
+			messages.addAll(turn.rounds);
 			ChatResponse response = chatClient.prompt()
 					.messages(messages)
-					.tools(offered.values().toArray())
+					.tools(offeredNow.values().toArray())
 					.advisors(AdvisorParams.toolCallingAdvisorAutoRegister(false))
 					.call()
 					.chatResponse();
-			AssistantMessage output = response == null || response.getResult() == null ? null
-					: response.getResult().getOutput();
+			turn.calls++;
+			AssistantMessage output = output(response);
 			if (output == null || !output.hasToolCalls()) {
-				// Without tools the first answer is the reply; after tools, the reply call writes it.
-				String text = round == 1 && output != null ? output.getText() : null;
-				return new Act(text, names, results, round, startPhase);
+				break;
 			}
-			List<ToolResponseMessage.ToolResponse> responses = new ArrayList<>();
-			for (AssistantMessage.ToolCall call : output.getToolCalls()) {
-				String result = !callbacks.containsKey(call.name()) || offered.containsKey(call.name())
-						? run(callbacks.get(call.name()), call)
-						: !tools.offers(call.name())
-								? call.name() + " only works next to a bank's email thread in the inbox; nothing was done"
-								: call.name() + " isn't available yet, at this stage (" + phase.phase().label()
-										+ "); nothing was done";
-				names.add(call.name());
-				results.add(call.name() + ": " + result);
-				tools.record(call.name(), result);
-				responses.add(new ToolResponseMessage.ToolResponse(call.id(), call.name(), result));
-			}
-			// The next round sees the calls and their results, never the text written next to them.
-			rounds.add(AssistantMessage.builder().content("").toolCalls(output.getToolCalls()).build());
-			rounds.add(ToolResponseMessage.builder().responses(responses).build());
+			again = runRound(turn, output.getToolCalls(), now, offeredNow, tools);
 		}
-		return new Act(null, names, results, MAX_ACT_ROUNDS, startPhase);
+		log.info("Advisor turn: tools {} in {} act calls, then a reply call{}", turn.names, turn.calls,
+				turn.streamed ? " (the first round's streamed text was dropped)" : "");
+		// The reply keeps the focus the turn started with: a phase the tools just reached
+		// may ask for tools the reply step doesn't have (asking for documents, #73).
+		Flux<String> reply = replyAfterTools(earlier, current, profileJson.get(),
+				new Phases.Current(turn.startPhase, tools.phase().readiness()), turn.results);
+		return turn.streamed ? Flux.just(RESTART).concatWith(reply) : reply;
+	}
+
+	/** A streamed answer may repeat a call in more than one chunk; each call runs once. */
+	private static List<AssistantMessage.ToolCall> distinct(List<AssistantMessage.ToolCall> calls) {
+		Map<String, AssistantMessage.ToolCall> byId = new LinkedHashMap<>();
+		for (AssistantMessage.ToolCall call : calls) {
+			byId.put(call.id() == null || call.id().isEmpty() ? "#" + byId.size() : call.id(), call);
+		}
+		return List.copyOf(byId.values());
+	}
+
+	/**
+	 * Runs one round's tool calls and keeps them for the next round.
+	 *
+	 * @return whether another act round may be needed
+	 */
+	private boolean runRound(Turn turn, List<AssistantMessage.ToolCall> calls, Phases.Current phase,
+			Map<String, ToolCallback> offered, AdvisorTools tools) {
+		List<ToolResponseMessage.ToolResponse> responses = new ArrayList<>();
+		boolean again = false;
+		for (AssistantMessage.ToolCall call : calls) {
+			String result = !turn.callbacks.containsKey(call.name()) || offered.containsKey(call.name())
+					? run(turn.callbacks.get(call.name()), call)
+					: !tools.offers(call.name())
+							? call.name() + " only works next to a bank's email thread in the inbox; nothing was done"
+							: call.name() + " isn't available yet, at this stage (" + phase.phase().label()
+									+ "); nothing was done";
+			turn.names.add(call.name());
+			turn.results.add(call.name() + ": " + result);
+			tools.record(call.name(), result);
+			responses.add(new ToolResponseMessage.ToolResponse(call.id(), call.name(), result));
+			again |= SAVE_TOOLS.contains(call.name()) || FOLLOW_UP.stream().anyMatch(result::contains);
+		}
+		// The next round sees the calls and their results, never the text written next to them.
+		turn.rounds.add(AssistantMessage.builder().content("").toolCalls(calls).build());
+		turn.rounds.add(ToolResponseMessage.builder().responses(responses).build());
+		return again;
 	}
 
 	private static String run(ToolCallback callback, AssistantMessage.ToolCall call) {
