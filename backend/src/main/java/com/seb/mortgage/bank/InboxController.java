@@ -80,7 +80,7 @@ public class InboxController {
 			List<Email> items = emails.findByThreadIdOrderByCreatedAtAsc(thread.getId());
 			Email last = items.isEmpty() ? null : items.get(items.size() - 1);
 			LastEmail preview = last == null ? null
-					: new LastEmail(last.getSubject(), preview(last.getBody()), last.getCreatedAt());
+					: new LastEmail(last.getSubject(), preview(openOffer(thread, items), last.getType(), last.getBody()), last.getCreatedAt());
 			return new ThreadSummary(thread.getId(), bank(thread.getBankId()), thread.getStatus().name(),
 					thread.isUnread(), preview);
 		}).toList();
@@ -106,6 +106,40 @@ public class InboxController {
 		} catch (JacksonException e) {
 			return null;
 		}
+	}
+
+	/**
+	 * The offer that stands, while the thread has one open: the last offer email, if it was
+	 * read. It replaces the preview, so "We will be in touch soon" doesn't hide it (#143).
+	 */
+	private OfferCalculator.Offer openOffer(EmailThread thread, List<Email> items) {
+		if (thread.getStatus() != EmailThread.Status.OFFER) {
+			return null;
+		}
+		for (int i = items.size() - 1; i >= 0; i--) {
+			Email email = items.get(i);
+			if (email.getFrom() == Email.Sender.BANK && "offer".equals(email.getType()) && email.getOfferJson() != null) {
+				try {
+					return mapper.readValue(email.getOfferJson(), OfferCalculator.Offer.class);
+				} catch (JacksonException e) {
+					return null;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * The last email, led by the open offer's rate and payment. When the last email is that
+	 * offer, the line and its validity say it all.
+	 */
+	static String preview(OfferCalculator.Offer offer, String lastType, String lastBody) {
+		if (offer == null) {
+			return preview(lastBody);
+		}
+		String line = "Offer: " + BankAgent.percent(offer.ratePct()) + ", " + BankAgent.cents(offer.monthlyPayment())
+				+ " a month";
+		return "offer".equals(lastType) ? line + ", valid until " + offer.validUntil() : preview(line + " · " + lastBody);
 	}
 
 	static String preview(String body) {

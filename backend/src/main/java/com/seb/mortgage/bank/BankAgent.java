@@ -144,12 +144,12 @@ public class BankAgent {
 	}
 
 	/** Euros and cents: "€910.60". */
-	private static String cents(double amount) {
+	static String cents(double amount) {
 		return "€" + String.format(Locale.ROOT, "%,.2f", amount).replace(',', ' ');
 	}
 
 	/** A rate without trailing zeros: "6.1%", "1.75%". */
-	private static String percent(double rate) {
+	static String percent(double rate) {
 		return BigDecimal.valueOf(rate).stripTrailingZeros().toPlainString() + "%";
 	}
 }
