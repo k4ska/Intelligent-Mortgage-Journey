@@ -233,6 +233,14 @@ class AdvisorTools {
 			}
 		}
 
+		// A price alone doesn't make a different home: "what if the price was X" wiped the saved one (#120).
+		if (Boolean.TRUE.equals(newProperty) && property.active(userId).isPresent()
+				&& !values.containsKey(PropertyKey.TYPE) && !values.containsKey(PropertyKey.LOCATION)) {
+			return "Nothing saved: a different home needs at least its type or location, and the saved home "
+					+ "stays. If the user only asked what would happen at another price, that is a question, not a "
+					+ "new home: answer it in words.";
+		}
+
 		StringBuilder note = new StringBuilder();
 		if (!values.isEmpty()) {
 			boolean uncertain = Boolean.TRUE.equals(fromPastedText);
