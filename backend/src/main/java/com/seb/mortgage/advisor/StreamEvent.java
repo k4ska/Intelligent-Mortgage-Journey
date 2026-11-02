@@ -43,6 +43,12 @@ public record StreamEvent(String type, Map<String, Object> data) {
 		return new StreamEvent("document_status", data);
 	}
 
+	/** A chart in the advisor's reply (#130); computed in code, saved with the message. */
+	public static StreamEvent chart(RateChart.View chart) {
+		return new StreamEvent("chart", Map.of("chartType", chart.chartType(), "title", chart.title(),
+				"data", chart.data()));
+	}
+
 	/** Shows the bank picker card under the chat. */
 	public static StreamEvent bankPicker(List<BankOption> banks) {
 		return new StreamEvent("bank_picker", Map.of("banks", banks));

@@ -2,6 +2,7 @@ package com.seb.mortgage.advisor;
 
 import com.seb.mortgage.auth.CurrentUser;
 import com.seb.mortgage.conversation.ConversationService;
+import com.seb.mortgage.conversation.Message;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.List;
@@ -24,9 +26,12 @@ import java.util.UUID;
 @RequestMapping("/api/chat")
 public class ChatController {
 
-	/** @param threadId the bank thread the message was written next to in the inbox (#80), or null */
+	/**
+	 * @param threadId the bank thread the message was written next to in the inbox (#80), or null
+	 * @param chart    a chart the advisor showed with this reply (#130), or null
+	 */
 	public record MessageView(Long id, String role, String text, Instant createdAt, boolean corrected,
-			UUID threadId) {}
+			UUID threadId, RateChart.View chart) {}
 
 	/**
 	 * Either what the user typed, or a trigger for something that happened outside the chat,
@@ -38,13 +43,15 @@ public class ChatController {
 	private final AdvisorOrchestrator orchestrator;
 	private final StartOverService startOver;
 	private final CurrentUser currentUser;
+	private final ObjectMapper objectMapper;
 
 	public ChatController(ConversationService conversations, AdvisorOrchestrator orchestrator,
-			StartOverService startOver, CurrentUser currentUser) {
+			StartOverService startOver, CurrentUser currentUser, ObjectMapper objectMapper) {
 		this.conversations = conversations;
 		this.orchestrator = orchestrator;
 		this.startOver = startOver;
 		this.currentUser = currentUser;
+		this.objectMapper = objectMapper;
 	}
 
 	/** The conversation so far; a new user's starts with the advisor's greeting. */
@@ -52,8 +59,13 @@ public class ChatController {
 	public List<MessageView> history() {
 		return conversations.history(currentUser.id()).stream()
 				.map(m -> new MessageView(m.getId(), m.getRole().name().toLowerCase(Locale.ROOT),
-						m.getText(), m.getCreatedAt(), m.isCorrected(), m.getThreadId()))
+						m.getText(), m.getCreatedAt(), m.isCorrected(), m.getThreadId(), chart(m)))
 				.toList();
+	}
+
+	private RateChart.View chart(Message message) {
+		return message.getChartJson() == null ? null
+				: objectMapper.readValue(message.getChartJson(), RateChart.class).view();
 	}
 
 	/**

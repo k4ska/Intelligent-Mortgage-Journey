@@ -44,6 +44,10 @@ public class Message {
 	/** The bank thread the message was written next to, or null in the chat. */
 	private UUID threadId;
 
+	/** A chart the advisor showed with this reply (#130), as JSON, or null. */
+	@Column(columnDefinition = "TEXT")
+	private String chartJson;
+
 	@Column(nullable = false, updatable = false)
 	private Instant createdAt;
 
@@ -94,5 +98,13 @@ public class Message {
 
 	public UUID getThreadId() {
 		return threadId;
+	}
+
+	public String getChartJson() {
+		return chartJson;
+	}
+
+	public void attachChart(String chartJson) {
+		this.chartJson = chartJson;
 	}
 }

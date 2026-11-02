@@ -49,6 +49,12 @@ public class ConversationService {
 		});
 	}
 
+	/** Saves the chart the advisor showed with a reply, so it is still there after a reload (#130). */
+	@Transactional
+	public void attachChart(Long messageId, String chartJson) {
+		messages.findById(messageId).ifPresent(message -> message.attachChart(chartJson));
+	}
+
 	/** Saves the verifier's safe version of a reply in place of the original (#67). */
 	@Transactional
 	public void correct(Long messageId, String text) {

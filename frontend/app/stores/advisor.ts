@@ -157,6 +157,11 @@ export const useAdvisorStore = defineStore('advisor', {
             case 'bank_picker':
               this.bankOptions = event.data.banks
               break
+            case 'chart': {
+              const reply = this.messages.find(message => message.id === replyId)
+              if (reply) reply.chart = event.data
+              break
+            }
             case 'corrected': {
               // Prefer the saved ID; before 'done' the current reply still has a local ID.
               const reply = this.messages.find(message => message.id === event.data.messageId && message.role === 'advisor')

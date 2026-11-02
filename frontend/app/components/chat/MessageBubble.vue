@@ -10,6 +10,7 @@ defineProps<{ message: ChatMessage; streaming?: boolean }>()
     <p v-if="message.role === 'system'" class="mx-auto max-w-[90%] rounded-lg bg-[var(--ui-bg-muted)] px-3 py-1.5 text-center text-xs leading-5 text-[var(--ui-text-muted)]" role="note">{{ message.text }}</p>
     <div v-else :class="['max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-6 whitespace-pre-wrap break-words', message.role === 'user' ? 'rounded-br-sm bg-[var(--ui-primary)] text-white' : 'rounded-bl-sm bg-[var(--ui-bg-muted)] text-[var(--ui-text)]']">
       <div>{{ message.text || (streaming && message.role === 'advisor' ? '…' : '') }}</div>
+      <ChatRateChart v-if="message.chart?.chartType === 'rate_payment'" :title="message.chart.title" :chart="message.chart.data" />
       <span v-if="message.role === 'advisor' && message.corrected" class="mt-2 inline-flex items-center gap-1 rounded-md border border-[var(--ui-border)] px-2 py-0.5 text-xs text-[var(--ui-text-muted)]" :title="copy.correctedTooltip" :aria-label="`${copy.correctedLabel}. ${copy.correctedTooltip}`" role="note" tabindex="0">
         <UIcon name="i-lucide-info" aria-hidden="true" />
         {{ copy.correctedLabel }}
