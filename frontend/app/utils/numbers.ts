@@ -21,6 +21,12 @@ export function formatMoney(n: number): string {
   return `${n < 0 ? '-' : ''}€${formatNumber(Math.abs(n))}`
 }
 
+/** 1060.2 -> "€1 060.20": euros and cents, the way the banks' emails write a payment. */
+export function formatCents(n: number): string {
+  const [int = '0', frac = '00'] = Math.abs(n).toFixed(2).split('.')
+  return `${n < 0 ? '-' : ''}€${groupDigits(int)}.${frac}`
+}
+
 interface NumberParts {
   negative: boolean
   int: string

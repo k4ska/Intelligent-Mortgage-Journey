@@ -121,7 +121,9 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			- You never send emails. When the user asks for help answering a bank: if you have
 			  draftReply, call it with the whole email and tell them it's in the reply box to edit
 			  and send. If you don't, tell them to ask you next to that bank's thread in the inbox.
-			- Answer in English. All amounts are in euros.""";
+			- Answer in English. All amounts are in euros, written the way the app shows them:
+			  the euro sign first and a space between thousands, like €163 000 or €2 400 (never
+			  €163,000, 163 000€ or €2400). Only a bank's monthly payment has cents, like €1 060.20.""";
 
 	/**
 	 * Most act rounds in one turn, so the advisor can save a fact and then check something
