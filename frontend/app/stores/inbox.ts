@@ -173,7 +173,11 @@ export const useInboxStore = defineStore('inbox', {
       } catch (error) {
         if (errorStatus(error) === 401) void useAuthStore().expire()
         // Retain the server-confirmed accepted status even if refresh is offline.
-        this.threads.forEach(thread => { thread.status = thread.threadId === threadId ? 'ACCEPTED' : 'CLOSED' })
+        this.threads.forEach(thread => {
+          thread.status = thread.threadId === threadId ? 'ACCEPTED' : 'CLOSED'
+          // A closed thread no longer counts as unread (#142).
+          if (thread.threadId !== threadId) thread.unread = false
+        })
         if (this.activeThread?.threadId === threadId) this.activeThread.status = 'ACCEPTED'
       } finally {
         this.accepting = false

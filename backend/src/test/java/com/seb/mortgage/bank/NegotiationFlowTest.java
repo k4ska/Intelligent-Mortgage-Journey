@@ -167,6 +167,24 @@ class NegotiationFlowTest {
 	}
 
 	@Test
+	void acceptingAnOfferLeavesTheClosedThreadsRead() throws Exception {
+		Thread seb = sebOffer("seb", "lhv");
+		accept(seb, lastEmail(seb).path("id").asString()).andExpect(status().isNoContent());
+
+		JsonNode inbox = mapper.readTree(mvc.perform(get("/api/inbox").session(seb.session()))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+		JsonNode lhv = null;
+		for (JsonNode thread : inbox) {
+			if ("lhv".equals(thread.path("bank").path("id").asString())) {
+				lhv = thread;
+			}
+		}
+		assertThat(lhv).isNotNull();
+		assertThat(lhv.path("status").asString()).isEqualTo("CLOSED");
+		assertThat(lhv.path("unread").asBoolean()).isFalse();
+	}
+
+	@Test
 	void theKeywordReaderTellsAnAskFromAQuestion() {
 		Negotiator negotiator = new Negotiator(null, new BankCatalogService());
 		BankCatalogService.Bank seb = new BankCatalogService().find("seb");
@@ -183,6 +201,11 @@ class NegotiationFlowTest {
 
 	/** A user with an offer from SEB: the first email in the thread. */
 	private Thread sebOffer() throws Exception {
+		return sebOffer("seb");
+	}
+
+	/** The same, applying to these banks too; SEB is the first. */
+	private Thread sebOffer(String... bankIds) throws Exception {
 		String credentials = "{\"email\":\"negotiate-" + UUID.randomUUID() + "@example.com\",\"password\":\"password123\"}";
 		mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(credentials))
 				.andExpect(status().isCreated());
@@ -195,9 +218,15 @@ class NegotiationFlowTest {
 		properties.updateFromChat(userId, Map.of(PropertyKey.TYPE, "APARTMENT", PropertyKey.PRICE, "200000",
 				PropertyKey.LOCATION, "Tallinn"), ProfileField.Status.CONFIRMED, true);
 		String response = mvc.perform(post("/api/applications").session(session)
-						.contentType(MediaType.APPLICATION_JSON).content("{\"bankIds\":[\"seb\"]}"))
+						.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of("bankIds", bankIds))))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-		Thread seb = new Thread(session, mapper.readTree(response).path("threads").get(0).path("threadId").asString());
+		String sebThread = null;
+		for (JsonNode thread : mapper.readTree(response).path("threads")) {
+			if ("seb".equals(thread.path("bankId").asString()) || sebThread == null) {
+				sebThread = thread.path("threadId").asString();
+			}
+		}
+		Thread seb = new Thread(session, sebThread);
 		assertThat(lastEmail(seb).path("offer").path("marginPct").asDouble()).isEqualTo(1.65);
 		return seb;
 	}
