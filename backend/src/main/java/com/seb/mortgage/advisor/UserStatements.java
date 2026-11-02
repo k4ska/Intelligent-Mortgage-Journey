@@ -40,9 +40,22 @@ final class UserStatements {
 			"\\b(no|none|nothing|zero|don't have|do not have|haven't got|ei ole|pole|puudub|mitte midagi)\\b",
 			Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
 
+	/**
+	 * Words that make a figure a guess ("about 2400", "idk maybe 1200", "~2000", "umbes 900"),
+	 * as they read once simplified (#140).
+	 */
+	private static final List<String> HEDGES = List.of("about", "around", "roughly", "approximately", "approx",
+			"maybe", "probably", "perhaps", "i think", "i guess", "idk", "i don t know", "not sure", "something like",
+			"or so", "ish", "circa", "give or take", "more or less", "tilde", "umbes", "ligikaudu", "vist",
+			"arvatavasti", "kuskil", "vast");
+	/** How many words before and after a quote can hedge it. */
+	private static final int HEDGE_WINDOW = 3;
+
 	private static final Pattern NOT_A_WORD = Pattern.compile("[^\\p{L}\\p{N}]+", Pattern.UNICODE_CHARACTER_CLASS);
 
 	private final Set<BigDecimal> numbers = new HashSet<>();
+	/** Each of the user's messages, simplified, with "~" spelled out, oldest first. */
+	private final List<String> messages = new ArrayList<>();
 	/** All the user's messages, simplified for quote matching. */
 	private final StringBuilder words = new StringBuilder(" ");
 	/** Only the message being answered, simplified the same way. */
@@ -61,6 +74,7 @@ final class UserStatements {
 		texts.add(current == null ? "" : current);
 		texts.forEach(stated::read);
 		texts.forEach(text -> stated.words.append(simplify(text)).append(' '));
+		texts.forEach(text -> stated.messages.add(" " + simplify(text.replace("~", " tilde ")) + " "));
 		stated.currentWords = " " + simplify(current == null ? "" : current) + " ";
 		// "No" only counts as 0 right after the advisor asked, not anywhere in the conversation.
 		if (current != null && NONE.matcher(current).find()) {
@@ -82,6 +96,33 @@ final class UserStatements {
 	boolean saidNow(String quote) {
 		String simplified = quote == null ? "" : simplify(quote);
 		return !simplified.isEmpty() && currentWords.contains(" " + simplified + " ");
+	}
+
+	/**
+	 * Whether the user hedged the value in this quote: a word like "about" or "maybe" in the
+	 * quote or just around it, in the latest message that has it. "I earn about 2400" hedges
+	 * 2400; "I earn 2400 and have about 20k saved" doesn't.
+	 */
+	boolean hedged(String quote) {
+		String simplified = quote == null ? "" : simplify(quote);
+		if (simplified.isEmpty()) {
+			return false;
+		}
+		for (int i = messages.size() - 1; i >= 0; i--) {
+			String message = messages.get(i);
+			int at = message.indexOf(" " + simplified + " ");
+			if (at < 0) {
+				continue;
+			}
+			String[] before = message.substring(0, at).trim().split(" ");
+			String[] after = message.substring(at + simplified.length() + 2).trim().split(" ");
+			String window = " " + String.join(" ", java.util.Arrays.copyOfRange(before,
+					Math.max(0, before.length - HEDGE_WINDOW), before.length)) + " " + simplified + " "
+					+ String.join(" ", java.util.Arrays.copyOfRange(after, 0, Math.min(after.length, HEDGE_WINDOW)))
+					+ " ";
+			return HEDGES.stream().anyMatch(hedge -> window.contains(" " + hedge + " "));
+		}
+		return false;
 	}
 
 	private static String simplify(String text) {

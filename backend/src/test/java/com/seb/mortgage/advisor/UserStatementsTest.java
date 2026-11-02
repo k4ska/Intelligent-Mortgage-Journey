@@ -69,4 +69,24 @@ class UserStatementsTest {
 		assertThat(said("I have 0 savings").containsNumber("0")).isTrue();
 		assertThat(UserStatements.from(List.of("No, I'm buying alone"), "My income is 2000").containsNumber("0")).isFalse();
 	}
+
+	@Test
+	void aHedgeNextToTheValueMakesItAGuess() {
+		assertThat(UserStatements.from(List.of(), "about 2400").hedged("2400")).isTrue();
+		assertThat(UserStatements.from(List.of(), "idk maybe 1200").hedged("1200")).isTrue();
+		assertThat(UserStatements.from(List.of(), "I spend ~900 a month").hedged("900 a month")).isTrue();
+		assertThat(UserStatements.from(List.of(), "2000 or so").hedged("2000")).isTrue();
+		assertThat(UserStatements.from(List.of(), "umbes 900").hedged("900")).isTrue();
+		assertThat(UserStatements.from(List.of(), "I earn about 2400").hedged("I earn about 2400")).isTrue();
+	}
+
+	@Test
+	void aHedgeFurtherAwayOrOnAnotherValueDoesnt() {
+		UserStatements stated = UserStatements.from(List.of(),
+				"I earn 2400 net a month and I have about 20000 saved");
+		assertThat(stated.hedged("2400")).isFalse();
+		assertThat(stated.hedged("20000")).isTrue();
+		assertThat(UserStatements.from(List.of(), "I earn 2400").hedged("2400")).isFalse();
+		assertThat(UserStatements.from(List.of("about 2400"), "yes, 2400 is right").hedged("2400 is right")).isFalse();
+	}
 }

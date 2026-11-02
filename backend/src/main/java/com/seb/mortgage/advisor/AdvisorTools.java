@@ -161,6 +161,7 @@ class AdvisorTools {
 	@Tool(name = "updateProfile", description = UPDATE_PROFILE_DESCRIPTION)
 	String updateProfile(@ToolParam(description = "The facts to save") List<FieldUpdate> fields) {
 		List<ProfileFieldView> saved = new ArrayList<>();
+		List<ProfileFieldView> guessed = new ArrayList<>();
 		List<String> problems = new ArrayList<>();
 		for (FieldUpdate field : fields == null ? List.<FieldUpdate>of() : fields) {
 			ProfileKey key = ProfileKey.fromKey(field.key()).orElse(null);
@@ -175,8 +176,15 @@ class AdvisorTools {
 					problems.add(notSaid(field.key(), value));
 					continue;
 				}
-				// What the user says about themselves needs no confirmation.
-				saved.add(profile.save(userId, key, value, ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED));
+				// What the user says about themselves needs no confirmation, unless they only guessed it
+				// ("about 2400"). Saying the same value again, once asked, confirms it (#140).
+				boolean guess = stated.hedged(field.quote()) && !alreadyGuessed(key, value);
+				ProfileFieldView view = profile.save(userId, key, value, ProfileField.Source.CHAT,
+						guess ? ProfileField.Status.UNCERTAIN : ProfileField.Status.CONFIRMED);
+				saved.add(view);
+				if (guess) {
+					guessed.add(view);
+				}
 			} catch (IllegalArgumentException e) {
 				problems.add(e.getMessage());
 			}
@@ -194,6 +202,12 @@ class AdvisorTools {
 			note.append("Saved: ")
 					.append(String.join(", ", saved.stream().map(f -> f.key() + "=" + f.value()).toList()))
 					.append(". ");
+		}
+		if (!guessed.isEmpty()) {
+			note.append("These are only the user's estimate, so they are saved as uncertain: ")
+					.append(String.join(", ", guessed.stream().map(f -> f.key() + "=" + f.value()).toList()))
+					.append(". In your reply, ask once whether that is the figure to use; when the user says yes or "
+							+ "gives the exact figure, save it again and it is confirmed. ");
 		}
 		settled.forEach(document -> note.append(document.type()).append(" is now confirmed. "));
 		if (!problems.isEmpty()) {
@@ -275,6 +289,13 @@ class AdvisorTools {
 			return "Nothing to save.";
 		}
 		return note.toString().trim() + stillMissing();
+	}
+
+	/** The same value is already saved as the user's estimate: saying it again, once asked, confirms it. */
+	private boolean alreadyGuessed(ProfileKey key, String value) {
+		return profile.fields(userId).stream().anyMatch(field -> field.key().equals(key.key())
+				&& field.value().equals(value) && field.source() == ProfileField.Source.CHAT
+				&& field.status() == ProfileField.Status.UNCERTAIN);
 	}
 
 	/** A value without the user's words behind it: the advisor guessed it, so it isn't saved (#88). */
