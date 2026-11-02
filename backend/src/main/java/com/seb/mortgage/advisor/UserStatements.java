@@ -18,9 +18,13 @@ import java.util.regex.Pattern;
  */
 final class UserStatements {
 
-	/** A number as people type it: digits with optional thousands or decimal separators, and "k". */
+	/**
+	 * A number as people type it: digits with optional thousands or decimal separators, and "k".
+	 * A separator only joins digits, so in "198 000, 52m2" the comma and space end the number
+	 * instead of making it 198000.52 (#117).
+	 */
 	private static final Pattern NUMBER = Pattern.compile(
-			"\\d[\\d \\u00a0.,]*\\d|\\d", Pattern.UNICODE_CHARACTER_CLASS);
+			"\\d(?:[ \\u00a0.,]?\\d)*", Pattern.UNICODE_CHARACTER_CLASS);
 	private static final Pattern THOUSANDS_SUFFIX = Pattern.compile(
 			"^\\s*(k|tk|tuh\\.?|tuhat|thousand)\\b", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
 	private static final Map<String, Integer> NUMBER_WORDS = Map.ofEntries(

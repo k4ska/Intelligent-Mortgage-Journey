@@ -3,6 +3,16 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-11-02 - Euribor at about today's level (#116)
+
+- The variable rate in `RateService` is now the 6-month Euribor at 2.1% (was 4.35%), close
+  to the 2026 market level, so offers come out at about 3.75-3.95% instead of about 6%. A
+  bank audience would notice 6% straight away. The advisor calls it "the 6-month Euribor".
+- The stress test now usually sits on its 6% floor (rate + 2 points is below it), which is
+  how Eesti Pank-style stress tests behave at low rates.
+- This replaces the 4.35% + 1.75% = 6.10% in the affordability entry of 2026-10-20; the
+  margins are unchanged.
+
 ## 2026-10-30 - Negotiating the margin with the banks
 
 - Only the margin is negotiated; the amount and term stay. Each ask lowers it one step

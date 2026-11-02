@@ -25,6 +25,9 @@ public enum PropertyKey {
 
 	private enum Kind { TYPE, AMOUNT, TEXT, AREA, COUNT, YEAR }
 
+	/** No home in Estonia costs more; a bigger price is a typo or a joke (#120). */
+	private static final BigDecimal MAX_PRICE = BigDecimal.valueOf(10_000_000);
+
 	private final String key;
 	private final Kind kind;
 	private final boolean required;
@@ -70,6 +73,10 @@ public enum PropertyKey {
 				BigDecimal amount = parseNumber(value);
 				if (amount.signum() <= 0) {
 					throw new IllegalArgumentException(key + " must be more than 0");
+				}
+				if (kind == Kind.AMOUNT && amount.compareTo(MAX_PRICE) > 0) {
+					throw new IllegalArgumentException(key + " can't be more than 10000000 euros; "
+							+ "ask the user to check it");
 				}
 				return amount.stripTrailingZeros().toPlainString();
 			}

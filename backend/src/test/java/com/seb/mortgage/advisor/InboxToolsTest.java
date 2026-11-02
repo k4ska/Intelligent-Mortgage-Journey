@@ -80,6 +80,14 @@ class InboxToolsTest {
 	}
 
 	@Test
+	void aDraftWithAGapToFillInIsRefused() {
+		String note = nextTo(thread()).draftReply("Could you lower the margin from 1.8%?\n\nThank you,\n[Your name]");
+
+		assertThat(events).isEmpty();
+		assertThat(note).startsWith("Not drafted: it has a gap in square brackets");
+	}
+
+	@Test
 	void inTheChatThereIsNoThreadToDraftFor() {
 		AdvisorTools chat = tools(null);
 
