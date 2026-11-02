@@ -1,6 +1,9 @@
 package com.seb.mortgage.bank;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
@@ -20,6 +23,13 @@ public class Negotiator {
 	private static final Pattern ASKS = Pattern.compile(
 			"\\b(lower|better|reduce|discount|cheaper|negotiat\\w*|match|beat|margin|improve)\\b");
 	private static final Pattern OTHER_BANK = Pattern.compile("\\b(another|other) (bank|offer)\\b");
+	private static final Map<NegotiationAgent.Question, Pattern> QUESTIONS = Map.of(
+			NegotiationAgent.Question.EARLY_REPAYMENT, Pattern.compile(
+					"\\b(early|earlier|extra|prepay\\w*|pay (it )?off|ahead of time|sooner)\\b"),
+			NegotiationAgent.Question.LONGER_TERM, Pattern.compile(
+					"\\b(\\d{2} years|longer|extend\\w*)\\b"),
+			NegotiationAgent.Question.DOCUMENTS, Pattern.compile("\\b(documents?|papers?|paperwork|payslips?)\\b"),
+			NegotiationAgent.Question.FEES, Pattern.compile("\\b(fees?|charges?|commission|costs? of)\\b"));
 
 	private final ObjectProvider<NegotiationAgent> agent;
 	private final BankCatalogService banks;
@@ -48,6 +58,9 @@ public class Negotiator {
 				.filter(other -> !other.id().equals(bank.id()))
 				.anyMatch(other -> Pattern.compile("\\b" + Pattern.quote(other.name().toLowerCase(Locale.ROOT)) + "\\b")
 						.matcher(text).find());
-		return new NegotiationAgent.Reading(asks, asks && otherBank);
+		List<NegotiationAgent.Question> questions = Arrays.stream(NegotiationAgent.Question.values())
+				.filter(question -> QUESTIONS.get(question).matcher(text).find())
+				.toList();
+		return new NegotiationAgent.Reading(asks, asks && otherBank, questions);
 	}
 }

@@ -56,11 +56,35 @@ public class InboxService {
 		if (thread.getStatus() == EmailThread.Status.CLOSED) {
 			return;
 		}
-		if (thread.getStatus() == EmailThread.Status.OFFER && negotiate(thread, body)) {
+		if (thread.getStatus() == EmailThread.Status.OFFER && answer(thread, body)) {
 			return;
 		}
 		gateway.addBankEmail(threadId,
 				new BankAgent.Draft("confirmation", "We will be in touch soon", BANK_REPLY), null);
+	}
+
+	/**
+	 * A reply to an offer: a counter-offer if it asks for a better one, then the answers to the
+	 * common questions it asks (#129), from the bank's rules.
+	 *
+	 * @return false when it does neither, so it gets the usual answer
+	 */
+	private boolean answer(EmailThread thread, String body) {
+		List<Email> offers = offerEmails(thread.getId());
+		Optional<OfferCalculator.Offer> current = offers.isEmpty() ? Optional.empty() : offer(offers.getLast());
+		if (current.isEmpty()) {
+			return false;
+		}
+		BankCatalogService.Bank bank = banks.find(thread.getBankId());
+		NegotiationAgent.Reading reading = negotiator.read(bank, body);
+		OfferCalculator.Offer standing = current.get();
+		if (reading.asksForBetterOffer()) {
+			standing = negotiate(thread, bank, offers.size(), standing, reading);
+		}
+		if (!reading.questions().isEmpty()) {
+			gateway.addBankEmail(thread.getId(), agent.answers(bank, reading.questions(), standing), null);
+		}
+		return reading.asksForBetterOffer() || !reading.questions().isEmpty();
 	}
 
 	/**
@@ -69,31 +93,22 @@ public class InboxService {
 	 * offer gets its lowest margin straight away. At the lowest margin it is the final offer,
 	 * and asking again gets a polite no.
 	 *
-	 * @return false when the reply doesn't ask for a better offer, so it gets the usual answer
+	 * @return the offer that stands afterwards
 	 */
-	private boolean negotiate(EmailThread thread, String body) {
-		List<Email> offers = offerEmails(thread.getId());
-		Optional<OfferCalculator.Offer> current = offers.isEmpty() ? Optional.empty() : offer(offers.getLast());
-		if (current.isEmpty()) {
-			return false;
-		}
-		BankCatalogService.Bank bank = banks.find(thread.getBankId());
-		NegotiationAgent.Reading reading = negotiator.read(bank, body);
-		if (!reading.asksForBetterOffer()) {
-			return false;
-		}
+	private OfferCalculator.Offer negotiate(EmailThread thread, BankCatalogService.Bank bank, int offerCount,
+			OfferCalculator.Offer current, NegotiationAgent.Reading reading) {
 		// The first offer is round 0, so the next round is the number of offers so far.
-		int round = Math.min(offers.size(), bank.maxNegotiationRounds());
+		int round = Math.min(offerCount, bank.maxNegotiationRounds());
 		double lowest = calculator.lowestMargin(bank, bank.maxNegotiationRounds());
 		double margin = reading.mentionsCompetingOffer() ? lowest : calculator.lowestMargin(bank, round);
-		if (margin >= current.get().marginPct() - MARGIN_EPSILON) {
+		if (margin >= current.marginPct() - MARGIN_EPSILON) {
 			gateway.addBankEmail(thread.getId(), agent.noBetterOffer(bank), null);
-			return true;
+			return current;
 		}
-		OfferCalculator.Offer better = calculator.withMargin(current.get(), margin);
+		OfferCalculator.Offer better = calculator.withMargin(current, margin);
 		gateway.addBankEmail(thread.getId(), agent.counterOffer(bank, better, margin <= lowest + MARGIN_EPSILON),
 				better);
-		return true;
+		return better;
 	}
 
 	/** The thread's offer emails, oldest first; the last one is the offer that stands. */
@@ -139,8 +154,7 @@ public class InboxService {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "A newer offer replaced this one");
 		}
 		thread.accept();
-		gateway.addBankEmail(threadId, new BankAgent.Draft("confirmation", "Mortgage application accepted",
-				"We have received your acceptance. We will send you the next steps and any additional information as soon as possible."), null);
+		gateway.addBankEmail(threadId, agent.acceptance(banks.find(thread.getBankId())), null);
 		others.forEach(EmailThread::close);
 	}
 
