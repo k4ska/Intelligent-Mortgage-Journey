@@ -82,11 +82,11 @@ class AffordabilityToolsTest {
 
 		String note = tools().checkAffordability();
 
-		String payment = Long.toString(Math.round(calculator.monthlyPayment(150000, 6.1, 25)));
+		String payment = Long.toString(Math.round(calculator.monthlyPayment(150000, 3.85, 25)));
 		assertThat(note).startsWith("Affordable: yes. Price 200000, down payment 50000, loan 150000")
-				.contains("25 years at 6.1% a year (the variable rate of 4.35% plus a typical bank margin of 1.75%)")
+				.contains("25 years at 3.85% a year (the 6-month Euribor of 2.1% plus a typical bank margin of 1.75%)")
 				.contains("Monthly payment " + payment + ";")
-				.contains("stress-test rate of 8.1%")
+				.contains("stress-test rate of 6%")
 				.doesNotContain("suggestAffordableRange");
 	}
 
