@@ -143,6 +143,29 @@ class PropertyToolsTest {
 	}
 
 	@Test
+	void aPriceAloneDoesNotReplaceTheSavedHome() {
+		userSaid = "what if the price was 320 000";
+		tools().updateProperty(List.of(field("type", "apartment"), field("price", "320000"),
+				field("location", "Saue")), false, null);
+
+		String note = tools().updateProperty(List.of(field("price", "320000")), false, true);
+
+		assertThat(note).startsWith("Nothing saved: a different home needs at least its type or location");
+		assertThat(property.active(userId).orElseThrow().fields()).extracting(ProfileFieldView::key)
+				.containsExactly("type", "price", "location");
+	}
+
+	@Test
+	void anAbsurdPriceIsRefused() {
+		userSaid = "the price is 5000000000";
+
+		String note = tools().updateProperty(List.of(field("price", "5000000000")), null, null);
+
+		assertThat(note).contains("price can't be more than 10000000 euros");
+		assertThat(property.active(userId)).isEmpty();
+	}
+
+	@Test
 	void listingOnlyValuesUnknownKeysAndBadValuesAreRejected() {
 		String note = tools().updateProperty(List.of(field("rooms", "3"), field("garden", "yes"),
 				field("type", "castle"), field("price", "lots")), null, null);

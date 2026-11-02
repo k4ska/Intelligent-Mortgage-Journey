@@ -27,10 +27,12 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 /**
  * The advisor's tools for one turn of one user's conversation. Each tool runs our code,
@@ -104,6 +106,13 @@ class AdvisorTools {
 	 * and everything the user has said, this turn included.
 	 */
 	record Inbox(BankThreads.BankThread thread, ReplyDrafts drafts, List<String> said) {}
+
+	/** A gap for the user to fill in, like "[Your name]": it would go to the bank as it is (#127). */
+	private static final Pattern PLACEHOLDER = Pattern.compile("\\[[^\\]]*\\]");
+	/** Words that ask to apply, or say yes to the advisor's offer to (#128). */
+	private static final Pattern ASKS_TO_APPLY = Pattern.compile(
+			"\\b(apply|applying|application|banks?|send|submit|go ahead|yes|yeah|yep|sure|ok|okay|let'?s|please|"
+					+ "do it|jah)\\b", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
 
 	/** Tools that only work next to a bank thread in the inbox. */
 	static final Set<String> INBOX_TOOLS = Set.of("draftReply");
@@ -234,6 +243,14 @@ class AdvisorTools {
 			} catch (IllegalArgumentException e) {
 				problems.add(e.getMessage());
 			}
+		}
+
+		// A price alone doesn't make a different home: "what if the price was X" wiped the saved one (#120).
+		if (Boolean.TRUE.equals(newProperty) && property.active(userId).isPresent()
+				&& !values.containsKey(PropertyKey.TYPE) && !values.containsKey(PropertyKey.LOCATION)) {
+			return "Nothing saved: a different home needs at least its type or location, and the saved home "
+					+ "stays. If the user only asked what would happen at another price, that is a question, not a "
+					+ "new home: answer it in words.";
 		}
 
 		StringBuilder note = new StringBuilder();
@@ -467,7 +484,7 @@ class AdvisorTools {
 	}
 
 	private static String rate(LoanProfileAssembler.Terms terms, int termYears) {
-		return "Assumed: " + termYears + " years at " + number(terms.ratePct()) + "% a year (the variable rate of "
+		return "Assumed: " + termYears + " years at " + number(terms.ratePct()) + "% a year (the 6-month Euribor of "
 				+ number(terms.variableRatePct()) + "% plus a typical bank margin of " + number(terms.marginPct())
 				+ "%). ";
 	}
@@ -592,9 +609,22 @@ class AdvisorTools {
 
 	@Tool(name = "showBankPicker", description = """
 			Show the user a card where they pick the banks to send their application to. Call it
-			only when the user has asked to apply or go to the banks, never on your own. If the
-			user isn't ready yet, this tells you what is still missing; ask the user for it instead.""")
-	String showBankPicker() {
+			only when the user's latest message asks to apply or go to the banks (or says yes to
+			your offer to), never on your own. If the user isn't ready yet, this tells you what is
+			still missing; ask the user for it instead.""")
+	String showBankPicker(@ToolParam(description = "The user's own words from their latest message asking to "
+			+ "apply or go to the banks, or saying yes to it") String quote) {
+		// The prompt alone didn't stop it opening after an unrelated message (#128).
+		if (!stated.saidNow(quote) || !ASKS_TO_APPLY.matcher(quote).find()) {
+			return "Not shown: the user's latest message doesn't ask to apply. Don't open the bank picker on "
+					+ "your own; if it fits, ask whether they'd like to send their application to the banks.";
+		}
+		// Once an offer is accepted the journey is done; the banks would refuse a new application (#119).
+		Optional<String> accepted = phases.acceptedBank(userId);
+		if (accepted.isPresent()) {
+			return "The user already accepted " + accepted.get() + "'s offer, so they can't apply again and the "
+					+ "bank picker was not shown. Tell them kindly, and help with the next steps of that offer.";
+		}
 		// Only the advisor in the ready phase has this tool, but it checks again (#73).
 		Phases.Readiness readiness = phases.readiness(userId);
 		if (!readiness.ready()) {
@@ -613,7 +643,8 @@ class AdvisorTools {
 			user to edit and send themselves. Call it when the user asks for help answering the
 			bank (a question, a lower margin, a polite "no thanks"). Write the whole email: short,
 			polite and calm, in the user's voice, using only figures from the bank's emails, the
-			profile and the user's own words. You never send anything yourself.""")
+			profile and the user's own words. End with "Best regards" and no name, and leave no
+			gaps in square brackets like [Your name]. You never send anything yourself.""")
 	String draftReply(@ToolParam(description = "The email body, ready to edit and send") String body) {
 		if (inbox == null) {
 			return "Drafts only work next to a bank's email thread in the inbox; nothing was drafted.";
@@ -625,6 +656,10 @@ class AdvisorTools {
 		}
 		if (body == null || body.isBlank()) {
 			return "Nothing was drafted: the body is empty.";
+		}
+		if (PLACEHOLDER.matcher(body).find()) {
+			return "Not drafted: it has a gap in square brackets for the user to fill in. Write the whole email "
+					+ "without one, and end with \"Best regards\" and no name.";
 		}
 		ReplyDrafts.Checked checked = inbox.drafts().check(userId, thread, body.strip(), inbox.said());
 		if (!checked.passed()) {

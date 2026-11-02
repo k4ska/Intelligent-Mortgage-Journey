@@ -13,6 +13,30 @@ re-litigated.
   saved as JSON on the advisor's message (`message.chart_json`, V7), so it is still there
   after a reload. `chartType` leaves room for other charts later.
 
+## 2026-11-02 - Banks answer the common questions, and say what happens after accepting (#129)
+
+- Besides asking for a better margin, the `NegotiationAgent` (or keywords, without an API
+  key) now picks out four common questions in a reply to an offer: early repayment, a
+  longer term, documents and fees. The bank answers them in one email from fixed text in
+  `BankAgent.answers`, after a counter-offer if the same reply asked for one. Anything else
+  still gets "We will be in touch soon".
+- The rules are the same at every bank: early repayment is free with a variable rate (a
+  month's notice); the longest term is 30 years, and the answer gives the 30-year payment
+  without changing the offer ("we can set the term when we prepare the contract"); the
+  contract fee is 0.5% of the loan, at least €300.
+- Accepting an offer gets "Your mortgage with {bank}: next steps": the valuation report,
+  home insurance, signing the loan contract at a branch, then the notary (vision step 12).
+
+## 2026-11-02 - Euribor at about today's level (#116)
+
+- The variable rate in `RateService` is now the 6-month Euribor at 2.1% (was 4.35%), close
+  to the 2026 market level, so offers come out at about 3.75-3.95% instead of about 6%. A
+  bank audience would notice 6% straight away. The advisor calls it "the 6-month Euribor".
+- The stress test now usually sits on its 6% floor (rate + 2 points is below it), which is
+  how Eesti Pank-style stress tests behave at low rates.
+- This replaces the 4.35% + 1.75% = 6.10% in the affordability entry of 2026-10-20; the
+  margins are unchanged.
+
 ## 2026-10-30 - Negotiating the margin with the banks
 
 - Only the margin is negotiated; the amount and term stay. Each ask lowers it one step

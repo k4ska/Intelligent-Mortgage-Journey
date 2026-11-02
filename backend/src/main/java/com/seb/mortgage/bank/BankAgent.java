@@ -1,9 +1,12 @@
 package com.seb.mortgage.bank;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Locale;
 
 import org.springframework.stereotype.Component;
+
+import com.seb.mortgage.profile.LoanProfileAssembler;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -19,6 +22,8 @@ public class BankAgent {
 	public record Draft(String type, String subject, String body) {}
 
 	private static final String SUBJECT = "Your mortgage application is received";
+	static final double CONTRACT_FEE_PCT = 0.5;
+	static final double MIN_CONTRACT_FEE = 300;
 
 	private final ApplicationSnapshots snapshots;
 	private final OfferCalculator calculator;
@@ -75,6 +80,54 @@ public class BankAgent {
 		return new Draft("message", "Re: your mortgage offer from " + bank.name(),
 				"Thank you for your message. Our current offer is already the best we can do, so it stays "
 						+ "as it is. You are welcome to accept it while it is valid.");
+	}
+
+	/**
+	 * Short, fixed answers to the questions a reply asks (#129), from the bank's rules and the
+	 * offer that stands. Fees and early repayment are the same simple rules at every bank.
+	 */
+	public Draft answers(BankCatalogService.Bank bank, List<NegotiationAgent.Question> questions,
+			OfferCalculator.Offer offer) {
+		StringBuilder body = new StringBuilder("Thank you for your questions.");
+		for (NegotiationAgent.Question question : questions) {
+			body.append("\n\n").append(switch (question) {
+				case EARLY_REPAYMENT -> "Early repayment: you can pay extra or repay the whole loan at any time. "
+						+ "With a variable rate there is no fee for it; just let us know a month ahead.";
+				case LONGER_TERM -> offer.termYears() >= LoanProfileAssembler.MAX_TERM_YEARS
+						? "A longer term: " + offer.termYears() + " years is already the longest term we offer."
+						: "A longer term: we lend for up to " + LoanProfileAssembler.MAX_TERM_YEARS + " years. Over "
+								+ LoanProfileAssembler.MAX_TERM_YEARS + " years the estimated monthly payment would be "
+								+ cents(calculator.monthlyPayment(offer, LoanProfileAssembler.MAX_TERM_YEARS))
+								+ " instead of " + cents(offer.monthlyPayment()) + ", but you would pay more interest "
+								+ "in total. We can set the term when we prepare the contract.";
+				case DOCUMENTS -> "Documents: before signing we need your ID card or passport, proof of income for "
+						+ "the last 6 months, a bank statement for the last 6 months, a valuation report from a "
+						+ "valuator we accept, and the purchase or reservation agreement.";
+				case FEES -> "Fees: the contract fee is " + percent(CONTRACT_FEE_PCT) + " of the loan, at least "
+						+ euros(MIN_CONTRACT_FEE) + ", so " + euros(contractFee(offer.amount()))
+						+ " for this loan. The valuator charges for the valuation report separately.";
+			});
+		}
+		body.append("\n\nYou are welcome to accept the offer while it is valid.");
+		return new Draft("message", "Re: your questions to " + bank.name(), body.toString());
+	}
+
+	/** The confirmation once the user accepts, with what happens next in real life (#129, vision step 12). */
+	public Draft acceptance(BankCatalogService.Bank bank) {
+		return new Draft("confirmation", "Your mortgage with " + bank.name() + ": next steps",
+				"Thank you for choosing " + bank.name() + ". Here is what happens next:\n\n"
+						+ "1. Order a valuation report from a valuator we accept, if you haven't yet.\n"
+						+ "2. Arrange home insurance for the property; it must be in place before we pay out the loan.\n"
+						+ "3. Book a time at a " + bank.name() + " branch to sign the loan contract, and bring your "
+						+ "ID card.\n"
+						+ "4. You and the seller sign the purchase contract at a notary, and we pay the loan to the "
+						+ "seller.\n\n"
+						+ "We will contact you within two working days to agree a time for signing.");
+	}
+
+	/** The contract fee: a share of the loan, but at least a minimum. */
+	static double contractFee(double amount) {
+		return Math.max(MIN_CONTRACT_FEE, Math.round(amount * CONTRACT_FEE_PCT / 100.0));
 	}
 
 	private static String terms(OfferCalculator.Offer offer) {

@@ -24,10 +24,11 @@ public enum Phase {
 			"Check whether they can afford the home they have in mind and explain the result in plain words.",
 			List.of()),
 	DOCUMENTS("documents",
-			"Documents are optional in this prototype and can be skipped before applying.",
+			"Documents are optional: the user can upload the ones they have in the documents panel, or "
+					+ "apply without them.",
 			List.of("confirmDocument")),
 	READY("ready",
-			"The profile and property facts needed for this prototype are confirmed. Tell the user they're "
+			"The profile and property facts the banks need are confirmed. Tell the user they're "
 					+ "ready and offer to send their application to the banks.",
 			List.of("showBankPicker", "confirmDocument")),
 	AT_THE_BANKS("at the banks",
