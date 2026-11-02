@@ -627,7 +627,8 @@ class AdvisorTools {
 	String checkReadiness() {
 		Phases.Readiness readiness = phases.readiness(userId);
 		return readiness.ready()
-				? "Ready: everything a bank needs is confirmed. Offer to send the application to the banks."
+				? "Ready: everything a bank needs is confirmed. Ask whether they'd like to apply; they pick the banks "
+						+ "and send the application themselves."
 				: "Not ready yet. Still needed: " + readiness.describe() + ". Tell the user what is left, the most "
 						+ "important first.";
 	}
@@ -660,7 +661,8 @@ class AdvisorTools {
 				.map(bank -> new StreamEvent.BankOption(bank.id(), bank.name()))
 				.toList()));
 		return "The bank picker is now shown under the chat. Tell the user they can tick one or more "
-				+ "banks there and send the application.";
+				+ "banks there and send the application. The application is their profile and property; it has "
+				+ "no message or cover letter, so don't offer to write one.";
 	}
 
 	@Tool(name = "draftReply", description = """
