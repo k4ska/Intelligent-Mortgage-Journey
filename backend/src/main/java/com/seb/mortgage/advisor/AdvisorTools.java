@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 /**
  * The advisor's tools for one turn of one user's conversation. Each tool runs our code,
@@ -101,6 +102,9 @@ class AdvisorTools {
 	 * and everything the user has said, this turn included.
 	 */
 	record Inbox(BankThreads.BankThread thread, ReplyDrafts drafts, List<String> said) {}
+
+	/** A gap for the user to fill in, like "[Your name]": it would go to the bank as it is (#127). */
+	private static final Pattern PLACEHOLDER = Pattern.compile("\\[[^\\]]*\\]");
 
 	/** Tools that only work next to a bank thread in the inbox. */
 	static final Set<String> INBOX_TOOLS = Set.of("draftReply");
@@ -573,7 +577,8 @@ class AdvisorTools {
 			user to edit and send themselves. Call it when the user asks for help answering the
 			bank (a question, a lower margin, a polite "no thanks"). Write the whole email: short,
 			polite and calm, in the user's voice, using only figures from the bank's emails, the
-			profile and the user's own words. You never send anything yourself.""")
+			profile and the user's own words. End with "Best regards" and no name, and leave no
+			gaps in square brackets like [Your name]. You never send anything yourself.""")
 	String draftReply(@ToolParam(description = "The email body, ready to edit and send") String body) {
 		if (inbox == null) {
 			return "Drafts only work next to a bank's email thread in the inbox; nothing was drafted.";
@@ -585,6 +590,10 @@ class AdvisorTools {
 		}
 		if (body == null || body.isBlank()) {
 			return "Nothing was drafted: the body is empty.";
+		}
+		if (PLACEHOLDER.matcher(body).find()) {
+			return "Not drafted: it has a gap in square brackets for the user to fill in. Write the whole email "
+					+ "without one, and end with \"Best regards\" and no name.";
 		}
 		ReplyDrafts.Checked checked = inbox.drafts().check(userId, thread, body.strip(), inbox.said());
 		if (!checked.passed()) {
