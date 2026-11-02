@@ -140,6 +140,11 @@ public class OfferCalculator {
 	 * The same offer at another margin (negotiation): the rate and the monthly payment
 	 * follow, and it is valid for 30 days from today. The amount and term stay.
 	 */
+	/** The monthly payment of this offer's loan, at its rate, over another term (#129). */
+	public double monthlyPayment(Offer offer, int termYears) {
+		return affordability.monthlyPayment(offer.amount(), offer.ratePct(), termYears);
+	}
+
 	public Offer withMargin(Offer offer, double marginPct) {
 		double rate = offer.euriborPct() + marginPct;
 		double payment = affordability.monthlyPayment(offer.amount(), rate, offer.termYears());

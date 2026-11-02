@@ -89,14 +89,57 @@ class NegotiationFlowTest {
 	}
 
 	@Test
-	void aReplyThatDoesntAskForMoreGetsTheUsualAnswer() throws Exception {
+	void aReplyThatAsksNothingGetsTheUsualAnswer() throws Exception {
 		Thread seb = sebOffer();
 
-		reply(seb, "Thank you, what documents do you need from me?");
+		reply(seb, "Thank you, I'll think about it.");
 
 		JsonNode answer = lastEmail(seb);
 		assertThat(answer.path("type").asString()).isEqualTo("confirmation");
 		assertThat(thread(seb).path("emails").size()).isEqualTo(3);
+	}
+
+	@Test
+	void theBankAnswersTheCommonQuestions() throws Exception {
+		Thread seb = sebOffer();
+
+		reply(seb, "Can I make extra repayments early without a fee? And could the term be 30 years instead?");
+
+		JsonNode answer = lastEmail(seb);
+		assertThat(answer.path("type").asString()).isEqualTo("message");
+		assertThat(answer.path("body").asString()).contains("Early repayment: you can pay extra")
+				.contains("Over 30 years the estimated monthly payment would be")
+				.doesNotContain("Documents:");
+		assertThat(thread(seb).path("status").asString()).isEqualTo("OFFER");
+	}
+
+	@Test
+	void aQuestionNextToAnAskGetsTheCounterOfferThenTheAnswer() throws Exception {
+		Thread seb = sebOffer();
+
+		reply(seb, "Could you lower the margin? And what documents do you need from me?");
+
+		JsonNode emails = thread(seb).path("emails");
+		assertThat(emails.get(emails.size() - 2).path("offer").path("marginPct").asDouble()).isEqualTo(1.5);
+		assertThat(emails.get(emails.size() - 1).path("body").asString()).contains("Documents: before signing");
+	}
+
+	@Test
+	void acceptingGetsTheNextSteps() throws Exception {
+		Thread seb = sebOffer();
+
+		accept(seb, lastEmail(seb).path("id").asString()).andExpect(status().isNoContent());
+
+		JsonNode confirmation = lastEmail(seb);
+		assertThat(confirmation.path("subject").asString()).isEqualTo("Your mortgage with SEB: next steps");
+		assertThat(confirmation.path("body").asString()).contains("valuation report", "home insurance",
+				"SEB branch to sign the loan contract", "notary");
+	}
+
+	@Test
+	void theContractFeeIsAShareOfTheLoanWithAMinimum() {
+		assertThat(BankAgent.contractFee(163000)).isEqualTo(815);
+		assertThat(BankAgent.contractFee(40000)).isEqualTo(300);
 	}
 
 	@Test
@@ -121,6 +164,9 @@ class NegotiationFlowTest {
 		assertThat(negotiator.byKeywords(seb, "Swedbank offered less, can you match it?").mentionsCompetingOffer())
 				.isTrue();
 		assertThat(negotiator.byKeywords(seb, "SEB, can you lower the margin?").mentionsCompetingOffer()).isFalse();
+		assertThat(negotiator.byKeywords(seb, "Are there any fees, and can I pay it off early?").questions())
+				.containsExactly(NegotiationAgent.Question.EARLY_REPAYMENT, NegotiationAgent.Question.FEES);
+		assertThat(negotiator.byKeywords(seb, "Thanks, I'll think about it.").questions()).isEmpty();
 	}
 
 	/** A user with an offer from SEB: the first email in the thread. */

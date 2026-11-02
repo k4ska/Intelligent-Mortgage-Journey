@@ -3,6 +3,20 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-11-02 - Banks answer the common questions, and say what happens after accepting (#129)
+
+- Besides asking for a better margin, the `NegotiationAgent` (or keywords, without an API
+  key) now picks out four common questions in a reply to an offer: early repayment, a
+  longer term, documents and fees. The bank answers them in one email from fixed text in
+  `BankAgent.answers`, after a counter-offer if the same reply asked for one. Anything else
+  still gets "We will be in touch soon".
+- The rules are the same at every bank: early repayment is free with a variable rate (a
+  month's notice); the longest term is 30 years, and the answer gives the 30-year payment
+  without changing the offer ("we can set the term when we prepare the contract"); the
+  contract fee is 0.5% of the loan, at least €300.
+- Accepting an offer gets "Your mortgage with {bank}: next steps": the valuation report,
+  home insurance, signing the loan contract at a branch, then the notary (vision step 12).
+
 ## 2026-10-30 - Negotiating the margin with the banks
 
 - Only the margin is negotiated; the amount and term stay. Each ask lowers it one step
