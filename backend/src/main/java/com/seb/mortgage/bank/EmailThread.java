@@ -39,5 +39,6 @@ public class EmailThread {
 	public void markUnread() { unread = true; }
 	public void setStatus(Status status) { this.status = status; }
 	public void accept() { this.status = Status.ACCEPTED; }
-	public void close() { this.status = Status.CLOSED; }
+	/** A closed thread needs nothing from the user, so it no longer counts as unread (#142). */
+	public void close() { this.status = Status.CLOSED; this.unread = false; }
 }
