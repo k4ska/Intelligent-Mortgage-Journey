@@ -106,6 +106,10 @@ class AdvisorTools {
 
 	/** A gap for the user to fill in, like "[Your name]": it would go to the bank as it is (#127). */
 	private static final Pattern PLACEHOLDER = Pattern.compile("\\[[^\\]]*\\]");
+	/** Words that ask to apply, or say yes to the advisor's offer to (#128). */
+	private static final Pattern ASKS_TO_APPLY = Pattern.compile(
+			"\\b(apply|applying|application|banks?|send|submit|go ahead|yes|yeah|yep|sure|ok|okay|let'?s|please|"
+					+ "do it|jah)\\b", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
 
 	/** Tools that only work next to a bank thread in the inbox. */
 	static final Set<String> INBOX_TOOLS = Set.of("draftReply");
@@ -565,9 +569,16 @@ class AdvisorTools {
 
 	@Tool(name = "showBankPicker", description = """
 			Show the user a card where they pick the banks to send their application to. Call it
-			only when the user has asked to apply or go to the banks, never on your own. If the
-			user isn't ready yet, this tells you what is still missing; ask the user for it instead.""")
-	String showBankPicker() {
+			only when the user's latest message asks to apply or go to the banks (or says yes to
+			your offer to), never on your own. If the user isn't ready yet, this tells you what is
+			still missing; ask the user for it instead.""")
+	String showBankPicker(@ToolParam(description = "The user's own words from their latest message asking to "
+			+ "apply or go to the banks, or saying yes to it") String quote) {
+		// The prompt alone didn't stop it opening after an unrelated message (#128).
+		if (!stated.saidNow(quote) || !ASKS_TO_APPLY.matcher(quote).find()) {
+			return "Not shown: the user's latest message doesn't ask to apply. Don't open the bank picker on "
+					+ "your own; if it fits, ask whether they'd like to send their application to the banks.";
+		}
 		// Once an offer is accepted the journey is done; the banks would refuse a new application (#119).
 		Optional<String> accepted = phases.acceptedBank(userId);
 		if (accepted.isPresent()) {
