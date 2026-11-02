@@ -3,6 +3,16 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-11-02 - Charts in the chat are computed in code and saved with the reply
+
+- The advisor's `showRateChart` tool (#130) draws the payment at today's 6-month Euribor
+  and at 1 point lower and 1, 2 and 3 points higher, next to the payment the stress test
+  checked. `RateChart` computes every figure with the `AffordabilityCalculator`; the model
+  only decides when to show it and explains it in words.
+- The chart goes to the chat as a `chart` stream event (`{chartType, title, data}`) and is
+  saved as JSON on the advisor's message (`message.chart_json`, V7), so it is still there
+  after a reload. `chartType` leaves room for other charts later.
+
 ## 2026-10-30 - Negotiating the margin with the banks
 
 - Only the margin is negotiated; the amount and term stay. Each ask lowers it one step
