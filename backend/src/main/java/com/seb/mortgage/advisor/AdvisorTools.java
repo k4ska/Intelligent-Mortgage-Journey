@@ -602,7 +602,8 @@ class AdvisorTools {
 	String checkReadiness() {
 		Phases.Readiness readiness = phases.readiness(userId);
 		return readiness.ready()
-				? "Ready: everything a bank needs is confirmed. Offer to send the application to the banks."
+				? "Ready: everything a bank needs is confirmed. Ask whether they'd like to apply; they pick the banks "
+						+ "and send the application themselves."
 				: "Not ready yet. Still needed: " + readiness.describe() + ". Tell the user what is left, the most "
 						+ "important first.";
 	}

@@ -29,7 +29,7 @@ public enum Phase {
 			List.of("confirmDocument")),
 	READY("ready",
 			"The profile and property facts the banks need are confirmed. Tell the user they're "
-					+ "ready and offer to send their application to the banks.",
+					+ "ready and ask whether they'd like to apply: they pick the banks and send it themselves.",
 			List.of("showBankPicker", "confirmDocument")),
 	AT_THE_BANKS("at the banks",
 			"Their application is with the banks. Help them understand, compare and answer the banks' emails.",
