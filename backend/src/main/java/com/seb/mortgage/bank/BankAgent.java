@@ -65,21 +65,63 @@ public class BankAgent {
 
 	/**
 	 * A better offer after the user asked for one (negotiation). The calculator set the
-	 * margin; {@code last} says the bank can't go lower. It is an {@code offer} email, so
-	 * the user can accept it like the first one.
+	 * margin; {@code last} says the bank can't go lower, and {@code competing} that the user
+	 * brought up another bank's offer. It is an {@code offer} email, so the user can accept it
+	 * like the first one. Each bank writes it in its own tone (#144); the openings have no
+	 * figures, so the verifier still checks only the terms.
 	 */
-	public Draft counterOffer(BankCatalogService.Bank bank, OfferCalculator.Offer offer, boolean last) {
-		Draft draft = new Draft("offer", "Our updated offer from " + bank.name(),
-				"Thank you for your message. We have looked at your application again and can lower our margin. "
-						+ terms(offer) + (last ? " This is our final offer." : ""));
+	public Draft counterOffer(BankCatalogService.Bank bank, OfferCalculator.Offer offer, boolean last,
+			boolean competing) {
+		String body = counterOpening(bank) + (competing ? " " + competingLine(bank) : "") + " " + terms(offer)
+				+ (last ? " " + finalLine(bank) : "");
+		Draft draft = new Draft("offer", "Our updated offer from " + bank.name(), body);
 		return verifier.verify(draft, OfferCalculator.Decision.offer(offer), bank);
+	}
+
+	private static String counterOpening(BankCatalogService.Bank bank) {
+		return switch (bank.id()) {
+			case "swedbank" -> "Thanks for getting back to us! We took another look and we can make you a better offer.";
+			case "lhv" -> "We have reviewed your request. Our margin is lowered.";
+			case "luminor" -> "Thank you for your message. Having reconsidered your application, we are pleased to "
+					+ "offer you a reduced margin.";
+			case "coop" -> "Thank you for asking, we're glad you did. We have looked at your application again and "
+					+ "can lower our margin for you.";
+			default -> "Thank you for your message. We have looked at your application again and can lower our margin.";
+		};
+	}
+
+	private static String competingLine(BankCatalogService.Bank bank) {
+		return switch (bank.id()) {
+			case "swedbank" -> "We know you have another offer on the table, so we've gone as low as we can.";
+			case "lhv" -> "Given the competing offer you mentioned, this is our lowest margin.";
+			case "luminor" -> "We have taken into account the offer you received from another bank.";
+			case "coop" -> "We understand another bank has made you an offer, so we've done our best to beat it.";
+			default -> "We have taken the other bank's offer you mentioned into account and gone to our lowest margin.";
+		};
+	}
+
+	private static String finalLine(BankCatalogService.Bank bank) {
+		return switch (bank.id()) {
+			case "lhv" -> "This is our final offer.";
+			case "swedbank" -> "This is our final offer, and we'd love to have you with us.";
+			default -> "This is our final offer.";
+		};
 	}
 
 	/** The answer when the user asks for more but the bank is already at its lowest margin. */
 	public Draft noBetterOffer(BankCatalogService.Bank bank) {
-		return new Draft("message", "Re: your mortgage offer from " + bank.name(),
-				"Thank you for your message. Our current offer is already the best we can do, so it stays "
-						+ "as it is. You are welcome to accept it while it is valid.");
+		String body = switch (bank.id()) {
+			case "swedbank" -> "Thanks for asking! Our current offer is already the best we can do, so it stays as "
+					+ "it is. You're welcome to accept it while it is valid.";
+			case "lhv" -> "Our current offer is already our best. It stays as it is and can be accepted while valid.";
+			case "luminor" -> "Thank you for your message. We regret that our current offer is already the best we "
+					+ "are able to make, so it stays as it is. You are welcome to accept it while it is valid.";
+			case "coop" -> "Thank you for your message. We've looked again, but our current offer is already the "
+					+ "best we can do, so it stays as it is. You are welcome to accept it while it is valid.";
+			default -> "Thank you for your message. Our current offer is already the best we can do, so it stays "
+					+ "as it is. You are welcome to accept it while it is valid.";
+		};
+		return new Draft("message", "Re: your mortgage offer from " + bank.name(), body);
 	}
 
 	/**

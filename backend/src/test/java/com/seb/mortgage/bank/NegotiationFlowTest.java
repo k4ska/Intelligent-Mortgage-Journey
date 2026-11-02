@@ -71,7 +71,24 @@ class NegotiationFlowTest {
 
 		JsonNode counter = lastEmail(seb);
 		assertThat(counter.path("offer").path("marginPct").asDouble()).isEqualTo(1.35);
-		assertThat(counter.path("body").asString()).contains("This is our final offer.");
+		assertThat(counter.path("body").asString()).contains("This is our final offer.")
+				.contains("other bank's offer you mentioned");
+	}
+
+	@Test
+	void eachBankWritesItsCounterOfferInItsOwnTone() {
+		BankCatalogService catalog = new BankCatalogService();
+		BankAgent agent = new BankAgent(null, null, mapper);
+		OfferCalculator.Offer offer = new OfferCalculator.Offer(160000, 25, 2.1, 1.5, 3.6, 809.6, java.util.List.of(),
+				java.time.LocalDate.of(2026, 12, 2));
+
+		java.util.Set<String> openings = new java.util.HashSet<>();
+		for (BankCatalogService.Bank bank : catalog.banks()) {
+			String body = agent.counterOffer(bank, offer, false, false).body();
+			assertThat(body).contains("margin of 1.5%");
+			openings.add(body.substring(0, body.indexOf("We can offer")));
+		}
+		assertThat(openings).hasSize(catalog.banks().size());
 	}
 
 	@Test
