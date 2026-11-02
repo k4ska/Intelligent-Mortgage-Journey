@@ -100,6 +100,8 @@ function onKeydown(event: KeyboardEvent) {
             <span>{{ bank.name }}</span>
           </label>
           <p v-if="applicationError" class="w-full text-sm text-red-600" role="alert">{{ applicationError }}</p>
+          <!-- Send stays disabled until a bank is ticked; say why, so it doesn't look broken (#145). -->
+          <p v-else-if="!selectedBankIds.length" class="text-sm text-[var(--ui-text-muted)]" aria-live="polite">{{ copy.bankPickerNone }}</p>
           <UButton class="ml-auto" type="submit" icon="i-lucide-send" :loading="submittingApplication" :disabled="!selectedBankIds.length || submittingApplication">
             {{ submittingApplication ? copy.sendingApplication : copy.sendApplication }}
           </UButton>
