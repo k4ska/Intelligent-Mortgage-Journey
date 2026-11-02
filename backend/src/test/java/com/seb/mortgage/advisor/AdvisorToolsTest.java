@@ -65,7 +65,10 @@ class AdvisorToolsTest {
 	@Test
 	void aGuessIsSavedAsUncertainUntilTheUserStandsByIt() {
 		userSaid = "about 2400";
-		String note = tools().updateProfile(List.of(new FieldUpdate("netIncome", "2400", "about 2400")));
+		AdvisorTools firstTurn = tools();
+		String note = firstTurn.updateProfile(List.of(new FieldUpdate("netIncome", "2400", "about 2400")));
+		// Saving it again in the same turn is not the user standing by it.
+		firstTurn.updateProfile(List.of(new FieldUpdate("netIncome", "2400", "about 2400")));
 
 		assertThat(profile.fields(userId)).extracting(ProfileFieldView::status)
 				.containsExactly(ProfileField.Status.UNCERTAIN);

@@ -96,6 +96,8 @@ class AdvisorTools {
 	private final AffordabilityCalculator calculator = new AffordabilityCalculator();
 	/** The chart this turn showed, if any, to save with the reply (#130). */
 	private volatile RateChart chart;
+	/** Keys saved as the user's estimate this turn: only a later message can confirm them (#140). */
+	private final Set<ProfileKey> guessedNow = java.util.EnumSet.noneOf(ProfileKey.class);
 	/** Every tool call this turn and what it returned, for the number check (#67). */
 	private final List<ToolUse> used = new CopyOnWriteArrayList<>();
 
@@ -184,6 +186,7 @@ class AdvisorTools {
 				saved.add(view);
 				if (guess) {
 					guessed.add(view);
+					guessedNow.add(key);
 				}
 			} catch (IllegalArgumentException e) {
 				problems.add(e.getMessage());
@@ -293,7 +296,7 @@ class AdvisorTools {
 
 	/** The same value is already saved as the user's estimate: saying it again, once asked, confirms it. */
 	private boolean alreadyGuessed(ProfileKey key, String value) {
-		return profile.fields(userId).stream().anyMatch(field -> field.key().equals(key.key())
+		return !guessedNow.contains(key) && profile.fields(userId).stream().anyMatch(field -> field.key().equals(key.key())
 				&& field.value().equals(value) && field.source() == ProfileField.Source.CHAT
 				&& field.status() == ProfileField.Status.UNCERTAIN);
 	}
