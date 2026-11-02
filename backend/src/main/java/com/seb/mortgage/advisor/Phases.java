@@ -3,6 +3,7 @@ package com.seb.mortgage.advisor;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -10,6 +11,8 @@ import org.springframework.stereotype.Service;
 
 import com.seb.mortgage.bank.ApplicationRepository;
 import com.seb.mortgage.bank.BankCatalogService;
+import com.seb.mortgage.bank.EmailThread;
+import com.seb.mortgage.bank.EmailThreadRepository;
 import com.seb.mortgage.conversation.ConversationService;
 import com.seb.mortgage.documents.Document;
 import com.seb.mortgage.documents.DocumentService;
@@ -80,10 +83,11 @@ public class Phases {
 	private final ApplicationRepository applications;
 	private final LoanProfileAssembler loans;
 	private final BankCatalogService banks;
+	private final EmailThreadRepository threads;
 
 	public Phases(ProfileService profile, PropertyService property, DocumentService documents,
 			ConversationService conversations, ApplicationRepository applications, LoanProfileAssembler loans,
-			BankCatalogService banks) {
+			BankCatalogService banks, EmailThreadRepository threads) {
 		this.profile = profile;
 		this.property = property;
 		this.documents = documents;
@@ -91,6 +95,15 @@ public class Phases {
 		this.applications = applications;
 		this.loans = loans;
 		this.banks = banks;
+		this.threads = threads;
+	}
+
+	/** The bank whose offer the user accepted, if any: after that there is nothing left to apply for (#119). */
+	public Optional<String> acceptedBank(UUID userId) {
+		return threads.findByUserIdOrderByCreatedAtDesc(userId).stream()
+				.filter(thread -> thread.getStatus() == EmailThread.Status.ACCEPTED)
+				.map(thread -> banks.find(thread.getBankId()).name())
+				.findFirst();
 	}
 
 	/** The phase, and what is still missing before the banks. */
