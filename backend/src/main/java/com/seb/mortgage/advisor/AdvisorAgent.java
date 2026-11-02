@@ -56,6 +56,8 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			  page, don't try again: ask for the property type, price and location, or for the
 			  listing's text. When the user tells you about the home they have in mind, save it
 			  with updateProperty.
+			- A "what if" question (another price, income or rate) is not a fact about the user
+			  or their home: don't save it, answer it in words.
 			- Values you picked out of pasted listing text are uncertain: read them back to the
 			  user and, once they say they're right, save them again as confirmed.
 			- When the user asks whether they can afford a home, call checkAffordability; when
