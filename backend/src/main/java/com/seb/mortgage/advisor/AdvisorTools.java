@@ -180,7 +180,7 @@ class AdvisorTools {
 				}
 				// What the user says about themselves needs no confirmation, unless they only guessed it
 				// ("about 2400"). Saying the same value again, once asked, confirms it (#140).
-				boolean guess = stated.hedged(field.quote()) && !alreadyGuessed(key, value);
+				boolean guess = stated.hedged(field.quote(), value) && !alreadyGuessed(key, value);
 				ProfileFieldView view = profile.save(userId, key, value, ProfileField.Source.CHAT,
 						guess ? ProfileField.Status.UNCERTAIN : ProfileField.Status.CONFIRMED);
 				saved.add(view);

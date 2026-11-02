@@ -53,13 +53,20 @@ final class UserStatements {
 	 */
 	private static final Pattern BEFORE_A_NUMBER = Pattern.compile(
 			" (about|around|circa|ca|tilde|umbes|ligikaudu|kuskil) \\d");
-	/** How many words before and after a quote can hedge it. */
-	private static final int HEDGE_WINDOW = 3;
+	/**
+	 * Where one clause of a message ends: a comma or semicolon before a space, the end of a
+	 * sentence, "and" or "but". A hedge only covers its own clause, so in "no kids, idk maybe
+	 * 1200 on living" it covers the 1200 but not the "no kids". A comma between digits
+	 * ("3,300") doesn't split.
+	 */
+	private static final Pattern CLAUSE_END = Pattern.compile(
+			"[,;](?=\\s)|[.!?](?=\\s|$)|\\n|\\b(and|but|ja|aga)\\b",
+			Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
 
 	private static final Pattern NOT_A_WORD = Pattern.compile("[^\\p{L}\\p{N}]+", Pattern.UNICODE_CHARACTER_CLASS);
 
 	private final Set<BigDecimal> numbers = new HashSet<>();
-	/** Each of the user's messages, simplified, with "~" spelled out, oldest first. */
+	/** Each of the user's messages as they wrote them, oldest first. */
 	private final List<String> messages = new ArrayList<>();
 	/** All the user's messages, simplified for quote matching. */
 	private final StringBuilder words = new StringBuilder(" ");
@@ -79,7 +86,7 @@ final class UserStatements {
 		texts.add(current == null ? "" : current);
 		texts.forEach(stated::read);
 		texts.forEach(text -> stated.words.append(simplify(text)).append(' '));
-		texts.forEach(text -> stated.messages.add(" " + simplify(text.replace("~", " tilde ")) + " "));
+		stated.messages.addAll(texts);
 		stated.currentWords = " " + simplify(current == null ? "" : current) + " ";
 		// "No" only counts as 0 right after the advisor asked, not anywhere in the conversation.
 		if (current != null && NONE.matcher(current).find()) {
@@ -104,31 +111,51 @@ final class UserStatements {
 	}
 
 	/**
-	 * Whether the user hedged the value in this quote: a word like "about" or "maybe" in the
-	 * quote or just around it, in the latest message that has it. "I earn about 2400" hedges
-	 * 2400; "I earn 2400 and have about 20k saved" doesn't.
+	 * Whether the user only guessed this value: a word like "about" or "maybe" in the clause
+	 * of their message that states it (#140). The message is the latest one with the quote;
+	 * the clause is the one with the number, for a number, or the quote's own clauses.
+	 * "I earn about 2400, my partner earns 2100" hedges the 2400, not the 2100.
 	 */
-	boolean hedged(String quote) {
+	boolean hedged(String quote, String value) {
 		String simplified = quote == null ? "" : simplify(quote);
 		if (simplified.isEmpty()) {
 			return false;
 		}
 		for (int i = messages.size() - 1; i >= 0; i--) {
 			String message = messages.get(i);
-			int at = message.indexOf(" " + simplified + " ");
-			if (at < 0) {
+			if (!(" " + simplify(message) + " ").contains(" " + simplified + " ")) {
 				continue;
 			}
-			String[] before = message.substring(0, at).trim().split(" ");
-			String[] after = message.substring(at + simplified.length() + 2).trim().split(" ");
-			String window = " " + String.join(" ", java.util.Arrays.copyOfRange(before,
-					Math.max(0, before.length - HEDGE_WINDOW), before.length)) + " " + simplified + " "
-					+ String.join(" ", java.util.Arrays.copyOfRange(after, 0, Math.min(after.length, HEDGE_WINDOW)))
-					+ " ";
-			return HEDGES.stream().anyMatch(hedge -> window.contains(" " + hedge + " "))
-					|| BEFORE_A_NUMBER.matcher(window).find();
+			List<String> clauses = List.of(CLAUSE_END.split(message));
+			List<String> stating = clauses.stream().filter(clause -> states(clause, value)).toList();
+			if (stating.isEmpty()) {
+				stating = clauses.stream().filter(clause -> overlaps(simplify(clause), simplified)).toList();
+			}
+			return stating.stream().anyMatch(UserStatements::hedges);
 		}
 		return false;
+	}
+
+	/** Whether this clause has the number, read the same generous way as {@link #containsNumber}. */
+	private static boolean states(String clause, String value) {
+		if (value == null || !value.matches("\\d+(\\.\\d+)?")) {
+			return false;
+		}
+		UserStatements one = new UserStatements();
+		one.read(clause);
+		return one.containsNumber(value);
+	}
+
+	/** Whether a clause and a quote share words: the clause is part of the quote, or the other way round. */
+	private static boolean overlaps(String clause, String quote) {
+		return !clause.isEmpty() && ((" " + quote + " ").contains(" " + clause + " ")
+				|| (" " + clause + " ").contains(" " + quote + " "));
+	}
+
+	private static boolean hedges(String clause) {
+		String words = " " + simplify(clause.replace("~", " tilde ")) + " ";
+		return HEDGES.stream().anyMatch(hedge -> words.contains(" " + hedge + " "))
+				|| BEFORE_A_NUMBER.matcher(words).find();
 	}
 
 	private static String simplify(String text) {
