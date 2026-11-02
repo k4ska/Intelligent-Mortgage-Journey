@@ -233,7 +233,7 @@ public class AdvisorOrchestrator {
 		if (!reading.read()) {
 			return uploaded + " Its values couldn't be read. Tell the user, and ask them for "
 					+ String.join(", ", document.type().reads().stream().map(ProfileKey::key).toList())
-					+ " instead, one at a time.";
+					+ " instead.";
 		}
 		if (reading.fields().isEmpty()) {
 			return uploaded + " There is nothing in it to confirm, so it is marked as confirmed. Thank them in one "
