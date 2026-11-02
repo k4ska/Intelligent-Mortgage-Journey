@@ -636,7 +636,8 @@ class AdvisorTools {
 				.map(bank -> new StreamEvent.BankOption(bank.id(), bank.name()))
 				.toList()));
 		return "The bank picker is now shown under the chat. Tell the user they can tick one or more "
-				+ "banks there and send the application.";
+				+ "banks there and send the application. The application is their profile and property; it has "
+				+ "no message or cover letter, so don't offer to write one.";
 	}
 
 	@Tool(name = "draftReply", description = """
