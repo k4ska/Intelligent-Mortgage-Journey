@@ -203,7 +203,7 @@ class PhasesTest {
 	void theBankPickerWaitsUntilTheUserIsReady() {
 		keyFacts();
 
-		String note = tools().showBankPicker();
+		String note = tools("Can we apply now?").showBankPicker("Can we apply now?");
 
 		assertThat(note).startsWith("Not ready yet").contains("a property").doesNotContain("PAYSLIP");
 		assertThat(events).isEmpty();
@@ -215,10 +215,23 @@ class PhasesTest {
 		ready();
 
 		assertThat(tools().checkReadiness()).startsWith("Ready");
-		assertThat(tools().showBankPicker()).contains("bank picker is now shown");
+		assertThat(tools("Yes, let's go to the banks").showBankPicker("Yes, let's go to the banks"))
+				.contains("bank picker is now shown");
 		assertThat(events).containsExactly(StreamEvent.bankPicker(banks.banks().stream()
 				.map(bank -> new StreamEvent.BankOption(bank.id(), bank.name()))
 				.toList()));
+	}
+
+	@Test
+	void theBankPickerOnlyOpensWhenTheUserAsks() {
+		ready();
+		String said = "almost, its actually 2450 since my raise last month";
+
+		String note = tools(said).showBankPicker(said);
+
+		assertThat(note).startsWith("Not shown: the user's latest message doesn't ask to apply");
+		assertThat(events).isEmpty();
+		assertThat(tools(said).showBankPicker("Let's apply")).startsWith("Not shown");
 	}
 
 	@Test
@@ -256,8 +269,13 @@ class PhasesTest {
 	}
 
 	private AdvisorTools tools() {
+		return tools("");
+	}
+
+	/** The tools for a turn answering {@code said}, the user's latest message. */
+	private AdvisorTools tools(String said) {
 		return new AdvisorTools(userId, profile, property, listings, banks, loans, documents, phases,
-				UserStatements.from(List.of(), ""), events::add);
+				UserStatements.from(List.of(), said), events::add);
 	}
 
 	private void save(ProfileKey key, String value) {

@@ -78,7 +78,7 @@ class OfferCalculatorTest {
 	@Test
 	void countsTheLivingCostsTheUserEntered() {
 		OfferCalculator.Decision result = calculator.calculate(
-				snapshot("netIncome", "5000", "savings", "40000", "monthlyLivingCosts", "3600"), catalog.find("seb"));
+				snapshot("netIncome", "5000", "savings", "40000", "monthlyLivingCosts", "3800"), catalog.find("seb"));
 
 		assertThat(result.type()).isEqualTo(OfferCalculator.DecisionType.DECLINE);
 		assertThat(result.reason()).contains("affordability");
@@ -87,7 +87,7 @@ class OfferCalculatorTest {
 	@Test
 	void countsCreditCardLimitsAsAMonthlyDebt() {
 		OfferCalculator.Decision result = calculator.calculate(
-				snapshot("netIncome", "5000", "savings", "40000", "creditCardLimits", "45000"), catalog.find("seb"));
+				snapshot("netIncome", "5000", "savings", "40000", "creditCardLimits", "60000"), catalog.find("seb"));
 
 		assertThat(result.type()).isEqualTo(OfferCalculator.DecisionType.DECLINE);
 		assertThat(result.reason()).contains("affordability");
@@ -114,9 +114,9 @@ class OfferCalculatorTest {
 		assertThat(result.type()).isEqualTo(OfferCalculator.DecisionType.OFFER);
 		OfferCalculator.Offer offer = result.offer();
 		assertThat(offer.amount()).isEqualTo(160000);
-		assertThat(offer.ratePct()).isEqualTo(6.0);
+		assertThat(offer.ratePct()).isEqualTo(3.75);
 		assertThat(offer.monthlyPayment()).isCloseTo(
-				new AffordabilityCalculator().monthlyPayment(160000, 6.0, 25), org.assertj.core.data.Offset.offset(0.01));
+				new AffordabilityCalculator().monthlyPayment(160000, 3.75, 25), org.assertj.core.data.Offset.offset(0.01));
 		assertThat(offer.conditions()).isNotEmpty();
 		assertThat(offer.validUntil()).isNotNull();
 	}

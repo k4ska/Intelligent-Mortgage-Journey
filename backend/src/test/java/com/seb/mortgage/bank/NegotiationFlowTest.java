@@ -155,6 +155,18 @@ class NegotiationFlowTest {
 	}
 
 	@Test
+	void afterAcceptingAnOfferTheUserCantApplyAgain() throws Exception {
+		Thread seb = sebOffer();
+		accept(seb, lastEmail(seb).path("id").asString()).andExpect(status().isNoContent());
+
+		mvc.perform(post("/api/applications").session(seb.session())
+						.contentType(MediaType.APPLICATION_JSON).content("{\"bankIds\":[\"coop\"]}"))
+				.andExpect(status().isConflict());
+
+		assertThat(thread(seb).path("status").asString()).isEqualTo("ACCEPTED");
+	}
+
+	@Test
 	void theKeywordReaderTellsAnAskFromAQuestion() {
 		Negotiator negotiator = new Negotiator(null, new BankCatalogService());
 		BankCatalogService.Bank seb = new BankCatalogService().find("seb");

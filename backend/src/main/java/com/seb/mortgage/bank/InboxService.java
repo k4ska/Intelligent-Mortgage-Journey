@@ -133,6 +133,13 @@ public class InboxService {
 		if (thread.getStatus() == EmailThread.Status.ACCEPTED || thread.getStatus() == EmailThread.Status.CLOSED) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "This application was already closed");
 		}
+		List<EmailThread> others = threads.findByUserIdOrderByCreatedAtDesc(currentUser.id()).stream()
+				.filter(other -> !other.getId().equals(threadId))
+				.toList();
+		// Only one offer can be accepted, and accepting never closes the one already accepted (#119).
+		if (others.stream().anyMatch(other -> other.getStatus() == EmailThread.Status.ACCEPTED)) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "You already accepted another offer");
+		}
 		Email email = emails.findById(emailId).orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
 				"Offer email was not found"));
 		if (!threadId.equals(email.getThreadId()) || email.getFrom() != Email.Sender.BANK) {
@@ -148,9 +155,7 @@ public class InboxService {
 		}
 		thread.accept();
 		gateway.addBankEmail(threadId, agent.acceptance(banks.find(thread.getBankId())), null);
-		threads.findByUserIdOrderByCreatedAtDesc(currentUser.id()).stream()
-				.filter(other -> !other.getId().equals(threadId))
-				.forEach(EmailThread::close);
+		others.forEach(EmailThread::close);
 	}
 
 	private EmailThread owned(UUID threadId) {

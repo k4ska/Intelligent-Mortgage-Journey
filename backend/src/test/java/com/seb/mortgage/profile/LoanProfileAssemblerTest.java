@@ -52,8 +52,8 @@ class LoanProfileAssemblerTest {
 
 	@Test
 	void theRateIsTheVariableRatePlusTheMargin() {
-		assertThat(terms.variableRatePct()).isEqualTo(4.35);
-		assertThat(terms.ratePct()).isEqualTo(6.1);
+		assertThat(terms.variableRatePct()).isEqualTo(2.1);
+		assertThat(terms.ratePct()).isEqualTo(3.85);
 	}
 
 	@Test
@@ -95,11 +95,11 @@ class LoanProfileAssemblerTest {
 		assertThat(profile.financials().downPayment()).isEqualTo(50000);
 		assertThat(profile.financials().ltv()).isEqualTo(75.0);
 		assertThat(profile.financials().estimatedMonthlyPayment())
-				.isEqualTo(Math.round(calculator.monthlyPayment(150000, 6.1, 25) * 100) / 100.0);
+				.isEqualTo(Math.round(calculator.monthlyPayment(150000, 3.85, 25) * 100) / 100.0);
 		assertThat(profile.financials().stressedMonthlyPayment())
-				.isEqualTo(Math.round(calculator.monthlyPayment(150000, 8.1, 25) * 100) / 100.0);
+				.isEqualTo(Math.round(calculator.monthlyPayment(150000, 6.0, 25) * 100) / 100.0);
 		assertThat(profile.financials().stressTestResult()).isEqualTo("PASS");
-		assertThat(result.maxLoan()).isEqualTo(calculator.maxLoan(4000, 0, 600, 50000.0, 6.1, 25));
+		assertThat(result.maxLoan()).isEqualTo(calculator.maxLoan(4000, 0, 600, 50000.0, 3.85, 25));
 	}
 
 	@Test
@@ -139,9 +139,9 @@ class LoanProfileAssemblerTest {
 
 	@Test
 	void theRangeIsWiderWithTheLongestTerm() {
-		LoanProfileAssembler.PriceRange range = (LoanProfileAssembler.PriceRange) assembler.range(household(), terms);
+		LoanProfileAssembler.PriceRange range = (LoanProfileAssembler.PriceRange) assembler.range(household("netIncome", "2000"), terms);
 
-		assertThat(range.standard()).isEqualTo(calculator.maxLoan(4000, 0, 600, 50000.0, 6.1, 25));
+		assertThat(range.standard()).isEqualTo(calculator.maxLoan(2000, 0, 600, 50000.0, 3.85, 25));
 		assertThat(range.standardMaxPrice()).isEqualTo(range.standard().amount() + 50000);
 		assertThat(range.longestMaxPrice()).isGreaterThan(range.standardMaxPrice());
 		assertThat(range.longest().limitedBy()).isEqualTo(LoanLimit.INCOME);

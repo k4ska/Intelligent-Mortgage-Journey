@@ -26,6 +26,16 @@ class UserStatementsTest {
 	}
 
 	@Test
+	void aCommaAndSpaceEndANumber() {
+		UserStatements stated = said("its a 2 room apartment in kalamaja, 198 000, 52m2, built 1936 renovated");
+
+		assertThat(stated.containsNumber("198000")).isTrue();
+		assertThat(stated.containsNumber("52")).isTrue();
+		assertThat(stated.containsNumber("1936")).isTrue();
+		assertThat(stated.containsNumber("198000.52")).isFalse();
+	}
+
+	@Test
 	void numbersTheUserNeverWroteAreNotThere() {
 		UserStatements stated = said("It's a house at Kaare tn 3 for 478000");
 
