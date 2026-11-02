@@ -111,8 +111,9 @@ the file.
   offer (amount, term, Euribor, margin, rate, monthly payment, conditions), and in
   negotiation, the lowest margin allowed this round. The agent decides how to respond
   within those limits and writes the email.
-- **Outputs** a structured email: `type` (question | offer | counter-offer |
-  confirmation | decline), subject, body, and the offer if there is one.
+- **Outputs** a structured email: `type` (question | offer | confirmation | decline |
+  message), subject, body, and the offer if there is one. A counter-offer is an `offer`
+  email; the newest offer in a thread is the one that stands and can be accepted.
 - **Negotiation limits:** each bank has a lowest margin and a maximum number of rounds
   (default 2). After that: "this is our final offer".
 - **Answers straight away**: the user's reply call waits for the bank's answer.
@@ -397,8 +398,12 @@ POST /api/inbox/{threadId}/assist  (SSE) { text } -> the advisor next to the thr
 1. In the inbox, the user asks the advisor to push for a lower margin → `draftReply`
    puts a draft in the reply box.
 2. The user edits it and sends → `POST /reply`.
-3. The offer calculator gives this round's lowest allowed margin → the bank agent
-   decides and writes a counter-offer (or "final offer") → verifier → returned.
+3. The negotiation reader (`NegotiationAgent`, keywords without an API key) decides
+   whether the reply asks for a better offer. If it does, the offer calculator gives this
+   round's lowest margin (another bank's offer: the lowest margin at once) → the bank
+   writes a counter-offer at that margin, "final offer" at its lowest → verifier →
+   returned. Already at the lowest: "this is the best we can do". Any other reply gets the
+   usual acknowledgement. Only the margin is negotiated.
 
 **Accept**
 1. `POST /accept` → thread `ACCEPTED`, the bank sends a confirmation ("visit your branch

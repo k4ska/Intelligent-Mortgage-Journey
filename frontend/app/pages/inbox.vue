@@ -42,6 +42,20 @@ async function fitReply() {
 }
 watch(() => [inbox.replyDraft, inbox.selectedThreadId], fitReply)
 
+// A bank answers a reply straight away; show its email instead of leaving it below the fold.
+const emailList = ref<HTMLElement | null>(null)
+watch(() => [inbox.selectedThreadId, inbox.activeThread?.emails.length], async ([threadId], [previousThreadId] = []) => {
+  await nextTick()
+  const list = emailList.value
+  if (!list) return
+  // A newly opened thread starts at the top; a new email in the same thread scrolls to it.
+  if (threadId === previousThreadId) list.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  else list.scrollTop = 0
+})
+
+// Only the newest offer in a thread can be accepted; a counter-offer replaces the earlier ones.
+const latestOfferId = computed(() => inbox.activeThread?.emails.filter(email => email.from === 'BANK' && email.type === 'offer' && email.offer).at(-1)?.id)
+
 const canReply = computed(() => !!inbox.activeThread && ['OPEN', 'OFFER', 'NEGOTIATING', 'CLOSED'].includes(inbox.activeThread.status))
 
 function formatTime(value: string) {
@@ -148,7 +162,7 @@ async function confirmAcceptance() {
             <h2 class="min-w-0 flex-1 truncate">{{ inbox.activeThread.bank.name }}</h2>
             <span :class="['shrink-0 rounded-md px-2 py-0.5 text-xs font-medium', statusClass(inbox.activeThread.status)]">{{ copy.inboxStatus[inbox.activeThread.status] }}</span>
           </div>
-          <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 lg:p-5" aria-live="polite">
+          <div ref="emailList" class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 lg:p-5" aria-live="polite">
             <article
               v-for="email in inbox.activeThread.emails"
               :key="email.id"
@@ -176,7 +190,7 @@ async function confirmAcceptance() {
                   <ul class="mt-1 list-disc space-y-1 pl-5"><li v-for="condition in email.offer.conditions" :key="condition">{{ condition }}</li></ul>
                 </div>
                 <UButton
-                  v-if="email.from === 'BANK' && email.type === 'offer' && !['ACCEPTED', 'CLOSED', 'DECLINED'].includes(inbox.activeThread.status)"
+                  v-if="email.id === latestOfferId && !['ACCEPTED', 'CLOSED', 'DECLINED'].includes(inbox.activeThread.status)"
                   icon="i-lucide-check-circle"
                   :disabled="inbox.accepting || !!inbox.replyingThreadId"
                   :loading="inbox.accepting"

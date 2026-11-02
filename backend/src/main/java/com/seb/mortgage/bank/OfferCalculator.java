@@ -136,6 +136,17 @@ public class OfferCalculator {
 				round2(rate), round2(payment), conditions, LocalDate.now().plusDays(30)));
 	}
 
+	/**
+	 * The same offer at another margin (negotiation): the rate and the monthly payment
+	 * follow, and it is valid for 30 days from today. The amount and term stay.
+	 */
+	public Offer withMargin(Offer offer, double marginPct) {
+		double rate = offer.euriborPct() + marginPct;
+		double payment = affordability.monthlyPayment(offer.amount(), rate, offer.termYears());
+		return new Offer(offer.amount(), offer.termYears(), offer.euriborPct(), round2(marginPct), round2(rate),
+				round2(payment), offer.conditions(), LocalDate.now().plusDays(30));
+	}
+
 	public double lowestMargin(BankCatalogService.Bank bank, int round) {
 		if (round < 0 || round > bank.maxNegotiationRounds()) {
 			throw new IllegalArgumentException("Negotiation round must be between 0 and "

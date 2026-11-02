@@ -377,24 +377,43 @@ export async function mockReplyToThread(threadId: string, body: string): Promise
   const latest = inboxData(user)
   const updated = latest.threads.find(item => item.threadId === threadId)
   if (!updated || ['CLOSED', 'ACCEPTED'].includes(updated.status)) return
-  const existingOffer = latest.emails[threadId]?.some(email => email.type === 'offer')
+  // Like the backend: asking for more lowers the margin 0.15 a step, down to 1.5%, then "final".
+  const lastOffer = latest.emails[threadId]?.filter(email => email.type === 'offer' && email.offer).at(-1)?.offer
+  const asks = /\b(lower|better|reduce|discount|cheaper|negotiat\w*|match|beat|margin|improve)\b/i.test(body)
   const validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  const offer: MortgageOffer = {
-    amount: 150000, termYears: 25, euriborPct: 2.5, marginPct: 1.8,
-    ratePct: 4.3, monthlyPayment: 817, validUntil,
-    conditions: ['Property valuation accepted by the bank', 'Home insurance before disbursement'],
-  }
-  const answer = existingOffer
-    ? 'Thank you for your message. At this time, these are our current offer terms.'
-    : 'Thank you for the additional information. We can offer you the following mortgage terms.'
-  const email: InboxEmail = {
-    id: `mock-email-${latest.nextId++}`, from: 'BANK', type: 'offer',
-    subject: 'Your mortgage offer', body: answer, offer, createdAt: new Date().toISOString(),
+  let email: InboxEmail
+  if (lastOffer && !asks) {
+    email = {
+      id: `mock-email-${latest.nextId++}`, from: 'BANK', type: 'confirmation', subject: 'We will be in touch soon',
+      body: 'Thank you for your reply. We have received it and will send you any additional information as soon as possible.',
+      offer: null, createdAt: new Date().toISOString(),
+    }
+  } else if (lastOffer && lastOffer.marginPct <= 1.5) {
+    email = {
+      id: `mock-email-${latest.nextId++}`, from: 'BANK', type: 'message', subject: 'Re: your mortgage offer',
+      body: 'Thank you for your message. Our current offer is already the best we can do, so it stays as it is.',
+      offer: null, createdAt: new Date().toISOString(),
+    }
+  } else {
+    const marginPct = lastOffer ? Math.round((lastOffer.marginPct - 0.15) * 100) / 100 : 1.8
+    const ratePct = Math.round((2.5 + marginPct) * 100) / 100
+    const offer: MortgageOffer = {
+      amount: 150000, termYears: 25, euriborPct: 2.5, marginPct, ratePct,
+      monthlyPayment: Math.round(817 - (1.8 - marginPct) * 80), validUntil,
+      conditions: ['Property valuation accepted by the bank', 'Home insurance before disbursement'],
+    }
+    const answer = lastOffer
+      ? `Thank you for your message. We can lower our margin to ${marginPct}%.${marginPct <= 1.5 ? ' This is our final offer.' : ''}`
+      : 'Thank you for the additional information. We can offer you the following mortgage terms.'
+    email = {
+      id: `mock-email-${latest.nextId++}`, from: 'BANK', type: 'offer',
+      subject: lastOffer ? 'Our updated offer' : 'Your mortgage offer', body: answer, offer, createdAt: new Date().toISOString(),
+    }
+    updated.status = 'OFFER'
   }
   latest.emails[threadId]!.push(email)
-  updated.status = 'OFFER'
   updated.unread = true
-  updated.lastEmail = { subject: email.subject, preview: answer, createdAt: email.createdAt }
+  updated.lastEmail = { subject: email.subject, preview: email.body, createdAt: email.createdAt }
   write(inboxKey(user), latest)
 }
 
@@ -410,6 +429,9 @@ export function mockAcceptOffer(threadId: string, emailId: string | number): voi
   if (thread.status !== 'OFFER' && thread.status !== 'NEGOTIATING') throw Object.assign(new Error('No open offer'), { status: 409 })
   if (!email || email.from !== 'BANK' || email.type !== 'offer' || !email.offer) {
     throw Object.assign(new Error('Only a bank offer can be accepted'), { status: 400 })
+  }
+  if (state.emails[threadId]?.filter(item => item.type === 'offer' && item.offer).at(-1) !== email) {
+    throw Object.assign(new Error('A newer offer replaced this one'), { status: 409 })
   }
   for (const item of state.threads) item.status = item.threadId === threadId ? 'ACCEPTED' : 'CLOSED'
   const message: InboxEmail = {

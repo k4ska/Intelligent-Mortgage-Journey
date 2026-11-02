@@ -3,6 +3,20 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-10-30 - Negotiating the margin with the banks
+
+- Only the margin is negotiated; the amount and term stay. Each ask lowers it one step
+  (`OfferCalculator.lowestMargin` for the round, in each bank's rules), mentioning another
+  bank's offer goes to the bank's lowest margin at once, and the lowest is "our final
+  offer". Asking again gets "this is the best we can do".
+- A small `NegotiationAgent` (minimal reasoning) only classifies the reply: asks for a
+  better offer or not, mentions another bank or not. It never sets numbers. Without an
+  API key, or if it fails, keywords decide.
+- The bank's email is a template in code, checked by `BankEmailVerifier`, not written by
+  the model: for a demo, reliable beats varied.
+- A counter-offer is an `offer` email, so accepting it works as before; only the newest
+  offer in a thread can be accepted (409 for an older one).
+
 ## 2026-10-30 - The documents panel is back, with one-click sample uploads
 
 - Documents stay optional, but the panel is visible again with every document. Each one has
