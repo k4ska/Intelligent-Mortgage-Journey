@@ -3,7 +3,7 @@ import type { InboxEmail, InboxThreadStatus } from '~/types/api'
 import { useAdvisorStore } from '~/stores/advisor'
 import { useInboxStore } from '~/stores/inbox'
 import { copy } from '~/utils/copy'
-import { formatMoney, formatNumber } from '~/utils/numbers'
+import { formatCents, formatMoney, formatNumber } from '~/utils/numbers'
 
 const inbox = useInboxStore()
 const advisor = useAdvisorStore()
@@ -182,7 +182,7 @@ async function confirmAcceptance() {
                   <div><dt class="text-[var(--ui-text-muted)]">{{ copy.inboxOfferAmount }}</dt><dd class="font-semibold">{{ formatMoney(email.offer.amount) }}</dd></div>
                   <div><dt class="text-[var(--ui-text-muted)]">{{ copy.inboxOfferRate }}</dt><dd class="font-semibold">{{ formatNumber(email.offer.euriborPct, 2) }}% + {{ formatNumber(email.offer.marginPct, 2) }}% = {{ formatNumber(email.offer.ratePct, 2) }}%</dd></div>
                   <div><dt class="text-[var(--ui-text-muted)]">{{ copy.inboxOfferTerm }}</dt><dd class="font-semibold">{{ email.offer.termYears }} {{ copy.inboxOfferYears }}</dd></div>
-                  <div><dt class="text-[var(--ui-text-muted)]">{{ copy.inboxOfferMonthly }}</dt><dd class="font-semibold">{{ formatMoney(email.offer.monthlyPayment) }}</dd></div>
+                  <div><dt class="text-[var(--ui-text-muted)]">{{ copy.inboxOfferMonthly }}</dt><dd class="font-semibold">{{ formatCents(email.offer.monthlyPayment) }}</dd></div>
                   <div><dt class="text-[var(--ui-text-muted)]">{{ copy.inboxOfferValidUntil }}</dt><dd class="font-semibold">{{ email.offer.validUntil }}</dd></div>
                 </dl>
                 <div v-if="email.offer.conditions.length" class="text-sm">
