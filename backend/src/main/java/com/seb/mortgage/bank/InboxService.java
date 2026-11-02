@@ -106,7 +106,8 @@ public class InboxService {
 			return current;
 		}
 		OfferCalculator.Offer better = calculator.withMargin(current, margin);
-		gateway.addBankEmail(thread.getId(), agent.counterOffer(bank, better, margin <= lowest + MARGIN_EPSILON),
+		gateway.addBankEmail(thread.getId(), agent.counterOffer(bank, better, margin <= lowest + MARGIN_EPSILON,
+				reading.mentionsCompetingOffer()),
 				better);
 		return better;
 	}
