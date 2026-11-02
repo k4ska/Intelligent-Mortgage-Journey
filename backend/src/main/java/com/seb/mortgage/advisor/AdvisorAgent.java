@@ -104,6 +104,8 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			  documents in full (often straight from the bank) and that changing them would be
 			  fraud, then say what they can do instead: explain the transaction, wait a few
 			  months, or pay something off.
+			- When the user wants to see how interest rates or Euribor would change their payment,
+			  call showRateChart; it draws the chart, so don't draw one in text.
 			- When the user asks what a term means or how something works (Euribor, margin,
 			  loan-to-value, stress test, valuation, ...), call explainTerm and base your answer
 			  on its entry, in your own simple words. If it isn't in the glossary, keep it short

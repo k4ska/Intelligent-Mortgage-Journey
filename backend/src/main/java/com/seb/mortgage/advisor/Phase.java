@@ -19,7 +19,7 @@ public enum Phase {
 	PROPERTY("property",
 			"Ask what home they have in mind (a kv.ee link, or its type, price and location), or tell them "
 					+ "what price range they could afford.",
-			List.of("checkAffordability", "suggestAffordableRange")),
+			List.of("checkAffordability", "suggestAffordableRange", "showRateChart")),
 	AFFORDABILITY("affordability",
 			"Check whether they can afford the home they have in mind and explain the result in plain words.",
 			List.of()),

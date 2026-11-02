@@ -93,6 +93,9 @@ class AdvisorTools {
 	private final Consumer<StreamEvent> emit;
 	/** The bank thread an inbox turn is about (#80); null in the chat. */
 	private final Inbox inbox;
+	private final AffordabilityCalculator calculator = new AffordabilityCalculator();
+	/** The chart this turn showed, if any, to save with the reply (#130). */
+	private volatile RateChart chart;
 	/** Every tool call this turn and what it returned, for the number check (#67). */
 	private final List<ToolUse> used = new CopyOnWriteArrayList<>();
 
@@ -306,6 +309,43 @@ class AdvisorTools {
 				yield describe(checked);
 			}
 		};
+	}
+
+	@Tool(name = "showRateChart", description = """
+			Show the user a chart in the chat of their monthly payment at today's Euribor and at
+			1 point lower and 1, 2 and 3 points higher, next to the payment the stress test
+			checked. Call it when the user asks to see, or wants a chart of, how interest rates
+			or Euribor change their payment. Then explain it briefly with its numbers.""")
+	String showRateChart() {
+		List<ProfileFieldView> values = property.active(userId).map(PropertyView::fields).orElse(List.of());
+		return switch (loans.check(profile.fields(userId), values, terms())) {
+			case LoanProfileAssembler.Missing missing -> "No chart yet: it needs the loan. " + cantTellYet(missing);
+			case LoanProfileAssembler.Checked checked -> {
+				RateChart shown = RateChart.of(checked, calculator);
+				chart = shown;
+				emit.accept(StreamEvent.chart(shown.view()));
+				yield describe(shown);
+			}
+		};
+	}
+
+	/** The chart this turn showed, or null. */
+	RateChart chart() {
+		return chart;
+	}
+
+	private static String describe(RateChart chart) {
+		StringBuilder note = new StringBuilder("The chart is now shown in the chat. For a loan of ")
+				.append(euros(chart.loanAmount())).append(" over ").append(chart.termYears())
+				.append(" years with a margin of ").append(number(chart.marginPct())).append("%, the monthly payment is: ");
+		note.append(String.join("; ", chart.points().stream()
+				.map(point -> "at Euribor " + number(point.euriborPct()) + "% (rate " + number(point.ratePct()) + "%) "
+						+ euros(point.monthlyPayment()) + (point.today() ? " (today)" : ""))
+				.toList()));
+		note.append(". The stress test already checked a payment of ").append(euros(chart.stressedPayment()))
+				.append(" at ").append(number(chart.stressRatePct())).append("%. Don't list every point again; ")
+				.append("say what a rise of 1 or 2 points would mean for them.");
+		return note.toString();
 	}
 
 	@Tool(name = "suggestAffordableRange", description = """

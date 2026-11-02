@@ -291,6 +291,9 @@ public class AdvisorOrchestrator {
 	private Flux<StreamEvent> finish(UUID userId, UUID threadId, String reply, String userText,
 			List<Message> earlier, AdvisorTools tools) {
 		Long messageId = conversations.append(userId, Message.Role.ADVISOR, reply, threadId).getId();
+		if (tools.chart() != null) {
+			conversations.attachChart(messageId, objectMapper.writeValueAsString(tools.chart()));
+		}
 		VerifierAgent checker = verifier.getIfAvailable();
 		if (checker == null || reply.isBlank() || reply.equals(OFFLINE_REPLY)) {
 			return Flux.just(StreamEvent.done(messageId));

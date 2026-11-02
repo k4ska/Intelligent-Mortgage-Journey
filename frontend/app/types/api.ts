@@ -22,6 +22,35 @@ export interface ChatMessage {
   corrected: boolean
   /** Present on messages written by the advisor next to a bank thread (#80). */
   threadId?: string | null
+  /** A chart the advisor showed with this reply (#130). */
+  chart?: ChatChart | null
+}
+
+/** The payment at one Euribor level (backend: RateChart.Point). */
+export interface RatePoint {
+  euriborPct: number
+  ratePct: number
+  monthlyPayment: number
+  /** Whether this is today's Euribor. */
+  today: boolean
+}
+
+/** How Euribor changes the user's monthly payment (backend: RateChart). */
+export interface RateChart {
+  loanAmount: number
+  termYears: number
+  marginPct: number
+  stressRatePct: number
+  /** The payment at the stress-test rate, which the affordability check passed. */
+  stressedPayment: number
+  points: RatePoint[]
+}
+
+/** The `chart` event's data, and a saved message's chart (backend: RateChart.View). */
+export interface ChatChart {
+  chartType: 'rate_payment'
+  title: string
+  data: RateChart
 }
 
 // ---- Profile and property (GET /api/profile) ----
@@ -117,6 +146,7 @@ export type StreamEvent =
   | { type: 'profile_updated', data: { fields: ProfileField[] } }
   | { type: 'property_updated', data: { property: Property } }
   | { type: 'bank_picker', data: { banks: BankOption[] } }
+  | { type: 'chart', data: ChatChart }
   | { type: 'draft_reply', data: { threadId: string, body: string } }
   | { type: 'document_status', data: { type: DocumentType, label: string, status: DocumentStatus, whereToGet: string, why: string, tips: string, fileName: string | null } }
   // The verifier replaced the reply that just streamed with a safe version (#67).

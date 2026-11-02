@@ -65,6 +65,40 @@ class AffordabilityToolsTest {
 	}
 
 	@Test
+	void theRateChartShowsThePaymentAtFiveEuriborLevels() {
+		household("4000");
+		listing("200000", "50");
+
+		AdvisorTools tools = tools();
+		String note = tools.showRateChart();
+
+		RateChart chart = tools.chart();
+		LoanProfileAssembler.Terms terms = loans.terms(banks.typicalBaseMarginPct());
+		assertThat(chart.loanAmount()).isEqualTo(150000);
+		assertThat(chart.points()).extracting(RateChart.Point::euriborPct).containsExactlyElementsOf(
+				List.of(-1, 0, 1, 2, 3).stream()
+						.map(step -> Math.round((terms.variableRatePct() + step) * 100) / 100.0).toList());
+		assertThat(chart.points()).filteredOn(RateChart.Point::today).singleElement()
+				.extracting(RateChart.Point::monthlyPayment)
+				.isEqualTo(Math.round(calculator.monthlyPayment(150000, terms.ratePct(), 25) * 100) / 100.0);
+		assertThat(chart.points()).extracting(RateChart.Point::monthlyPayment).isSorted();
+		assertThat(events).containsExactly(StreamEvent.chart(chart.view()));
+		assertThat(note).startsWith("The chart is now shown in the chat. For a loan of 150000 over 25 years")
+				.contains("(today)").contains("The stress test already checked a payment of");
+	}
+
+	@Test
+	void noChartWithoutTheLoan() {
+		save(ProfileKey.NET_INCOME, "4000");
+
+		AdvisorTools tools = tools();
+
+		assertThat(tools.showRateChart()).startsWith("No chart yet: it needs the loan. Can't tell yet.");
+		assertThat(tools.chart()).isNull();
+		assertThat(events).isEmpty();
+	}
+
+	@Test
 	void namesTheMissingFactsInsteadOfGuessing() {
 		save(ProfileKey.NET_INCOME, "4000");
 
