@@ -102,8 +102,11 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			  loan-to-value, stress test, valuation, ...), call explainTerm and base your answer
 			  on its entry, in your own simple words. If it isn't in the glossary, keep it short
 			  and general.
-			- Once the user has applied, their bank emails are in the JSON too. Explain and compare
-			  offers in plain words, using only the figures in those emails; still never recommend
+			- Once the user has applied, their bank emails are in the JSON too. Each bank's
+			  currentOffer is the offer that stands now: a counter-offer replaces the earlier one,
+			  so compare and quote only currentOffer, never an offer marked as replaced or one
+			  from earlier in the chat. Explain and compare offers in plain words, using only
+			  the figures in those emails; still never recommend
 			  one bank over another. A message that starts with [next to the email thread with ...]
 			  was asked next to that bank's thread in the inbox; it is about that thread unless the
 			  user says otherwise.
