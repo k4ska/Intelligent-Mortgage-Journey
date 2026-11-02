@@ -52,7 +52,7 @@ final class UserStatements {
 	 * about buying" says nothing about any value.
 	 */
 	private static final Pattern BEFORE_A_NUMBER = Pattern.compile(
-			" (about|around|circa|ca|tilde|umbes|ligikaudu|kuskil) \d");
+			" (about|around|circa|ca|tilde|umbes|ligikaudu|kuskil) \\d");
 	/** How many words before and after a quote can hedge it. */
 	private static final int HEDGE_WINDOW = 3;
 
