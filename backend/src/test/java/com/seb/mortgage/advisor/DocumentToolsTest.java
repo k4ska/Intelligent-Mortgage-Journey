@@ -149,6 +149,22 @@ class DocumentToolsTest {
 		assertThat(events).extracting(StreamEvent::type).containsExactly("profile_updated", "document_status");
 	}
 
+	/** "almost, its actually 2450" after the payslip was confirmed: the payslip says 2450 too (#141). */
+	@Test
+	void aLaterCorrectionAlsoChangesTheDocument() {
+		UUID userId = UUID.randomUUID();
+		readPayslip(userId, "2400");
+		tools(userId, List.of(), "yes").confirmDocument("PAYSLIP", "yes");
+
+		tools(userId, List.of(), "almost, its actually 2450").updateProfile(
+				List.of(new AdvisorTools.FieldUpdate("netIncome", "2450", "its actually 2450")));
+
+		DocumentView payslip = documents.checklist(userId).stream().filter(d -> d.type() == DocumentType.PAYSLIP)
+				.findFirst().orElseThrow();
+		assertThat(payslip.values()).containsExactly(Map.entry("netIncome", "2450"));
+		assertThat(payslip.status()).isEqualTo(Document.Status.CONFIRMED);
+	}
+
 	/** What the document reader would have done: an uncertain value from the payslip. */
 	private void readPayslip(UUID userId, String netIncome) {
 		documents.request(userId, DocumentType.PAYSLIP);

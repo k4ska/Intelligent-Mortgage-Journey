@@ -184,7 +184,8 @@ class AdvisorTools {
 		List<DocumentView> settled = List.of();
 		if (!saved.isEmpty()) {
 			emit.accept(StreamEvent.profileUpdated(saved));
-			// A correction of a value read from a document settles that document too.
+			// A correction of a value read from a document replaces it there and settles that document too.
+			documents.correct(userId, saved);
 			settled = documents.settle(userId);
 			settled.forEach(document -> emit.accept(StreamEvent.documentStatus(document)));
 		}

@@ -131,6 +131,27 @@ public class DocumentService implements DocumentSnapshotProvider {
 	}
 
 	/**
+	 * The user corrected these values in the chat: what was read from their documents for the
+	 * same keys is replaced, so the documents and the profile never disagree (#141).
+	 */
+	@Transactional
+	public void correct(UUID userId, List<ProfileFieldView> saved) {
+		for (Document document : documents.findByUserId(userId)) {
+			Map<String, String> values = new LinkedHashMap<>(values(document));
+			boolean changed = false;
+			for (ProfileFieldView field : saved) {
+				if (values.containsKey(field.key()) && !field.value().equals(values.get(field.key()))) {
+					values.put(field.key(), field.value());
+					changed = true;
+				}
+			}
+			if (changed) {
+				document.read(mapper.writeValueAsString(values));
+			}
+		}
+	}
+
+	/**
 	 * Confirms the uploaded documents whose read values the user has now all confirmed or
 	 * corrected (after the advisor saved what the user said); returns those documents.
 	 */
