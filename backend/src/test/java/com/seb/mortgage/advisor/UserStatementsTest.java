@@ -87,6 +87,8 @@ class UserStatementsTest {
 		assertThat(stated.hedged("2400")).isFalse();
 		assertThat(stated.hedged("20000")).isTrue();
 		assertThat(UserStatements.from(List.of(), "I earn 2400").hedged("2400")).isFalse();
+		assertThat(UserStatements.from(List.of(), "hi, we're a couple thinking about buying our first apartment")
+				.hedged("we're a couple")).isFalse();
 		assertThat(UserStatements.from(List.of("about 2400"), "yes, 2400 is right").hedged("2400 is right")).isFalse();
 	}
 }

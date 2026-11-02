@@ -44,10 +44,15 @@ final class UserStatements {
 	 * Words that make a figure a guess ("about 2400", "idk maybe 1200", "~2000", "umbes 900"),
 	 * as they read once simplified (#140).
 	 */
-	private static final List<String> HEDGES = List.of("about", "around", "roughly", "approximately", "approx",
-			"maybe", "probably", "perhaps", "i think", "i guess", "idk", "i don t know", "not sure", "something like",
-			"or so", "ish", "circa", "give or take", "more or less", "tilde", "umbes", "ligikaudu", "vist",
-			"arvatavasti", "kuskil", "vast");
+	private static final List<String> HEDGES = List.of("roughly", "approximately", "approx", "maybe", "probably",
+			"perhaps", "i think", "i guess", "idk", "i don t know", "not sure", "something like", "or so", "ish",
+			"give or take", "more or less", "vist", "arvatavasti", "vast");
+	/**
+	 * Words that only hedge right before a number: "about 2400" is a guess, but "thinking
+	 * about buying" says nothing about any value.
+	 */
+	private static final Pattern BEFORE_A_NUMBER = Pattern.compile(
+			" (about|around|circa|ca|tilde|umbes|ligikaudu|kuskil) \d");
 	/** How many words before and after a quote can hedge it. */
 	private static final int HEDGE_WINDOW = 3;
 
@@ -120,7 +125,8 @@ final class UserStatements {
 					Math.max(0, before.length - HEDGE_WINDOW), before.length)) + " " + simplified + " "
 					+ String.join(" ", java.util.Arrays.copyOfRange(after, 0, Math.min(after.length, HEDGE_WINDOW)))
 					+ " ";
-			return HEDGES.stream().anyMatch(hedge -> window.contains(" " + hedge + " "));
+			return HEDGES.stream().anyMatch(hedge -> window.contains(" " + hedge + " "))
+					|| BEFORE_A_NUMBER.matcher(window).find();
 		}
 		return false;
 	}
