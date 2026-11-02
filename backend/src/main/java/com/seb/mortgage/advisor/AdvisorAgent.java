@@ -313,11 +313,13 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 							? call.name() + " only works next to a bank's email thread in the inbox; nothing was done"
 							: call.name() + " isn't available yet, at this stage (" + phase.phase().label()
 									+ "); nothing was done";
+			// The model often saves the same facts again in a later round; that is nothing new to act on.
+			boolean repeat = turn.results.contains(call.name() + ": " + result);
 			turn.names.add(call.name());
 			turn.results.add(call.name() + ": " + result);
 			tools.record(call.name(), result);
 			responses.add(new ToolResponseMessage.ToolResponse(call.id(), call.name(), result));
-			again |= SAVE_TOOLS.contains(call.name()) || FOLLOW_UP.stream().anyMatch(result::contains);
+			again |= !repeat && (SAVE_TOOLS.contains(call.name()) || FOLLOW_UP.stream().anyMatch(result::contains));
 		}
 		// The next round sees the calls and their results, never the text written next to them.
 		turn.rounds.add(AssistantMessage.builder().content("").toolCalls(calls).build());

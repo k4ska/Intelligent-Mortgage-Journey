@@ -234,9 +234,9 @@ class AdvisorOrchestratorTest {
 					return new ChatResponse(List.of(new Generation(new AssistantMessage(MADE_UP_REPLY))));
 				}
 				if (user.equals(NEVER_STOPS)) {
-					// A save that is refused every time: a save may always need another round.
+					// A new save that is refused every round: a save may always need another round.
 					return toolCall("Again.", "updateProfile",
-							"{\"fields\":[{\"key\":\"netIncome\",\"value\":\"1\",\"quote\":\"again\"}]}");
+							"{\"fields\":[{\"key\":\"netIncome\",\"value\":\"" + round + "\",\"quote\":\"again\"}]}");
 				}
 				return new ChatResponse(List.of(new Generation(new AssistantMessage(round == 1 ? "Hello there" : "Done."))));
 			}

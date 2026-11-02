@@ -13,6 +13,8 @@ re-litigated.
 - A turn only acts again when the last round saved something (`updateProfile`,
   `updateProperty`, `lookupListing`, `confirmDocument`), which a check may follow (#94),
   or when a result asks for a follow-up (`Call suggestAffordableRange`, `Not drafted:`).
+  A call whose result repeats one from earlier in the turn (the model often saves the same
+  facts twice) doesn't count.
   Otherwise it goes straight to the reply, which saves one model call (a few seconds) on
   most tool turns: save, check, reply instead of save, check, an empty round, reply.
 
