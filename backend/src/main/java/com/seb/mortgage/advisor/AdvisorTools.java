@@ -427,7 +427,7 @@ class AdvisorTools {
 	}
 
 	private static String rate(LoanProfileAssembler.Terms terms, int termYears) {
-		return "Assumed: " + termYears + " years at " + number(terms.ratePct()) + "% a year (the variable rate of "
+		return "Assumed: " + termYears + " years at " + number(terms.ratePct()) + "% a year (the 6-month Euribor of "
 				+ number(terms.variableRatePct()) + "% plus a typical bank margin of " + number(terms.marginPct())
 				+ "%). ";
 	}
