@@ -323,7 +323,7 @@ class AdvisorTools {
 			mind. Call it when they ask if they can afford it, or once you know the property and
 			their finances; when you save facts in the same step, call it after them. It picks
 			the loan term and rate itself. If it lists facts that are missing, ask the user for
-			them one at a time; never guess them. Explain the result in plain words using only
+			them, two or three at a time; never guess them. Explain the result in plain words using only
 			its numbers.""")
 	String checkAffordability() {
 		List<ProfileFieldView> values = property.active(userId).map(PropertyView::fields).orElse(List.of());
@@ -376,8 +376,8 @@ class AdvisorTools {
 	@Tool(name = "suggestAffordableRange", description = """
 			Work out the price range of homes the user could afford, with our affordability rules.
 			Call it when the home they have in mind is too expensive, or when they ask how much
-			they could afford. If it lists facts that are missing, ask the user for them one at a
-			time. Describe what they could afford (price range, size, or a cheaper area) using
+			they could afford. If it lists facts that are missing, ask the user for them, two or
+			three at a time. Describe what they could afford (price range, size, or a cheaper area) using
 			only its numbers.""")
 	String suggestAffordableRange() {
 		return switch (loans.range(profile.fields(userId), terms())) {
@@ -403,7 +403,7 @@ class AdvisorTools {
 			note.append(" Not confirmed by the user yet: ").append(String.join(", ", missing.unconfirmed()))
 					.append('.');
 		}
-		return note.append(" Ask the user about the first of these, one question at a time; don't guess any.")
+		return note.append(" Ask the user for the first two or three of these together, in one natural question; don't guess any.")
 				.toString();
 	}
 

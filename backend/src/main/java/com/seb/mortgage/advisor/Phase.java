@@ -13,7 +13,7 @@ import java.util.Set;
 public enum Phase {
 
 	GETTING_TO_KNOW_YOU("getting to know you",
-			"Get to know the user: ask simple questions, one at a time, about their income, savings, whether "
+			"Get to know the user: ask about two or three things at a time, in plain words: their income, savings, whether "
 					+ "they buy alone or with someone, and other loans.",
 			List.of("updateProfile", "lookupListing", "updateProperty", "explainTerm")),
 	PROPERTY("property",
