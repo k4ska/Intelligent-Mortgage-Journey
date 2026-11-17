@@ -97,5 +97,9 @@ class ListingReaderTest {
 	void linksAreTidiedToHttps() {
 		assertThat(ListingReader.listingUri("http://kv.ee/en/3612345")).isEqualTo(URI.create("https://kv.ee/en/3612345"));
 		assertThat(ListingReader.listingUri(" https://WWW.KV.EE/3612345.html ")).isEqualTo(URI.create("https://www.kv.ee/3612345.html"));
+		assertThat(ListingReader.listingUri(
+				"https://www.kv.ee/uusarendus/uus-parli-residents---ajatu-elegants-kusi-pakkumis-8462"))
+				.isEqualTo(URI.create(
+						"https://www.kv.ee/uusarendus/uus-parli-residents---ajatu-elegants-kusi-pakkumis-8462"));
 	}
 }

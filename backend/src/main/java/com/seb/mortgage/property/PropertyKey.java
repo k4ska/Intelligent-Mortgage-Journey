@@ -8,8 +8,8 @@ import java.util.Optional;
 
 /**
  * The values a property can have, in the order the property panel lists them. Type,
- * price and location are required; size, rooms and year built are only ever read from a
- * listing (see {@code docs/architecture.md} §4).
+ * price and location are required; size, rooms and year built can come from a listing or
+ * user-provided text (see {@code docs/architecture.md} §4).
  */
 public enum PropertyKey {
 
@@ -42,7 +42,7 @@ public enum PropertyKey {
 		return key;
 	}
 
-	/** Required values can come from the chat too; the others only from a listing. */
+	/** Required values are needed before affordability can be checked. */
 	public boolean required() {
 		return required;
 	}

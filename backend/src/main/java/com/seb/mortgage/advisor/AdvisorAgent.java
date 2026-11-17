@@ -272,6 +272,18 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 			return Flux.empty();
 		}
 		boolean again = runRound(turn, distinct(turn.firstCalls), phase, offered, tools);
+		// Saving a complete property/profile must finish affordability in the same turn.
+		// Do not rely on the model choosing checkAffordability again after updateProperty/updateProfile.
+		boolean savedBeforeCheck = turn.firstCalls.stream()
+				.map(AssistantMessage.ToolCall::name)
+				.anyMatch(name -> name.equals("updateProperty") || name.equals("updateProfile"));
+		if (savedBeforeCheck && !turn.names.contains("checkAffordability")) {
+			String result = tools.checkAffordability();
+			turn.names.add("checkAffordability");
+			turn.results.add("checkAffordability: " + result);
+			tools.record("checkAffordability", result);
+			again = false;
+		}
 		for (int round = 2; again && round <= MAX_ACT_ROUNDS; round++) {
 			// The phase is read again each round: a tool in the last one may have moved it on (#73).
 			Phases.Current now = tools.phase();
@@ -370,7 +382,10 @@ public class AdvisorAgent extends LlmSpecialistAgent {
 				You just used your tools for the user's last message. What they did:
 				%s
 				Now write your reply to the user's last message, following your instructions.
-				Don't mention tools. If something was not saved, ask the user for it.""".formatted(
+				Don't mention tools or say "one moment", "I'll check", or that the answer is coming.
+				If checkAffordability returned a result, explain that result now. If it says facts are
+				missing, ask for the next one or two facts in this reply. If something was not saved,
+				ask the user for it.""".formatted(
 				String.join("\n", toolResults.stream().map(r -> "- " + r).toList()))));
 		return chatClient.prompt()
 				.messages(messages)

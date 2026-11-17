@@ -45,6 +45,8 @@ import com.seb.mortgage.profile.ProfileField;
 import com.seb.mortgage.profile.ProfileFieldView;
 import com.seb.mortgage.profile.ProfileKey;
 import com.seb.mortgage.profile.ProfileService;
+import com.seb.mortgage.property.PropertyKey;
+import com.seb.mortgage.property.PropertyService;
 
 import reactor.core.publisher.Flux;
 
@@ -151,6 +153,7 @@ class AdvisorOrchestratorTest {
 			static final String HELP_REPLY = "Help me reply";
 			static final String DRAFT = "Thank you for the offer. Could you lower the margin from 1.8%?";
 			static final String TRIGGERED = "Here is what happened.";
+			static final String SAVES_PROPERTY_AND_CHECKS = "no credit cards, apartment in Kalamaja 198000";
 
 			volatile String verdict = APPROVE;
 			final AtomicInteger verifierCalls = new AtomicInteger();
@@ -217,6 +220,13 @@ class AdvisorOrchestratorTest {
 				if (user.equals(SAVES_THEN_CHECKS) && round == 2) {
 					return toolCall("Now checking.", "checkAffordability", "{}");
 				}
+				if (user.equals(SAVES_PROPERTY_AND_CHECKS) && round == 1) {
+					return toolCall("Saving the property.", "updateProperty",
+							"{\"fields\":[{\"key\":\"type\",\"value\":\"apartment\",\"quote\":\"apartment in Kalamaja\"},"
+									+"{\"key\":\"price\",\"value\":\"198000\",\"quote\":\"198000\"},"
+									+"{\"key\":\"location\",\"value\":\"Kalamaja, Tallinn\",\"quote\":\"Kalamaja\"}],"
+									+"\"newProperty\":true}");
+				}
 				if (user.equals(CONFIRMS) && round == 1) {
 					return toolCall("", "confirmDocument", "{\"type\":\"PAYSLIP\",\"quote\":\"Yes, that's right\"}");
 				}
@@ -275,6 +285,7 @@ class AdvisorOrchestratorTest {
 		@Autowired FakeChatModel model;
 		@Autowired ProfileService profile;
 		@Autowired DocumentService documents;
+		@Autowired PropertyService property;
 
 		@BeforeEach
 		void approveByDefault() {
@@ -380,18 +391,11 @@ class AdvisorOrchestratorTest {
 
 			assertThat(events).extracting(StreamEvent::type).contains("profile_updated");
 			assertThat(profile.fields(userId)).extracting(f -> f.key() + "=" + f.value()).contains("netIncome=2350");
-			// Two act calls: save, then check. A check needs no follow-up, so no empty third round (#138).
-			assertThat(model.actPrompts).hasSize(2);
-			// #73: saving the last key fact moved the conversation on, so the next round could check.
+			// Saving facts immediately triggers the affordability check in code, with no extra act loop.
+			assertThat(model.actPrompts).hasSize(1);
 			assertThat(toolNames(model.actPrompts.get(0))).doesNotContain("checkAffordability");
-			assertThat(toolNames(model.actPrompts.get(1))).contains("checkAffordability");
-			ToolResponseMessage saved = (ToolResponseMessage) model.actPrompts.get(1).getInstructions().getLast();
-			assertThat(saved.getResponses()).singleElement().satisfies(response -> {
-				assertThat(response.name()).isEqualTo("updateProfile");
-				assertThat(response.responseData()).isEqualTo("Saved: netIncome=2350.");
-			});
 			// The model never sees the text it wrote next to its calls, and neither does the user.
-			assertThat(model.actPrompts.get(1).getContents()).doesNotContain("Saving that.");
+			assertThat(model.actPrompts.get(0).getContents()).doesNotContain("Saving that.");
 			assertThat(model.replyPrompt.getContents())
 					.contains("- updateProfile: Saved: netIncome=2350.")
 					.contains("- checkAffordability: Can't tell yet. Still missing: creditCardLimits")
@@ -400,6 +404,35 @@ class AdvisorOrchestratorTest {
 					.doesNotContain(MessageType.TOOL);
 			assertThat(conversations.history(userId)).last().extracting(Message::getText)
 					.isEqualTo("Got it. How much do you earn per month?");
+		}
+
+		@Test
+		void savingTheCompletePropertyChecksAffordabilityInTheSameTurn() {
+			UUID userId = UUID.randomUUID();
+			profile.save(userId, ProfileKey.NET_INCOME, "2450", ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED);
+			profile.save(userId, ProfileKey.CO_APPLICANT_NET_INCOME, "2100", ProfileField.Source.CHAT,
+					ProfileField.Status.CONFIRMED);
+			profile.save(userId, ProfileKey.SAVINGS, "40000", ProfileField.Source.CHAT, ProfileField.Status.CONFIRMED);
+			profile.save(userId, ProfileKey.MONTHLY_DEBT_PAYMENTS, "0", ProfileField.Source.CHAT,
+					ProfileField.Status.CONFIRMED);
+			profile.save(userId, ProfileKey.CREDIT_CARD_LIMITS, "0", ProfileField.Source.CHAT,
+					ProfileField.Status.CONFIRMED);
+			profile.save(userId, ProfileKey.HAS_CO_APPLICANT, "yes", ProfileField.Source.CHAT,
+					ProfileField.Status.CONFIRMED);
+			profile.save(userId, ProfileKey.MONTHLY_LIVING_COSTS, "1200", ProfileField.Source.CHAT,
+					ProfileField.Status.CONFIRMED);
+			profile.save(userId, ProfileKey.DEPENDANTS, "0", ProfileField.Source.CHAT,
+					ProfileField.Status.CONFIRMED);
+
+			List<StreamEvent> events = orchestrator.send(userId,
+					FakeChatModel.SAVES_PROPERTY_AND_CHECKS).collectList().block();
+
+			assertThat(events).extracting(StreamEvent::type).contains("property_updated");
+			assertThat(model.replyPrompt.getContents())
+					.contains("- updateProperty:")
+					.contains("- checkAffordability:");
+			assertThat(conversations.history(userId)).last().extracting(Message::getText)
+					.isNotNull();
 		}
 
 		/** #73: asking for the banks too early shows no picker, and the advisor knows what's still needed. */
@@ -434,15 +467,15 @@ class AdvisorOrchestratorTest {
 		}
 
 		@Test
-		void aTurnStopsActingAfterTheLastRound() {
+		void repeatedProfileSavingsStopAfterTheImmediateAffordabilityCheck() {
 			UUID userId = UUID.randomUUID();
 
 			List<StreamEvent> events = orchestrator.send(userId, FakeChatModel.NEVER_STOPS).collectList().block();
 
-			assertThat(model.actPrompts).hasSize(AdvisorAgent.MAX_ACT_ROUNDS);
+			assertThat(model.actPrompts).hasSize(1);
 			assertThat(events).extracting(StreamEvent::type).containsSubsequence("text", "done");
 			assertThat(model.replyPrompt.getContents().split("- updateProfile:", -1))
-					.hasSize(AdvisorAgent.MAX_ACT_ROUNDS + 1);
+					.hasSize(2);
 		}
 
 		/** #138: a reply without tools streams; if the model then calls a tool, the text starts again. */

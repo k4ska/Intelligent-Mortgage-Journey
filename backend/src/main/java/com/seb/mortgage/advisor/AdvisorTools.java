@@ -65,8 +65,10 @@ class AdvisorTools {
 			- type: apartment, house, plot or new_build
 			- price: the asking price, in euros
 			- location: the address, or at least the town and district
+			- size: the living area in square metres
+			- rooms: the number of rooms
+			- yearBuilt: the year the property was built
 			Euro amounts are plain numbers like 189000, with no currency or thousands separators.
-			Size, rooms and year built are only ever read from a listing; don't save them here.
 			For each value, give in quote the user's own words that state it, copied exactly from
 			their message (or from the listing text they pasted); without one it is refused.
 			Set fromPastedText to true when you picked the values out of listing text the user
@@ -165,7 +167,9 @@ class AdvisorTools {
 		List<ProfileFieldView> saved = new ArrayList<>();
 		List<ProfileFieldView> guessed = new ArrayList<>();
 		List<String> problems = new ArrayList<>();
-		for (FieldUpdate field : fields == null ? List.<FieldUpdate>of() : fields) {
+		List<FieldUpdate> updates = new ArrayList<>(fields == null ? List.<FieldUpdate>of() : fields);
+		inferNoneFacts(updates);
+		for (FieldUpdate field : updates) {
 			ProfileKey key = ProfileKey.fromKey(field.key()).orElse(null);
 			if (key == null) {
 				problems.add(field.key() + " is not an allowed key");
@@ -226,9 +230,16 @@ class AdvisorTools {
 			couldn't be read, don't try again; ask the user instead.""")
 	String lookupListing(@ToolParam(description = "The kv.ee link, as the user pasted it") String url) {
 		return switch (listings.read(url)) {
-			case ListingReader.Lookup.NotRead notRead -> "Couldn't read the listing: " + notRead.reason()
-					+ ". Don't try again. Ask the user for the property type (apartment, house, plot or new "
-					+ "build), the price and the location, or to paste the listing's text.";
+			case ListingReader.Lookup.NotRead notRead -> {
+				Optional<String> canonicalUrl = ListingReader.canonicalListingUrl(url);
+				if (canonicalUrl.isPresent()) {
+					PropertyView saved = property.saveListingUrl(userId, canonicalUrl.get());
+					emit.accept(StreamEvent.propertyUpdated(saved));
+				}
+				yield "Couldn't read the listing: " + notRead.reason()
+						+ ". Don't try again. Ask the user for the property type (apartment, house, plot or new "
+						+ "build), the price and the location, or to paste the listing's text.";
+			}
 			case ListingReader.Lookup.Found found -> {
 				PropertyView saved = property.replaceFromListing(userId, found.url(), found.values());
 				emit.accept(StreamEvent.propertyUpdated(saved));
@@ -247,13 +258,15 @@ class AdvisorTools {
 		List<String> problems = new ArrayList<>();
 		for (FieldUpdate field : fields == null ? List.<FieldUpdate>of() : fields) {
 			PropertyKey key = PropertyKey.fromKey(field.key()).orElse(null);
-			if (key == null || !key.required()) {
-				problems.add(field.key() + (key == null ? " is not an allowed key" : " is only read from a listing"));
+			if (key == null) {
+				problems.add(field.key() + " is not an allowed key");
 				continue;
 			}
 			try {
 				String value = key.normalize(field.value());
-				if (!stated.containsQuote(field.quote()) || key == PropertyKey.PRICE && !stated.containsNumber(value)) {
+				boolean numeric = key == PropertyKey.PRICE || key == PropertyKey.SIZE
+						|| key == PropertyKey.ROOMS || key == PropertyKey.YEAR_BUILT;
+				if (!stated.containsQuote(field.quote()) || numeric && !stated.containsNumber(value)) {
 					problems.add(notSaid(field.key(), value));
 					continue;
 				}
@@ -300,6 +313,30 @@ class AdvisorTools {
 		return !guessedNow.contains(key) && profile.fields(userId).stream().anyMatch(field -> field.key().equals(key.key())
 				&& field.value().equals(value) && field.source() == ProfileField.Source.CHAT
 				&& field.status() == ProfileField.Status.UNCERTAIN);
+	}
+
+	/** "No debts", "no children" and "no credit cards" are explicit zero values, not guesses. */
+	private void inferNoneFacts(List<FieldUpdate> updates) {
+		List<String[]> facts = List.of(
+				new String[] { "monthlyDebtPayments", "no monthly debt payments", "no monthly debts",
+						"no other loans", "no debt payments" },
+				new String[] { "creditCardLimits", "no credit cards", "no credit card",
+						"no credit cards or overdrafts", "no overdrafts" },
+				new String[] { "dependants", "no dependants", "no children", "no kids" });
+		for (String[] fact : facts) {
+			String key = fact[0];
+			boolean already = updates.stream().anyMatch(update -> key.equals(update.key()));
+			if (already) {
+				continue;
+			}
+			for (int i = 1; i < fact.length; i++) {
+				String quote = fact[i];
+				if (stated.containsQuote(quote)) {
+					updates.add(new FieldUpdate(key, "0", quote));
+					break;
+				}
+			}
+		}
 	}
 
 	/** A value without the user's words behind it: the advisor guessed it, so it isn't saved (#88). */

@@ -81,8 +81,8 @@ and next to an email thread in the inbox. Both write to the **same conversation*
 | Tool | What it does | Event it pushes |
 | --- | --- | --- |
 | `updateProfile(fields)` | Saves facts from the chat (source `CHAT`), or confirms uncertain ones | `profile_updated` |
-| `lookupListing(url)` | One honest fetch of a kv.ee listing, reading its structured data (type, price, location, size, rooms, year built). Blocked or not kv.ee → "couldn't read it, ask the user" | `property_updated` |
-| `updateProperty(fields)` | Saves type, price and location the user gives (or that the advisor picks out of pasted page text, marked uncertain) | `property_updated` |
+| `lookupListing(url)` | One honest fetch of a kv.ee listing, reading its structured data (type, price, location, size, rooms, year built). A valid link is saved even when kv.ee blocks the fetch; the advisor then asks for the values or pasted page text | `property_updated` |
+| `updateProperty(fields)` | Saves type, price, location, size, rooms and year built the user gives (or that the advisor picks out of pasted page text, marked uncertain) | `property_updated` |
 | `checkAffordability()` | Runs `AffordabilityCalculator` on the profile and property | — |
 | `suggestAffordableRange()` | What price range the user could afford instead | — |
 | `showChart(type, params)` | Calculates chart data (e.g. rate vs. monthly payment) | `chart` |

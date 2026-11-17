@@ -79,6 +79,11 @@ public class Property {
 		this.updatedAt = Instant.now();
 	}
 
+	public void setListingUrl(String listingUrl) {
+		this.listingUrl = listingUrl;
+		this.updatedAt = Instant.now();
+	}
+
 	public boolean has(PropertyKey key) {
 		return values.containsKey(key);
 	}

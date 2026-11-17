@@ -76,13 +76,14 @@ class PropertyToolsTest {
 	}
 
 	@Test
-	void aBlockedLookupAsksTheUserAndChangesNothing() {
+	void aBlockedLookupSavesTheUrlAndAsksForPropertyDetails() {
 		String note = tools().lookupListing(LINK);
 
 		assertThat(note).contains("bot check").contains("Don't try again")
 				.contains("type").contains("price").contains("location").contains("paste the listing's text");
-		assertThat(property.active(userId)).isEmpty();
-		assertThat(events).isEmpty();
+		assertThat(property.active(userId).orElseThrow().listingUrl()).isEqualTo(LINK);
+		assertThat(property.active(userId).orElseThrow().fields()).isEmpty();
+		assertThat(events).containsExactly(StreamEvent.propertyUpdated(property.active(userId).orElseThrow()));
 	}
 
 	@Test
@@ -116,6 +117,25 @@ class PropertyToolsTest {
 
 		assertThat(property.active(userId).orElseThrow().fields())
 				.allMatch(f -> f.status() == Status.CONFIRMED && f.source() == Source.CHAT);
+	}
+
+	@Test
+	void pastedListingTextSavesSizeRoomsAndYearBuilt() {
+		userSaid = "Üldpind 48.3 m², Tube 2, Ehitusaasta 1978";
+
+		String note = tools().updateProperty(List.of(
+				field("size", "48.3"),
+				field("rooms", "2"),
+				field("yearBuilt", "1978")), true, false);
+
+		PropertyView saved = property.active(userId).orElseThrow();
+		assertThat(saved.fields()).containsExactly(
+				new ProfileFieldView("size", "48.3", Source.CHAT, Status.UNCERTAIN),
+				new ProfileFieldView("rooms", "2", Source.CHAT, Status.UNCERTAIN),
+				new ProfileFieldView("yearBuilt", "1978", Source.CHAT, Status.UNCERTAIN));
+		assertThat(note).startsWith("Saved as uncertain:")
+				.contains("size=48.3", "rooms=2", "yearBuilt=1978")
+				.contains("ask if they're right");
 	}
 
 	@Test
@@ -166,14 +186,17 @@ class PropertyToolsTest {
 	}
 
 	@Test
-	void listingOnlyValuesUnknownKeysAndBadValuesAreRejected() {
-		String note = tools().updateProperty(List.of(field("rooms", "3"), field("garden", "yes"),
+	void propertyValuesFromChatAndBadValuesAreHandled() {
+		userSaid = "It's an apartment, 52m2, 3 rooms, built 1936";
+		String note = tools().updateProperty(List.of(field("rooms", "3"), field("size", "52"),
+				field("yearBuilt", "1936"), field("garden", "yes"),
 				field("type", "castle"), field("price", "lots")), null, null);
 
-		assertThat(note).startsWith("Not saved:").contains("rooms is only read from a listing")
+		assertThat(note).startsWith("Saved:").contains("rooms=3").contains("size=52").contains("yearBuilt=1936")
 				.contains("garden is not an allowed key").contains("type must be one of").contains("price must be");
-		assertThat(property.active(userId)).isEmpty();
-		assertThat(events).isEmpty();
+		assertThat(property.active(userId).orElseThrow().fields()).extracting(ProfileFieldView::key)
+				.containsExactly("size", "rooms", "yearBuilt");
+		assertThat(events).hasSize(1);
 	}
 
 	@Test

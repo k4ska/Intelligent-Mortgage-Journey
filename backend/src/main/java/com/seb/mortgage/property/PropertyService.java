@@ -41,6 +41,13 @@ public class PropertyService implements PropertySnapshotProvider {
 		return properties.save(property).view();
 	}
 
+	@Transactional
+	public PropertyView saveListingUrl(UUID userId, String listingUrl) {
+		Property property = findOrCreate(userId);
+		property.setListingUrl(listingUrl);
+		return properties.save(property).view();
+	}
+
 	/**
 	 * Saves values from the chat, replacing the same values from earlier. The values must
 	 * already be normalized.

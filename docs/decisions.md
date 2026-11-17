@@ -331,11 +331,12 @@ re-litigated.
   pages (`robots.txt` disallows them). Prices are read in code from the structured data,
   never by the LLM from raw HTML.
 - **What the property needs**: **type** (apartment, house, plot, new build), **price**
-  and **location**. Size, rooms and year built are kept when the listing provides them,
-  but the advisor never asks for them.
-- **When the link can't be read**: the advisor asks for the type, price and location, or
-  for the page text pasted into the chat. Values the user states are `CONFIRMED`; values
-  the advisor picks out of pasted text are `UNCERTAIN` until the user confirms them.
+  and **location**. Size, rooms and year built can also be saved from a readable listing,
+  chat, or pasted listing text.
+- **When the link can't be read**: the valid listing link is retained, and the advisor asks
+  for the type, price and location, or for the page text pasted into the chat. Values the
+  user states are `CONFIRMED`; values the advisor picks out of pasted text are `UNCERTAIN`
+  until the user confirms them.
 - **Monthly building or upkeep costs are dropped**: most kv.ee listings don't show them.
   Affordability still counts the household's living costs.
 - **Later, if needed**: reliable listing data would need kv.ee's cooperation (an API or

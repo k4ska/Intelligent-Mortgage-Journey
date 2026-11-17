@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -50,8 +51,8 @@ public class ListingReader {
 	static final Duration TIMEOUT = Duration.ofSeconds(5);
 	private static final int CACHE_SIZE = 500;
 
-	/** A listing page: its path ends in the listing's number, e.g. /3-toaline-korter-...-3612345.html. */
-	private static final Pattern LISTING_PATH = Pattern.compile("^/(?:[\\w%.-]+/)*[\\w%.-]*\\d{5,}(?:\\.html?)?/?$");
+	/** A listing page: its path ends in a listing number, e.g. /uusarendus/...-8462. */
+	private static final Pattern LISTING_PATH = Pattern.compile("^/(?:[\\w%.-]+/)*[\\w%.-]*\\d{4,}(?:\\.html?)?/?$");
 
 	/**
 	 * What kv.ee's robots.txt disallows for every bot ({@code User-agent: *}), as path
@@ -158,6 +159,7 @@ public class ListingReader {
 		if (link == null || link.isBlank()) {
 			return null;
 		}
+
 		String text = link.trim();
 		if (!text.contains("://")) {
 			text = "https://" + text;
@@ -179,6 +181,11 @@ public class ListingReader {
 		} catch (URISyntaxException e) {
 			return null;
 		}
+	}
+
+	/** Returns the canonical URL when the input is a valid kv.ee listing link. */
+	public static Optional<String> canonicalListingUrl(String link) {
+		return Optional.ofNullable(listingUri(link)).map(URI::toString);
 	}
 
 	private static PageFetcher httpFetcher() {

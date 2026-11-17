@@ -124,6 +124,19 @@ class AdvisorToolsTest {
 	}
 
 	@Test
+	void explicitNoValuesAreInferredWithoutWaitingForTheModelToListEveryField() {
+		userSaid = "We have no credit cards or overdrafts, no monthly debt payments and no dependants";
+
+		String note = tools().updateProfile(List.of());
+
+		assertThat(profile.fields(userId)).extracting(ProfileFieldView::key)
+				.containsExactlyInAnyOrder("creditCardLimits", "monthlyDebtPayments", "dependants");
+		assertThat(profile.fields(userId)).allMatch(field -> field.value().equals("0")
+				&& field.status() == ProfileField.Status.CONFIRMED);
+		assertThat(note).contains("creditCardLimits=0", "monthlyDebtPayments=0", "dependants=0");
+	}
+
+	@Test
 	void aTextValueIsSavedWithTheUsersOwnWords() {
 		userSaid = "I work at a bank";
 
