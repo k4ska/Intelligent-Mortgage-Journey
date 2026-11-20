@@ -72,6 +72,43 @@ class ChartButtonsTest {
 	}
 
 	@Test
+	void afterAcceptingAnOfferTheChartsShowThatOffer() throws Exception {
+		User user = register();
+		loanKnown(user);
+		String thread = json(mvc.perform(post("/api/applications").session(user.session())
+				.contentType(MediaType.APPLICATION_JSON).content("{\"bankIds\":[\"seb\"]}")))
+				.path("threads").get(0).path("threadId").asString();
+		mvc.perform(post("/api/inbox/" + thread + "/reply").session(user.session())
+				.contentType(MediaType.APPLICATION_JSON).content("{\"body\":\"Could you lower the margin a little?\"}"))
+				.andExpect(status().isNoContent());
+		JsonNode emails = json(mvc.perform(get("/api/inbox/" + thread).session(user.session()))).path("emails");
+		JsonNode offerEmail = emails.get(emails.size() - 1);
+		JsonNode offer = offerEmail.path("offer");
+		assertThat(offer.path("marginPct").asDouble()).as("negotiated").isEqualTo(1.5);
+		mvc.perform(post("/api/inbox/" + thread + "/accept").session(user.session())
+				.contentType(MediaType.APPLICATION_JSON).content("{\"emailId\":\"" + offerEmail.path("id").asString() + "\"}"))
+				.andExpect(status().isNoContent());
+
+		JsonNode rate = show(user, "rate_payment").path("chart");
+		assertThat(rate.path("title").asString()).contains("SEB's offer");
+		assertThat(rate.path("data").path("marginPct").asDouble()).isEqualTo(1.5);
+		assertThat(rate.path("data").path("loanAmount").asDouble()).isEqualTo(offer.path("amount").asDouble());
+		JsonNode today = null;
+		for (JsonNode point : rate.path("data").path("points")) {
+			if (point.path("today").asBoolean()) {
+				today = point;
+			}
+		}
+		assertThat(today).isNotNull();
+		assertThat(today.path("monthlyPayment").asDouble()).isEqualTo(offer.path("monthlyPayment").asDouble());
+
+		JsonNode cost = show(user, "cost_breakdown").path("chart");
+		assertThat(cost.path("title").asString()).contains("SEB's offer");
+		assertThat(cost.path("data").path("monthlyPayment").asDouble()).isEqualTo(offer.path("monthlyPayment").asDouble());
+		assertThat(cost.path("data").path("downPayment").asDouble()).isEqualTo(200000 - offer.path("amount").asDouble());
+	}
+
+	@Test
 	void anUnknownChartIsRefused() throws Exception {
 		User user = register();
 		loanKnown(user);
@@ -99,6 +136,11 @@ class ChartButtonsTest {
 						ProfileField.Status.CONFIRMED));
 		properties.updateFromChat(user.id(), Map.of(PropertyKey.TYPE, "APARTMENT", PropertyKey.PRICE, "200000",
 				PropertyKey.LOCATION, "Tallinn"), ProfileField.Status.CONFIRMED, true);
+	}
+
+	private JsonNode show(User user, String chartType) throws Exception {
+		return json(mvc.perform(post("/api/chat/charts").session(user.session())
+				.contentType(MediaType.APPLICATION_JSON).content("{\"chartType\":\"" + chartType + "\"}")));
 	}
 
 	private JsonNode json(org.springframework.test.web.servlet.ResultActions result) throws Exception {
