@@ -187,6 +187,10 @@ export interface InboxThread {
     preview: string
     createdAt: string
   }
+  /** The thread's latest offer: the one that stands, or the one accepted. */
+  offer: MortgageOffer | null
+  /** The offer it replaced, so the offers board can show what a counter-offer changed. */
+  previousOffer: MortgageOffer | null
 }
 
 export interface InboxEmail {
