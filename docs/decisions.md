@@ -285,6 +285,11 @@ re-litigated.
 - Bank terms are deterministic seed data, not real bank policy: SEB, Swedbank, LHV and
   Luminor use 85% maximum LTV and 15% minimum down payment; Coop Pank uses 90% and 10%.
 - Base margins range from 1.65% to 1.85%, with negotiation floors from 1.35% to 1.55%.
+  *Changed 2026-11-20 (#160):* base margins are now 1.65% (SEB), 1.90%, 2.10%, 2.30% and
+  2.50% (Coop), with the same floors. First offers that are only a few euros apart made
+  the offers board flat and gave no reason to negotiate; now the board shows a real
+  spread, and one round of negotiating with a dear bank visibly changes the ranking. The
+  advisor's typical margin (the middle base margin) moves from 1.75% to 2.10%.
   Every bank allows two negotiation rounds. Swedbank and Coop are relaxed, SEB is
   standard, and LHV and Luminor are strict; strictness affects bank-agent tone and is
   not a hidden change to the calculator's numbers.

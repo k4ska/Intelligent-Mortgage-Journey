@@ -28,22 +28,26 @@ public class BankCatalogService {
 		}
 	}
 
+	/**
+	 * The banks' first offers are far apart (#160), so the offers board shows a real difference
+	 * and negotiating is worth it; each can come down to a floor close to the others'.
+	 */
 	private static final List<Bank> BANKS = List.of(
 			new Bank("seb", "SEB", "clear and reassuring",
 					"Thank you for your application. We have received it and will guide you through each step.",
 					1.65, 1.35, 85, 15, Strictness.STANDARD, 2),
 			new Bank("swedbank", "Swedbank", "friendly and practical",
 					"Hi, and thanks for choosing Swedbank! Your application is with us.",
-					1.70, 1.40, 85, 15, Strictness.RELAXED, 2),
+					1.90, 1.40, 85, 15, Strictness.RELAXED, 2),
 			new Bank("lhv", "LHV", "direct and concise",
 					"Application received.",
-					1.75, 1.45, 85, 15, Strictness.STRICT, 2),
+					2.10, 1.45, 85, 15, Strictness.STRICT, 2),
 			new Bank("luminor", "Luminor", "formal and helpful",
 					"Dear applicant, we hereby confirm receipt of your mortgage application.",
-					1.80, 1.50, 85, 15, Strictness.STRICT, 2),
+					2.30, 1.50, 85, 15, Strictness.STRICT, 2),
 			new Bank("coop", "Coop Pank", "warm and straightforward",
 					"Thank you for reaching out to Coop Pank. We're happy to look at your application.",
-					1.85, 1.55, 90, 10, Strictness.RELAXED, 2));
+					2.50, 1.55, 90, 10, Strictness.RELAXED, 2));
 
 	public List<Bank> banks() {
 		return BANKS;

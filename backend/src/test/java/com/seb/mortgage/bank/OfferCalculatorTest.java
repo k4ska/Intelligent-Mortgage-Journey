@@ -140,4 +140,20 @@ class OfferCalculatorTest {
 		assertThatThrownBy(() -> calculator.lowestMargin(seb, seb.maxNegotiationRounds() + 1))
 				.isInstanceOf(IllegalArgumentException.class);
 	}
+
+	/** #160: the first offers differ enough to compare, and negotiating brings a dear bank below the cheapest first offer. */
+	@Test
+	void theFirstOffersAreFarApartAndNegotiatingIsWorthIt() {
+		OfferCalculator.Snapshot application = snapshot("netIncome", "5000", "savings", "60000");
+		List<OfferCalculator.Offer> offers = catalog.banks().stream()
+				.map(bank -> calculator.calculate(application, bank).offer())
+				.toList();
+		double cheapest = offers.stream().mapToDouble(OfferCalculator.Offer::monthlyPayment).min().orElseThrow();
+		double dearest = offers.stream().mapToDouble(OfferCalculator.Offer::monthlyPayment).max().orElseThrow();
+
+		assertThat(dearest - cheapest).as("monthly spread on a 140 000 loan").isGreaterThan(50);
+		BankCatalogService.Bank coop = catalog.find("coop");
+		assertThat(calculator.lowestMargin(coop, coop.maxNegotiationRounds()))
+				.isLessThan(catalog.find("seb").baseMarginPct());
+	}
 }
