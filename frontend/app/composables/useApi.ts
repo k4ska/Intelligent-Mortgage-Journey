@@ -1,5 +1,5 @@
-import type { AgentStatus, ApplicationResult, ChatMessage, DocumentType, DocumentView, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
-import { mockAcceptOffer, mockAssist, mockChat, mockDocuments, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockReplyToThread, mockReset, mockSend, mockSubmitApplication, mockUploadDocument } from '~/mocks/advisor'
+import type { AgentStatus, ApplicationResult, ChartType, ChatMessage, DocumentType, DocumentView, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
+import { mockAcceptOffer, mockAssist, mockChartTypes, mockChat, mockShowChart, mockDocuments, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockReplyToThread, mockReset, mockSend, mockSubmitApplication, mockUploadDocument } from '~/mocks/advisor'
 
 export interface AuthUser { id: string; email: string }
 export type ChatInput = string
@@ -55,6 +55,14 @@ export function useApi() {
     resetChat: (): Promise<ChatMessage[]> => mock
       ? later(mockReset)
       : request<ChatMessage[]>('/chat/reset', { method: 'POST' }),
+    /** The charts the buttons under the chat can show now; none until the loan is known (#160). */
+    getChartTypes: (): Promise<ChartType[]> => mock
+      ? later(mockChartTypes)
+      : request<ChartType[]>('/chat/charts'),
+    /** Shows a chart without the model: the server saves it as an advisor message and returns it. */
+    showChart: (chartType: ChartType): Promise<ChatMessage> => mock
+      ? later(() => mockShowChart(chartType))
+      : request<ChatMessage>('/chat/charts', { method: 'POST', body: { chartType } }),
     getProfile: (): Promise<Profile> => mock
       ? later(mockProfile)
       : request<Profile>('/profile'),

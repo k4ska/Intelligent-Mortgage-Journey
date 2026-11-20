@@ -46,12 +46,25 @@ export interface RateChart {
   points: RatePoint[]
 }
 
-/** The `chart` event's data, and a saved message's chart (backend: RateChart.View). */
-export interface ChatChart {
-  chartType: 'rate_payment'
-  title: string
-  data: RateChart
+/** What the home costs in all: down payment, loan and interest over the term (backend: CostBreakdown). */
+export interface CostBreakdown {
+  price: number
+  downPayment: number
+  loanAmount: number
+  termYears: number
+  ratePct: number
+  monthlyPayment: number
+  /** The monthly payment times the number of months, less the loan. */
+  totalInterest: number
 }
+
+/** A chart a button under the chat can show (#160): GET/POST /api/chat/charts. */
+export type ChartType = 'rate_payment' | 'cost_breakdown'
+
+/** The `chart` event's data, and a saved message's chart (backend: ChartView). */
+export type ChatChart =
+  | { chartType: 'rate_payment', title: string, data: RateChart }
+  | { chartType: 'cost_breakdown', title: string, data: CostBreakdown }
 
 // ---- Profile and property (GET /api/profile) ----
 

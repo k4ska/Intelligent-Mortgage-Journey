@@ -298,9 +298,19 @@ public class AdvisorOrchestrator {
 	private Flux<StreamEvent> finish(UUID userId, UUID threadId, String reply, String userText,
 			List<Message> earlier, AdvisorTools tools) {
 		Long messageId = conversations.append(userId, Message.Role.ADVISOR, reply, threadId).getId();
+		// The first time the affordability check runs in the chat, its chart comes with it (#160).
+		RateChart automatic = threadId == null && earlier.stream().noneMatch(m -> m.getChartJson() != null)
+				? tools.chartWithAffordability() : null;
 		if (tools.chart() != null) {
-			conversations.attachChart(messageId, objectMapper.writeValueAsString(tools.chart()));
+			conversations.attachChart(messageId, objectMapper.writeValueAsString(tools.chart().view()));
 		}
+		Flux<StreamEvent> chartEvent = automatic == null ? Flux.empty() : Flux.just(StreamEvent.chart(automatic.view()));
+		return chartEvent.concatWith(Flux.defer(() -> verify(userId, messageId, reply, userText, earlier, tools)));
+	}
+
+	/** The end of {@link #finish}: the verifier's check of a flagged reply, then {@code done}. */
+	private Flux<StreamEvent> verify(UUID userId, Long messageId, String reply, String userText,
+			List<Message> earlier, AdvisorTools tools) {
 		VerifierAgent checker = verifier.getIfAvailable();
 		if (checker == null || reply.isBlank() || reply.equals(OFFLINE_REPLY)) {
 			return Flux.just(StreamEvent.done(messageId));

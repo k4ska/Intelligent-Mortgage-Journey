@@ -88,6 +88,22 @@ class AffordabilityToolsTest {
 	}
 
 	@Test
+	void theRateChartComesWithTheAffordabilityCheck() {
+		household("4000");
+		listing("180000", "55");
+		AdvisorTools tools = tools();
+
+		assertThat(tools.chartWithAffordability()).as("no check yet").isNull();
+		tools.checkAffordability();
+		RateChart chart = tools.chartWithAffordability();
+
+		assertThat(chart).isNotNull();
+		assertThat(chart.loanAmount()).isEqualTo(130000);
+		assertThat(tools.chart()).isSameAs(chart);
+		assertThat(tools.chartWithAffordability()).as("only once").isNull();
+	}
+
+	@Test
 	void noChartWithoutTheLoan() {
 		save(ProfileKey.NET_INCOME, "4000");
 
