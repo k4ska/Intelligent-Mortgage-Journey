@@ -98,17 +98,25 @@ function onKeydown(event: KeyboardEvent) {
       <div class="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-bg-muted)] p-4">
         <h3 class="text-base font-semibold">{{ copy.bankPickerTitle }}</h3>
         <p class="mt-1 text-sm text-[var(--ui-text-muted)]">{{ copy.bankPickerHint }}</p>
-        <form class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-3" @submit.prevent="submitApplication">
-          <label v-for="bank in advisor.bankOptions" :key="bank.id" class="flex cursor-pointer items-center gap-2 text-sm">
-            <input v-model="selectedBankIds" type="checkbox" :value="bank.id" :disabled="submittingApplication" class="size-4 accent-[var(--ui-primary)]" />
-            <span>{{ bank.name }}</span>
-          </label>
-          <p v-if="applicationError" class="w-full text-sm text-red-600" role="alert">{{ applicationError }}</p>
-          <!-- Send stays disabled until a bank is ticked; say why, so it doesn't look broken (#145). -->
-          <p v-else-if="!selectedBankIds.length" class="text-sm text-[var(--ui-text-muted)]" aria-live="polite">{{ copy.bankPickerNone }}</p>
-          <UButton class="ml-auto" type="submit" icon="i-lucide-send" :loading="submittingApplication" :disabled="!selectedBankIds.length || submittingApplication">
-            {{ submittingApplication ? copy.sendingApplication : copy.sendApplication }}
-          </UButton>
+        <!-- The checkboxes and the status + Send row are separate rows, so nothing moves when a bank is
+             ticked: before, the status text changing reflowed the row under the cursor and the next click missed. -->
+        <form class="mt-3 space-y-3" @submit.prevent="submitApplication">
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
+            <label v-for="bank in advisor.bankOptions" :key="bank.id" class="flex cursor-pointer items-center gap-2 text-sm">
+              <input v-model="selectedBankIds" type="checkbox" :value="bank.id" :disabled="submittingApplication" class="size-4 accent-[var(--ui-primary)]" />
+              <span>{{ bank.name }}</span>
+            </label>
+          </div>
+          <div class="flex items-center gap-3">
+            <p v-if="applicationError" class="min-w-0 flex-1 text-sm text-red-600" role="alert">{{ applicationError }}</p>
+            <!-- Send stays disabled until a bank is ticked; say why, so it doesn't look broken (#145). -->
+            <p v-else class="min-w-0 flex-1 text-sm text-[var(--ui-text-muted)]" aria-live="polite">
+              {{ !selectedBankIds.length ? copy.bankPickerNone : `${selectedBankIds.length} ${selectedBankIds.length === 1 ? copy.bankPickerOne : copy.bankPickerMany}` }}
+            </p>
+            <UButton class="shrink-0" type="submit" icon="i-lucide-send" :loading="submittingApplication" :disabled="!selectedBankIds.length || submittingApplication">
+              {{ submittingApplication ? copy.sendingApplication : copy.sendApplication }}
+            </UButton>
+          </div>
         </form>
       </div>
     </div>

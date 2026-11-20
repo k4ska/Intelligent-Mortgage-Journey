@@ -123,6 +123,8 @@ export const copy = {
   bankPickerTitle: 'Choose banks',
   bankPickerHint: 'Select one or more banks to receive your application.',
   bankPickerNone: 'Tick at least one bank to send your application.',
+  bankPickerOne: 'bank selected',
+  bankPickerMany: 'banks selected',
   sendApplication: 'Send application',
   sendingApplication: 'Sending application…',
   applicationError: 'Could not send your application. Please try again.',
