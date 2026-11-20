@@ -64,6 +64,15 @@ export const useInboxStore = defineStore('inbox', {
         }
       }
     },
+    /** Back to the offers board: no thread is open. */
+    showBoard() {
+      this.cancelAssist()
+      this.selectedThreadId = null
+      this.activeThread = null
+      this.opening = false
+      this.threadError = ''
+      this.replyDraft = ''
+    },
     async open(threadId: string) {
       // The latest click wins: a slower earlier request is ignored when it returns.
       if (this.selectedThreadId !== threadId) this.cancelAssist()

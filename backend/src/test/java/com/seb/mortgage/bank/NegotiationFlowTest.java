@@ -184,6 +184,21 @@ class NegotiationFlowTest {
 	}
 
 	@Test
+	void theInboxListsEachThreadsOfferAndTheOneItReplaced() throws Exception {
+		Thread seb = sebOffer();
+		JsonNode first = summary(seb);
+		assertThat(first.path("offer").path("marginPct").asDouble()).isEqualTo(1.65);
+		assertThat(first.path("previousOffer").isNull()).isTrue();
+
+		reply(seb, "Could you lower the margin a little?");
+		JsonNode countered = summary(seb);
+		assertThat(countered.path("offer").path("marginPct").asDouble()).isEqualTo(1.5);
+		assertThat(countered.path("previousOffer").path("marginPct").asDouble()).isEqualTo(1.65);
+		assertThat(countered.path("offer").path("monthlyPayment").asDouble())
+				.isLessThan(countered.path("previousOffer").path("monthlyPayment").asDouble());
+	}
+
+	@Test
 	void acceptingAnOfferLeavesTheClosedThreadsRead() throws Exception {
 		Thread seb = sebOffer("seb", "lhv");
 		accept(seb, lastEmail(seb).path("id").asString()).andExpect(status().isNoContent());
@@ -262,6 +277,17 @@ class NegotiationFlowTest {
 	private JsonNode thread(Thread thread) throws Exception {
 		return mapper.readTree(mvc.perform(get("/api/inbox/" + thread.id()).session(thread.session()))
 				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+	}
+
+	/** The thread as the inbox list shows it. */
+	private JsonNode summary(Thread thread) throws Exception {
+		for (JsonNode item : mapper.readTree(mvc.perform(get("/api/inbox").session(thread.session()))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString())) {
+			if (thread.id().equals(item.path("threadId").asString())) {
+				return item;
+			}
+		}
+		throw new AssertionError("Thread not in the inbox: " + thread.id());
 	}
 
 	private JsonNode lastEmail(Thread thread) throws Exception {

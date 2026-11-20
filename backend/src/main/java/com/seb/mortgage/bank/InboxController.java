@@ -1,6 +1,7 @@
 package com.seb.mortgage.bank;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,8 +28,12 @@ public class InboxController {
 
 	public record LastEmail(String subject, String preview, Instant createdAt) {}
 
+	/**
+	 * @param offer         the thread's latest offer, the one that stands (or was accepted), or null
+	 * @param previousOffer the offer it replaced, so the offers board can show what a counter-offer changed
+	 */
 	public record ThreadSummary(UUID threadId, BankController.BankOption bank, String status, boolean unread,
-			LastEmail lastEmail) {}
+			LastEmail lastEmail, OfferCalculator.Offer offer, OfferCalculator.Offer previousOffer) {}
 
 	public record EmailView(UUID id, Email.Sender from, String type, String subject, String body, Object offer,
 			Instant createdAt) {}
@@ -81,8 +86,10 @@ public class InboxController {
 			Email last = items.isEmpty() ? null : items.get(items.size() - 1);
 			LastEmail preview = last == null ? null
 					: new LastEmail(last.getSubject(), preview(openOffer(thread, items), last.getType(), last.getBody()), last.getCreatedAt());
+			List<OfferCalculator.Offer> offers = offers(items);
 			return new ThreadSummary(thread.getId(), bank(thread.getBankId()), thread.getStatus().name(),
-					thread.isUnread(), preview);
+					thread.isUnread(), preview, offers.isEmpty() ? null : offers.getLast(),
+					offers.size() < 2 ? null : offers.get(offers.size() - 2));
 		}).toList();
 	}
 
@@ -116,17 +123,23 @@ public class InboxController {
 		if (thread.getStatus() != EmailThread.Status.OFFER) {
 			return null;
 		}
-		for (int i = items.size() - 1; i >= 0; i--) {
-			Email email = items.get(i);
+		List<OfferCalculator.Offer> offers = offers(items);
+		return offers.isEmpty() ? null : offers.getLast();
+	}
+
+	/** The bank's offers in the thread that could be read, oldest first; a counter-offer comes after the one it replaces. */
+	private List<OfferCalculator.Offer> offers(List<Email> items) {
+		List<OfferCalculator.Offer> offers = new ArrayList<>();
+		for (Email email : items) {
 			if (email.getFrom() == Email.Sender.BANK && "offer".equals(email.getType()) && email.getOfferJson() != null) {
 				try {
-					return mapper.readValue(email.getOfferJson(), OfferCalculator.Offer.class);
+					offers.add(mapper.readValue(email.getOfferJson(), OfferCalculator.Offer.class));
 				} catch (JacksonException e) {
-					return null;
+					// An offer that can't be read is left out, as the preview always did.
 				}
 			}
 		}
-		return null;
+		return offers;
 	}
 
 	/**

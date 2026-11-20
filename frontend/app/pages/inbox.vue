@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import type { InboxEmail, InboxThreadStatus } from '~/types/api'
+import type { InboxEmail } from '~/types/api'
 import { useAdvisorStore } from '~/stores/advisor'
 import { useInboxStore } from '~/stores/inbox'
 import { copy } from '~/utils/copy'
 import { formatCents, formatMoney, formatNumber } from '~/utils/numbers'
+import { statusClass } from '~/utils/offers'
 
 const inbox = useInboxStore()
 const advisor = useAdvisorStore()
@@ -65,16 +66,6 @@ function formatTime(value: string) {
   }).format(date)
 }
 
-function statusClass(status: InboxThreadStatus) {
-  switch (status) {
-    case 'ACCEPTED': return 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300'
-    case 'OFFER': return 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-    case 'NEGOTIATING': return 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300'
-    case 'DECLINED': return 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
-    default: return 'bg-[var(--ui-bg-muted)] text-[var(--ui-text-muted)]'
-  }
-}
-
 async function sendReply() {
   const body = inbox.replyDraft.trim()
   if (!body) return
@@ -132,7 +123,21 @@ async function confirmAcceptance() {
           <p class="text-red-600">{{ inbox.error }}</p>
           <UButton color="neutral" variant="soft" size="sm" @click="inbox.load(true)">{{ copy.retry }}</UButton>
         </div>
-        <p v-else-if="inbox.loaded && !inbox.threads.length" class="p-5 text-sm text-[var(--ui-text-muted)]">{{ copy.inboxEmpty }}</p>
+        <button
+          v-else-if="inbox.loaded && inbox.threads.length"
+          type="button"
+          class="flex w-full items-center gap-3 border-b border-[var(--ui-border)] p-4 text-left hover:bg-[var(--ui-bg-muted)] focus-visible:outline-2 focus-visible:outline-[var(--ui-primary)]"
+          :class="!inbox.selectedThreadId ? 'bg-[var(--ui-bg-muted)]' : ''"
+          :aria-current="!inbox.selectedThreadId ? 'true' : undefined"
+          @click="inbox.showBoard()"
+        >
+          <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--ui-primary)] text-white"><UIcon name="i-lucide-scale" /></span>
+          <span class="min-w-0">
+            <span class="block text-sm font-semibold">{{ copy.offersTitle }}</span>
+            <span class="block truncate text-xs text-[var(--ui-text-muted)]">{{ copy.offersNav }}</span>
+          </span>
+        </button>
+        <p v-if="inbox.loaded && !inbox.threads.length && !inbox.error" class="p-5 text-sm text-[var(--ui-text-muted)]">{{ copy.inboxEmpty }}</p>
         <button
           v-for="thread in inbox.threads"
           :key="thread.threadId"
@@ -219,12 +224,13 @@ async function confirmAcceptance() {
             {{ copy.inboxAcceptedNotice }}
           </p>
         </template>
+        <InboxOffersBoard v-else-if="!inbox.selectedThreadId" />
         <div v-else class="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-sm text-[var(--ui-text-muted)]">
           <UIcon name="i-lucide-mail-open" class="text-3xl" />
           <p v-if="inbox.opening">{{ copy.threadLoading }}</p>
           <template v-else-if="inbox.threadError">
             <p class="text-red-600" role="alert">{{ inbox.threadError }}</p>
-            <UButton v-if="inbox.selectedThreadId" color="neutral" variant="soft" @click="inbox.open(inbox.selectedThreadId)">{{ copy.retry }}</UButton>
+            <UButton color="neutral" variant="soft" @click="inbox.open(inbox.selectedThreadId)">{{ copy.retry }}</UButton>
           </template>
           <p v-else>{{ copy.inboxSelectThread }}</p>
         </div>

@@ -251,6 +251,8 @@ export function mockSubmitApplication(bankIds: string[]): ApplicationResult {
       status: 'OPEN',
       unread: true,
       lastEmail: { subject, preview: body.slice(0, 120), createdAt },
+      offer: null,
+      previousOffer: null,
     })
     threads.push({ threadId, bankId: id, status: 'OPEN' })
   }
@@ -259,7 +261,14 @@ export function mockSubmitApplication(bankIds: string[]): ApplicationResult {
 }
 
 export function mockGetInbox(): InboxThread[] {
-  return inboxData(current()).threads
+  const state = inboxData(current())
+  // Like the backend, each thread carries its latest offer and the one it replaced.
+  return state.threads.map((thread) => {
+    const offers = (state.emails[thread.threadId] ?? [])
+      .filter(email => email.from === 'BANK' && email.type === 'offer' && email.offer)
+      .map(email => email.offer!)
+    return { ...thread, offer: offers.at(-1) ?? null, previousOffer: offers.at(-2) ?? null }
+  })
 }
 
 export function mockGetThread(threadId: string): InboxThreadDetail {
