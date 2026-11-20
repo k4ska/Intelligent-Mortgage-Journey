@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
@@ -98,6 +99,10 @@ class AdvisorTools {
 	private final AffordabilityCalculator calculator = new AffordabilityCalculator();
 	/** The chart this turn showed, if any, to save with the reply (#130). */
 	private volatile RateChart chart;
+	/** The bank whose accepted offer the chart shows, or null when it is the advisor's estimate. */
+	private volatile String chartBank;
+	/** The offer the user accepted, looked up when a chart is drawn; none unless the turn sets it. */
+	private Supplier<Optional<BankThreads.AcceptedOffer>> acceptedOffer = Optional::empty;
 	/** The affordability check's result, when it could run this turn; the chart shown with it (#160). */
 	private volatile LoanProfileAssembler.Checked affordability;
 	/** Keys saved as the user's estimate this turn: only a later message can confirm them (#140). */
@@ -376,12 +381,26 @@ class AdvisorTools {
 		};
 	}
 
+	/** Lets charts show the offer the user accepted instead of the estimate (#160). */
+	AdvisorTools acceptedOffer(Supplier<Optional<BankThreads.AcceptedOffer>> lookup) {
+		this.acceptedOffer = lookup;
+		return this;
+	}
+
 	@Tool(name = "showRateChart", description = """
 			Show the user a chart in the chat of their monthly payment at today's Euribor and at
 			1 point lower and 1, 2 and 3 points higher, next to the payment the stress test
 			checked. Call it when the user asks to see, or wants a chart of, how interest rates
 			or Euribor change their payment. Then explain it briefly with its numbers.""")
 	String showRateChart() {
+		Optional<BankThreads.AcceptedOffer> accepted = acceptedOffer.get();
+		if (accepted.isPresent()) {
+			RateChart shown = RateChart.of(accepted.get().offer(), calculator);
+			chart = shown;
+			chartBank = accepted.get().bank();
+			emit.accept(StreamEvent.chart(shown.view(chartBank)));
+			return describe(shown) + " The chart is for the offer they accepted from " + chartBank + ".";
+		}
 		List<ProfileFieldView> values = property.active(userId).map(PropertyView::fields).orElse(List.of());
 		return switch (loans.check(profile.fields(userId), values, terms())) {
 			case LoanProfileAssembler.Missing missing -> "No chart yet: it needs the loan. " + cantTellYet(missing);
@@ -397,6 +416,11 @@ class AdvisorTools {
 	/** The chart this turn showed, or null. */
 	RateChart chart() {
 		return chart;
+	}
+
+	/** The chart this turn showed as the chat shows it, with its title, or null. */
+	ChartView chartView() {
+		return chart == null ? null : chartBank == null ? chart.view() : chart.view(chartBank);
 	}
 
 	/**

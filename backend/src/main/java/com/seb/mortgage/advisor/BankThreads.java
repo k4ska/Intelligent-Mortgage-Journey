@@ -10,6 +10,9 @@ import com.seb.mortgage.bank.BankCatalogService;
 import com.seb.mortgage.bank.Email;
 import com.seb.mortgage.bank.EmailGateway;
 import com.seb.mortgage.bank.EmailThread;
+import com.seb.mortgage.bank.OfferCalculator;
+
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * The user's bank emails as the advisor sees them (#80). The advisor reads them through the
@@ -33,12 +36,32 @@ public class BankThreads {
 	/** The type an older offer email gets once a newer offer in the same thread replaced it. */
 	static final String REPLACED_OFFER = "offer, replaced by a newer offer";
 
+	/** The offer the user accepted, and the bank that made it. */
+	public record AcceptedOffer(String bank, OfferCalculator.Offer offer) {}
+
 	private final EmailGateway gateway;
 	private final BankCatalogService banks;
+	private final ObjectMapper mapper;
 
-	public BankThreads(EmailGateway gateway, BankCatalogService banks) {
+	public BankThreads(EmailGateway gateway, BankCatalogService banks, ObjectMapper mapper) {
 		this.gateway = gateway;
 		this.banks = banks;
+		this.mapper = mapper;
+	}
+
+	/**
+	 * The offer the user accepted: the newest offer in the accepted thread (only the newest can
+	 * be accepted). Empty before they accept one.
+	 */
+	public Optional<AcceptedOffer> accepted(UUID userId) {
+		return gateway.threads(userId).stream()
+				.filter(thread -> thread.getStatus() == EmailThread.Status.ACCEPTED)
+				.findFirst()
+				.flatMap(thread -> gateway.emails(thread.getId()).stream()
+						.filter(email -> isOffer(email) && email.getOfferJson() != null)
+						.reduce((first, second) -> second)
+						.map(email -> new AcceptedOffer(banks.find(thread.getBankId()).name(),
+								mapper.readValue(email.getOfferJson(), OfferCalculator.Offer.class))));
 	}
 
 	/** The user's threads, oldest first; empty before they apply. */
