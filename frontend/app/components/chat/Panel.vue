@@ -13,6 +13,10 @@ const submittingApplication = ref(false)
 const applicationError = ref('')
 const applicationSent = ref(false)
 const hasStartedChat = computed(() => advisor.messages.some(message => message.role === 'user' && !message.threadId))
+// Buttons for the charts the user might want but not think to ask for (#160, point 3).
+// They call our code directly, so they're instant and never wait for the model.
+const hasOffers = computed(() => inbox.threads.some(thread => ['OFFER', 'NEGOTIATING', 'ACCEPTED'].includes(thread.status)))
+const busy = computed(() => !advisor.loaded || advisor.sending || !!advisor.uploading || !!advisor.showingChart)
 
 watch(() => advisor.bankOptions, () => {
   selectedBankIds.value = []
@@ -119,6 +123,21 @@ function onKeydown(event: KeyboardEvent) {
         <UButton v-if="!advisor.loaded" variant="soft" color="neutral" size="xs" @click="advisor.load()">{{ copy.retry }}</UButton>
       </div>
       <p v-if="advisor.sending" class="mb-2 text-xs text-[var(--ui-text-muted)]">{{ copy.sending }}</p>
+      <div v-if="advisor.chartTypes.length || hasOffers" class="mb-3 flex flex-wrap items-center gap-2" role="group" :aria-label="copy.chartActionsLabel">
+        <span class="text-xs font-medium text-[var(--ui-text-muted)]">{{ copy.chartActionsLabel }}</span>
+        <UButton
+          v-for="chartType in advisor.chartTypes"
+          :key="chartType"
+          size="xs"
+          color="primary"
+          variant="soft"
+          :icon="chartType === 'rate_payment' ? 'i-lucide-chart-column' : 'i-lucide-chart-bar-stacked'"
+          :loading="advisor.showingChart === chartType"
+          :disabled="busy"
+          @click="advisor.showChart(chartType)"
+        >{{ copy.chartAction[chartType] }}</UButton>
+        <UButton v-if="hasOffers" size="xs" color="primary" variant="soft" icon="i-lucide-scale" to="/inbox">{{ copy.chartActionCompare }}</UButton>
+      </div>
       <form class="flex items-end gap-2" @submit.prevent="send">
         <textarea ref="input" v-model="draft" :placeholder="copy.chatPlaceholder" :aria-label="copy.chatPlaceholder" class="app-input min-h-12 max-h-36 flex-1 resize-y" rows="2" :disabled="!advisor.loaded || advisor.sending || !!advisor.uploading" @keydown="onKeydown" />
         <UButton type="submit" size="lg" icon="i-lucide-arrow-up" :aria-label="copy.send" :disabled="!draft.trim() || !advisor.loaded || advisor.sending || !!advisor.uploading" :loading="advisor.sending" />

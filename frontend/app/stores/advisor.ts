@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import type { ChatInput } from '~/composables/useApi'
-import type { BankOption, ChatMessage, DocumentType, DocumentView, Profile, ProfileField, StreamEvent } from '~/types/api'
+import type { BankOption, ChartType, ChatMessage, DocumentType, DocumentView, Profile, ProfileField, StreamEvent } from '~/types/api'
 import { useAuthStore } from '~/stores/auth'
 import { useInboxStore } from '~/stores/inbox'
 import { consumeStream } from '~/utils/stream'
@@ -20,6 +20,9 @@ export const useAdvisorStore = defineStore('advisor', {
     profile: { fields: [], property: null } as Profile,
     documents: [] as DocumentView[],
     bankOptions: [] as BankOption[], // #53 will render these as an interactive picker.
+    /** Charts the buttons under the chat can show now (#160). */
+    chartTypes: [] as ChartType[],
+    showingChart: null as ChartType | null,
     loaded: false,
     loading: false,
     sending: false,
@@ -39,10 +42,38 @@ export const useAdvisorStore = defineStore('advisor', {
         this.profile = profile
         this.documents = documents
         this.loaded = true
+        void this.refreshChartTypes()
       } catch (error) {
         if (errorStatus(error) === 401) return void useAuthStore().expire()
         this.error = copy.loadError
       } finally { this.loading = false }
+    },
+    async refreshChartTypes() {
+      try {
+        this.chartTypes = await useApi().getChartTypes()
+      } catch (error) {
+        if (errorStatus(error) === 401) void useAuthStore().expire()
+        // No buttons is fine; the user can still ask the advisor for a chart.
+      }
+    },
+    /** A chart button (#160): instant and computed in code, no advisor turn. */
+    async showChart(chartType: ChartType): Promise<boolean> {
+      if (!this.loaded || this.sending || this.showingChart || useInboxStore().assistingThreadId) return false
+      this.showingChart = chartType
+      this.error = ''
+      try {
+        this.messages.push(await useApi().showChart(chartType))
+        return true
+      } catch (error) {
+        if (errorStatus(error) === 401) void useAuthStore().expire()
+        else {
+          this.error = copy.chartError
+          void this.refreshChartTypes()
+        }
+        return false
+      } finally {
+        this.showingChart = null
+      }
     },
     mergeProfile(fields: ProfileField[]) {
       mergeProfileFields(this.profile.fields, fields)
@@ -213,7 +244,7 @@ export const useAdvisorStore = defineStore('advisor', {
       } catch (error) {
         if (errorStatus(error) === 401 && !signal.aborted) void useAuthStore().expire()
       }
-      if (!signal.aborted) await this.refreshDocuments()
+      if (!signal.aborted) await Promise.all([this.refreshDocuments(), this.refreshChartTypes()])
       return true
     },
   },

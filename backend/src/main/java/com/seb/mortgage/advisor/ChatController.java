@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
@@ -31,7 +32,10 @@ public class ChatController {
 	 * @param chart    a chart the advisor showed with this reply (#130), or null
 	 */
 	public record MessageView(Long id, String role, String text, Instant createdAt, boolean corrected,
-			UUID threadId, RateChart.View chart) {}
+			UUID threadId, ChartView chart) {}
+
+	/** A chart button was pressed (#160): which chart to show. */
+	public record ChartRequest(String chartType) {}
 
 	/**
 	 * Either what the user typed, or a trigger for something that happened outside the chat,
@@ -44,9 +48,11 @@ public class ChatController {
 	private final StartOverService startOver;
 	private final CurrentUser currentUser;
 	private final ObjectMapper objectMapper;
+	private final ChartService charts;
 
 	public ChatController(ConversationService conversations, AdvisorOrchestrator orchestrator,
-			StartOverService startOver, CurrentUser currentUser, ObjectMapper objectMapper) {
+			StartOverService startOver, CurrentUser currentUser, ObjectMapper objectMapper, ChartService charts) {
+		this.charts = charts;
 		this.conversations = conversations;
 		this.orchestrator = orchestrator;
 		this.startOver = startOver;
@@ -57,16 +63,53 @@ public class ChatController {
 	/** The conversation so far; a new user's starts with the advisor's greeting. */
 	@GetMapping
 	public List<MessageView> history() {
-		return conversations.history(currentUser.id()).stream()
-				.map(m -> new MessageView(m.getId(), m.getRole().name().toLowerCase(Locale.ROOT),
-						m.getText(), m.getCreatedAt(), m.isCorrected(), m.getThreadId(), chart(m)))
-				.toList();
+		return conversations.history(currentUser.id()).stream().map(this::view).toList();
 	}
 
-	private RateChart.View chart(Message message) {
-		return message.getChartJson() == null ? null
-				: objectMapper.readValue(message.getChartJson(), RateChart.class).view();
+	private MessageView view(Message m) {
+		return new MessageView(m.getId(), m.getRole().name().toLowerCase(Locale.ROOT), m.getText(), m.getCreatedAt(),
+				m.isCorrected(), m.getThreadId(), chart(m));
 	}
+
+	/** A saved chart; one saved before there were several kinds (#130) is the rate chart's figures alone. */
+	private ChartView chart(Message message) {
+		if (message.getChartJson() == null) {
+			return null;
+		}
+		JsonNode saved = objectMapper.readTree(message.getChartJson());
+		return saved.has("chartType")
+				? new ChartView(saved.path("chartType").asString(), saved.path("title").asString(), saved.path("data"))
+				: objectMapper.treeToValue(saved, RateChart.class).view();
+	}
+
+	/** The charts the buttons under the chat can show now (#160); none until the loan is known. */
+	@GetMapping("/charts")
+	public List<String> charts() {
+		return charts.available(currentUser.id());
+	}
+
+	/**
+	 * Shows a chart straight away, without the model (#160): it is saved as an advisor message,
+	 * so it stays in the conversation, and the advisor sees it there next turn.
+	 */
+	@PostMapping("/charts")
+	public MessageView showChart(@RequestBody(required = false) ChartRequest request) {
+		if (request == null || request.chartType() == null || !ChartService.TYPES.contains(request.chartType())) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown chart");
+		}
+		UUID userId = currentUser.id();
+		ChartView chart = charts.chart(userId, request.chartType())
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "This chart needs the loan first"));
+		Message message = conversations.append(userId, Message.Role.ADVISOR, CHART_INTROS.get(chart.chartType()));
+		conversations.attachChart(message.getId(), objectMapper.writeValueAsString(chart));
+		message.attachChart(objectMapper.writeValueAsString(chart));
+		return view(message);
+	}
+
+	/** What the advisor says with a chart shown by a button; the figures are in the chart. */
+	static final Map<String, String> CHART_INTROS = Map.of(
+			RateChart.TYPE, "Here is how your monthly payment would change if Euribor goes up or down.",
+			CostBreakdown.TYPE, "Here is what the home costs in all: your down payment, the loan, and the interest over the whole term.");
 
 	/**
 	 * Start over (#70): wipes everything the user has told us and sent, keeps the account,

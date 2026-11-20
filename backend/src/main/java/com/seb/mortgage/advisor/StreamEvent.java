@@ -49,7 +49,7 @@ public record StreamEvent(String type, Map<String, Object> data) {
 	}
 
 	/** A chart in the advisor's reply (#130); computed in code, saved with the message. */
-	public static StreamEvent chart(RateChart.View chart) {
+	public static StreamEvent chart(ChartView chart) {
 		return new StreamEvent("chart", Map.of("chartType", chart.chartType(), "title", chart.title(),
 				"data", chart.data()));
 	}

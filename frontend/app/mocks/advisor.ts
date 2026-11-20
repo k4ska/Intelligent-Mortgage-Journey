@@ -1,5 +1,5 @@
 import type { ChatInput } from '~/composables/useApi'
-import type { ApplicationResult, BankOption, ChatMessage, DocumentType, DocumentView, InboxEmail, InboxThread, InboxThreadDetail, MortgageOffer, Profile, ProfileField, Property, PropertyField, StreamEvent } from '~/types/api'
+import type { ApplicationResult, BankOption, ChartType, ChatChart, ChatMessage, DocumentType, DocumentView, InboxEmail, InboxThread, InboxThreadDetail, MortgageOffer, Profile, ProfileField, Property, PropertyField, StreamEvent } from '~/types/api'
 import { mergeProfileFields } from '~/utils/profile'
 
 // Explicit development-only mock. Never sends or stores passwords. It intentionally
@@ -55,6 +55,43 @@ export function mockReset(): ChatMessage[] {
   return data(user).messages
 }
 export function mockProfile(): Profile { return data(current()).profile }
+
+/** Like the backend: the chart buttons appear once the income and the home's price are known. */
+export function mockChartTypes(): ChartType[] {
+  const { profile } = data(current())
+  const known = profile.fields.some(field => field.key === 'netIncome') && profile.property?.fields.some(field => field.key === 'price')
+  return known ? ['rate_payment', 'cost_breakdown'] : []
+}
+
+/** Fixed sample figures; the real ones come from the backend's calculator. */
+export function mockShowChart(chartType: ChartType): ChatMessage {
+  if (!mockChartTypes().includes(chartType)) throw Object.assign(new Error('Loan not known yet'), { status: 409 })
+  const user = current()
+  const state = data(user)
+  const chart: ChatChart = chartType === 'rate_payment'
+    ? {
+        chartType, title: 'Your monthly payment if Euribor changes',
+        data: {
+          loanAmount: 160000, termYears: 30, marginPct: 1.6, stressRatePct: 6, stressedPayment: 959.28,
+          points: [1.1, 2.1, 3.1, 4.1, 5.1].map((euriborPct, i) => ({
+            euriborPct, ratePct: Math.round((euriborPct + 1.6) * 100) / 100, monthlyPayment: [648.96, 735.07, 826.04, 921.33, 1020.4][i]!, today: i === 1,
+          })),
+        },
+      }
+    : {
+        chartType, title: 'What the home costs over the whole loan',
+        data: { price: 189000, downPayment: 29000, loanAmount: 160000, termYears: 30, ratePct: 3.7, monthlyPayment: 736.46, totalInterest: 105125.6 },
+      }
+  const message: ChatMessage = {
+    id: state.nextId++, role: 'advisor', createdAt: new Date().toISOString(), corrected: false, chart,
+    text: chartType === 'rate_payment'
+      ? 'Here is how your monthly payment would change if Euribor goes up or down.'
+      : 'Here is what the home costs in all: your down payment, the loan, and the interest over the whole term.',
+  }
+  state.messages.push(message)
+  save(user, state)
+  return message
+}
 
 // The mocked checklist mirrors DocumentType on the backend. Files are never stored.
 const DOCUMENT_TEMPLATES: DocumentView[] = [

@@ -98,6 +98,8 @@ class AdvisorTools {
 	private final AffordabilityCalculator calculator = new AffordabilityCalculator();
 	/** The chart this turn showed, if any, to save with the reply (#130). */
 	private volatile RateChart chart;
+	/** The affordability check's result, when it could run this turn; the chart shown with it (#160). */
+	private volatile LoanProfileAssembler.Checked affordability;
 	/** Keys saved as the user's estimate this turn: only a later message can confirm them (#140). */
 	private final Set<ProfileKey> guessedNow = java.util.EnumSet.noneOf(ProfileKey.class);
 	/** Every tool call this turn and what it returned, for the number check (#67). */
@@ -368,6 +370,7 @@ class AdvisorTools {
 			case LoanProfileAssembler.Missing missing -> cantTellYet(missing);
 			case LoanProfileAssembler.Checked checked -> {
 				phases.affordabilityDiscussed(userId);
+				affordability = checked;
 				yield describe(checked);
 			}
 		};
@@ -393,6 +396,21 @@ class AdvisorTools {
 
 	/** The chart this turn showed, or null. */
 	RateChart chart() {
+		return chart;
+	}
+
+	/**
+	 * Shows the rate chart without the model asking for it (#160, point 3): the user might
+	 * want it but not think to ask. Only when the affordability check ran this turn and the
+	 * model showed no chart; the reply has finished streaming, so the caller sends it.
+	 *
+	 * @return the chart to show with the reply, or null
+	 */
+	RateChart chartWithAffordability() {
+		if (chart != null || affordability == null) {
+			return null;
+		}
+		chart = RateChart.of(affordability, calculator);
 		return chart;
 	}
 

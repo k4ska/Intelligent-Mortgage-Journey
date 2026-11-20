@@ -41,11 +41,8 @@ public record RateChart(double loanAmount, int termYears, double marginPct, doub
 				round2(calculator.monthlyPayment(loan, stressRate, termYears)), points);
 	}
 
-	/** The chart as the chat shows it: the {@code chart} event's data and a saved message's chart. */
-	public record View(String chartType, String title, RateChart data) {}
-
-	View view() {
-		return new View(TYPE, "Your monthly payment if Euribor changes", this);
+	ChartView view() {
+		return new ChartView(TYPE, "Your monthly payment if Euribor changes", this);
 	}
 
 	private static double round2(double value) {
