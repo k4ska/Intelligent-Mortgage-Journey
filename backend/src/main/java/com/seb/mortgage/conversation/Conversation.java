@@ -10,52 +10,46 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
-/** The one conversation a user has with the advisor ("start over" wipes it). */
+/** A saved advisor chat. The active chat is tracked separately for each user. */
 @Entity
 @Table(name = "conversation")
 public class Conversation {
 
-	@Id
-	@GeneratedValue(strategy = GenerationType.UUID)
-	private UUID id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
-	@Column(nullable = false, unique = true)
-	private UUID userId;
+    @Column(nullable = false)
+    private UUID userId;
 
-	@Column(nullable = false, updatable = false)
-	private Instant createdAt;
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt;
 
-	/** When the advisor first gave the user an affordability result; it moves the conversation on (#73). */
-	private Instant affordabilityDiscussedAt;
+    @Column(nullable = false)
+    private Instant updatedAt;
 
-	protected Conversation() {
-	}
+    /** When the advisor first gave an affordability result in this chat (#73). */
+    private Instant affordabilityDiscussedAt;
 
-	public Conversation(UUID userId) {
-		this.userId = userId;
-		this.createdAt = Instant.now();
-	}
+    protected Conversation() {
+    }
 
-	public UUID getId() {
-		return id;
-	}
+    public Conversation(UUID userId) {
+        this.userId = userId;
+        this.createdAt = Instant.now();
+        this.updatedAt = createdAt;
+    }
 
-	public UUID getUserId() {
-		return userId;
-	}
+    public UUID getId() { return id; }
+    public UUID getUserId() { return userId; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public Instant getAffordabilityDiscussedAt() { return affordabilityDiscussedAt; }
 
-	public Instant getCreatedAt() {
-		return createdAt;
-	}
+    public void touched() { updatedAt = Instant.now(); }
 
-	public Instant getAffordabilityDiscussedAt() {
-		return affordabilityDiscussedAt;
-	}
-
-	/** Only the first time counts. */
-	public void affordabilityDiscussed() {
-		if (affordabilityDiscussedAt == null) {
-			affordabilityDiscussedAt = Instant.now();
-		}
-	}
+    /** Only the first time counts. */
+    public void affordabilityDiscussed() {
+        if (affordabilityDiscussedAt == null) affordabilityDiscussedAt = Instant.now();
+    }
 }

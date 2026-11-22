@@ -3,6 +3,18 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-11-22 - Saved chat history with one selected conversation per user (#160)
+
+- Each account can keep multiple advisor message transcripts. A new chat stores its own
+  greeting and messages; selecting a past chat changes which transcript the existing
+  chat and inbox advisor endpoints use. The sidebar lists chats by recent activity,
+  named from their first message. V8 migrates the existing chat and keeps its UUID and
+  messages. `Start over` remains destructive and removes every saved chat.
+- This implements chat **history**, not multiple isolated mortgage journeys: profile,
+  property, documents, applications and bank email threads stay scoped to the account.
+  The sidebar explains this. Making those records per-journey would require its own
+  coordinated schema, API and agent-tool changes; don't silently treat them as isolated.
+
 ## 2026-11-02 - Faster advisor turns: the first act round streams, no empty last round (#138)
 
 - The first act round now streams. When the model calls no tools, its text is the reply,

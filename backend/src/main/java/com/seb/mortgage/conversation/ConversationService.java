@@ -3,82 +3,135 @@ package com.seb.mortgage.conversation;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 
-/**
- * A user's conversation with the advisor. The first time a user opens the chat, it starts
- * with a fixed greeting (no LLM call).
- */
+/** Persists multiple advisor chats per user, with one active chat for existing API callers. */
 @Service
 public class ConversationService {
 
-	public static final String GREETING = "Hi, how can I help you?";
+    public static final String GREETING = "Hi, how can I help you?";
 
-	private final ConversationRepository conversations;
-	private final MessageRepository messages;
+    public record Summary(UUID id, String title, Instant createdAt, Instant updatedAt, boolean active) {}
 
-	public ConversationService(ConversationRepository conversations, MessageRepository messages) {
-		this.conversations = conversations;
-		this.messages = messages;
-	}
+    private final ConversationRepository conversations;
+    private final ActiveConversationRepository activeConversations;
+    private final MessageRepository messages;
 
-	/** The user's messages, oldest first. Creates the conversation with the greeting if needed. */
-	@Transactional
-	public List<Message> history(UUID userId) {
-		return messages.findByConversationIdOrderByIdAsc(conversationFor(userId).getId());
-	}
+    public ConversationService(ConversationRepository conversations, ActiveConversationRepository activeConversations,
+            MessageRepository messages) {
+        this.conversations = conversations;
+        this.activeConversations = activeConversations;
+        this.messages = messages;
+    }
 
-	@Transactional
-	public Message append(UUID userId, Message.Role role, String text) {
-		return append(userId, role, text, null);
-	}
+    /** Oldest first; a first visit starts the chat with a fixed greeting. */
+    @Transactional
+    public List<Message> history(UUID userId) {
+        return messages.findByConversationIdOrderByIdAsc(conversationFor(userId).getId());
+    }
 
-	/** @param threadId the bank thread the message was written next to (#80), or null in the chat */
-	@Transactional
-	public Message append(UUID userId, Message.Role role, String text, UUID threadId) {
-		return messages.save(new Message(conversationFor(userId).getId(), role, text, threadId));
-	}
+    /** Lists only the authenticated user's chats, most recently updated first. */
+    @Transactional
+    public List<Summary> list(UUID userId) {
+        UUID selected = conversationFor(userId).getId();
+        return conversations.findByUserIdOrderByUpdatedAtDescCreatedAtDesc(userId).stream()
+                .map(conversation -> new Summary(conversation.getId(), title(conversation.getId()),
+                        conversation.getCreatedAt(), conversation.getUpdatedAt(), conversation.getId().equals(selected)))
+                .toList();
+    }
 
-	/** Deletes the conversation; the next {@link #history} starts again with the greeting. */
-	@Transactional
-	public void delete(UUID userId) {
-		conversations.findByUserId(userId).ifPresent(conversation -> {
-			messages.deleteByConversationId(conversation.getId());
-			conversations.delete(conversation);
-		});
-	}
+    /** Save the current chat and start another one; do not erase any existing messages. */
+    @Transactional
+    public Summary create(UUID userId) {
+        Conversation created = createWithGreeting(userId);
+        activeConversations.findById(userId).ifPresentOrElse(
+                active -> active.select(created.getId()),
+                () -> activeConversations.save(new ActiveConversation(userId, created.getId())));
+        return new Summary(created.getId(), "New conversation", created.getCreatedAt(), created.getUpdatedAt(), true);
+    }
 
-	/** Saves the chart the advisor showed with a reply, so it is still there after a reload (#130). */
-	@Transactional
-	public void attachChart(Long messageId, String chartJson) {
-		messages.findById(messageId).ifPresent(message -> message.attachChart(chartJson));
-	}
+    /** Switching never accepts another user's conversation ID. */
+    @Transactional
+    public void select(UUID userId, UUID conversationId) {
+        conversations.findByIdAndUserId(conversationId, userId)
+                .orElseThrow(() -> new NoSuchElementException("Conversation not found"));
+        activeConversations.findById(userId).ifPresentOrElse(
+                active -> active.select(conversationId),
+                () -> activeConversations.save(new ActiveConversation(userId, conversationId)));
+    }
 
-	/** Saves the verifier's safe version of a reply in place of the original (#67). */
-	@Transactional
-	public void correct(Long messageId, String text) {
-		messages.findById(messageId).ifPresent(message -> message.correct(text));
-	}
+    @Transactional
+    public Message append(UUID userId, Message.Role role, String text) {
+        return append(userId, role, text, null);
+    }
 
-	/** The advisor gave the user an affordability result (#73). */
-	@Transactional
-	public void affordabilityDiscussed(UUID userId) {
-		conversationFor(userId).affordabilityDiscussed();
-	}
+    /** @param threadId bank inbox thread, or null in the main chat */
+    @Transactional
+    public Message append(UUID userId, Message.Role role, String text, UUID threadId) {
+        Conversation conversation = conversationFor(userId);
+        Message saved = messages.save(new Message(conversation.getId(), role, text, threadId));
+        conversation.touched();
+        return saved;
+    }
 
-	@Transactional(readOnly = true)
-	public boolean hasDiscussedAffordability(UUID userId) {
-		return conversations.findByUserId(userId)
-				.map(conversation -> conversation.getAffordabilityDiscussedAt() != null)
-				.orElse(false);
-	}
+    /** Used by Start over: deletes every saved chat, not only the active one. */
+    @Transactional
+    public void delete(UUID userId) {
+        activeConversations.deleteById(userId);
+        for (Conversation conversation : conversations.findByUserIdOrderByUpdatedAtDescCreatedAtDesc(userId)) {
+            messages.deleteByConversationId(conversation.getId());
+            conversations.delete(conversation);
+        }
+    }
 
-	private Conversation conversationFor(UUID userId) {
-		return conversations.findByUserId(userId).orElseGet(() -> {
-			Conversation conversation = conversations.save(new Conversation(userId));
-			messages.save(new Message(conversation.getId(), Message.Role.ADVISOR, GREETING));
-			return conversation;
-		});
-	}
+    @Transactional
+    public void attachChart(Long messageId, String chartJson) {
+        messages.findById(messageId).ifPresent(message -> message.attachChart(chartJson));
+    }
+
+    @Transactional
+    public void correct(Long messageId, String text) {
+        messages.findById(messageId).ifPresent(message -> message.correct(text));
+    }
+
+    @Transactional
+    public void affordabilityDiscussed(UUID userId) {
+        conversationFor(userId).affordabilityDiscussed();
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasDiscussedAffordability(UUID userId) {
+        return activeConversations.findById(userId)
+                .flatMap(active -> conversations.findByIdAndUserId(active.getConversationId(), userId))
+                .map(conversation -> conversation.getAffordabilityDiscussedAt() != null)
+                .orElse(false);
+    }
+
+    private String title(UUID conversationId) {
+        return messages.findFirstByConversationIdAndRoleAndThreadIdIsNullOrderByIdAsc(
+                conversationId, Message.Role.USER)
+                .map(message -> message.getText().replaceAll("\\s+", " ").trim())
+                .filter(text -> !text.isEmpty())
+                .map(text -> text.length() > 60 ? text.substring(0, 60) + "…" : text)
+                .orElse("New conversation");
+    }
+
+    private Conversation conversationFor(UUID userId) {
+        return activeConversations.findById(userId)
+                .flatMap(active -> conversations.findByIdAndUserId(active.getConversationId(), userId))
+                .orElseGet(() -> {
+                    Conversation created = createWithGreeting(userId);
+                    activeConversations.save(new ActiveConversation(userId, created.getId()));
+                    return created;
+                });
+    }
+
+    private Conversation createWithGreeting(UUID userId) {
+        Conversation created = conversations.save(new Conversation(userId));
+        messages.save(new Message(created.getId(), Message.Role.ADVISOR, GREETING));
+        return created;
+    }
 }

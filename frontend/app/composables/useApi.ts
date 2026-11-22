@@ -1,5 +1,6 @@
-import type { AgentStatus, ApplicationResult, ChartType, ChatMessage, DocumentType, DocumentView, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
-import { mockAcceptOffer, mockAssist, mockChartTypes, mockChat, mockShowChart, mockDocuments, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockReplyToThread, mockReset, mockSend, mockSubmitApplication, mockUploadDocument } from '~/mocks/advisor'
+import type { AgentStatus, ApplicationResult, ChartType, ChatMessage, ConversationSummary, DocumentType, DocumentView, InboxThread, InboxThreadDetail, Profile } from '~/types/api'
+import { mockAcceptOffer, mockAssist, mockChartTypes, mockChat, mockShowChart, mockDocuments, mockGetInbox, mockGetThread, mockLogin, mockLogout, mockMe, mockProfile, mockRegister, mockReplyToThread, mockSend, mockSubmitApplication, mockUploadDocument } from '~/mocks/advisor'
+import { mockListConversations, mockNewConversation, mockResetConversations, mockSelectConversation } from '~/mocks/conversations'
 
 export interface AuthUser { id: string; email: string }
 export type ChatInput = string
@@ -51,9 +52,18 @@ export function useApi() {
     getChat: (): Promise<ChatMessage[]> => mock
       ? later(mockChat)
       : request<ChatMessage[]>('/chat'),
+    getConversations: (): Promise<ConversationSummary[]> => mock
+      ? later(mockListConversations)
+      : request<ConversationSummary[]>('/chat/conversations'),
+    newConversation: (): Promise<ConversationSummary> => mock
+      ? later(mockNewConversation)
+      : request<ConversationSummary>('/chat/conversations', { method: 'POST' }),
+    selectConversation: (id: string): Promise<void> => mock
+      ? later(() => mockSelectConversation(id))
+      : request<void>(`/chat/conversations/${encodeURIComponent(id)}/select`, { method: 'POST' }),
     // Wipes the user's conversation, profile, property, documents and bank emails.
     resetChat: (): Promise<ChatMessage[]> => mock
-      ? later(mockReset)
+      ? later(mockResetConversations)
       : request<ChatMessage[]>('/chat/reset', { method: 'POST' }),
     /** The charts the buttons under the chat can show now; none until the loan is known (#160). */
     getChartTypes: (): Promise<ChartType[]> => mock

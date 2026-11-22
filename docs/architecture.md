@@ -12,7 +12,7 @@
 
 ```
 ┌──────────────────────────── FRONTEND (Nuxt) ─────────────────────────────┐
-│  Login   │  Documents panel  │  Chat  │  Profile + Property  │  Inbox    │
+│  Login   │  Chat history  │  Documents  │  Chat  │  Profile  │   Inbox   │
 └──────┬──────────────┬─────────────┬───────────────┬──────────────┬───────┘
        │ REST         │ upload      │ SSE stream    │ (pushed via  │ REST + SSE
        │              │             │ (text+events) │  the stream) │ (assist)
@@ -191,8 +191,8 @@ required) are in `docs/decisions.md`, 2026-10-21.
 ### Layer 2: the number check (plain code, after every turn)
 
 When the advisor's reply finishes, code pulls every € amount and % out of the text and
-checks that each one appeared in that turn's tool results, the profile, the property, the
-user's own messages, the advisor's earlier replies, or (once the advisor sees the inbox,
+checks that each one appeared in that turn's tool results, the profile, the property,
+the user's own messages, the advisor's earlier replies, or (once the advisor sees the inbox,
 #80) the user's bank emails. Rounding within 1% is allowed, so "about €210,000" passes for
 €209,734. It's deterministic, free and instant (`NumberCheck`).
 
@@ -230,9 +230,10 @@ in `docs/advisor-eval.md`, so we can show how often the advisor gets things righ
 ```
 User ─────────── email, password (hashed)
  │
- ├─ Conversation ── exactly one per user ("start over" wipes everything below)
+ ├─ Conversation ── multiple saved chats per user (UUID, createdAt, updatedAt)
  │    └─ Message ── role (user | advisor | system), text, threadId (if in the inbox),
  │                  attachments (chart data, bank picker), time
+ ├─ ActiveConversation ── one selected conversation UUID per user
  │
  ├─ ProfileField ── one row per fact:
  │      key (netIncome, savings, dependants, coApplicant.netIncome, ...)
@@ -263,6 +264,15 @@ Seed data (the same for everyone, loaded at startup):
                  max LTV, min down payment %, strictness, max negotiation rounds, tone
 ```
 
+- **Chat history (#160):** the `conversation` rows contain separate saved advisor
+  transcripts. `active_conversation` selects which one the existing advisor and inbox
+  endpoints use for the logged-in user. Titles are derived from each chat's first main
+  user message; chats are ordered by their last message. Older rows are preserved by V8.
+  **Profile, property, documents, applications and email threads are still user-scoped**
+  and shared between chats. A new conversation starts a fresh message transcript but is
+  **not** a separate mortgage application/journey. Separate journey workspaces would
+  require a follow-up data-model migration. `Start over` still deletes *all* chats and
+  the user's other journey data.
 - **One row per profile fact** makes "where did this come from" and "is it confirmed"
   easy for every field. The `LoanProfile` used by the calculator is **built** from these
   rows.
@@ -289,14 +299,18 @@ GET  /api/auth/me                               -> user | 401
 ### Chat: one streaming endpoint for every advisor turn
 
 ```
-GET  /api/chat                        -> message history: [{ id, role, text, createdAt,
+GET  /api/chat/conversations          -> [{ id, title, createdAt, updatedAt, active }]
+POST /api/chat/conversations          -> create/select a new chat; returns its summary
+POST /api/chat/conversations/{id}/select -> select an owned chat; 404 if not owned
+                                        (no request body; 200 on success)
+GET  /api/chat                        -> active conversation's message history: [{ id, role, text, createdAt,
                                          corrected, threadId }]; threadId is set on
                                          messages written next to a bank thread
 POST /api/chat/messages   (SSE)       { text }                                 the user typed
                                       { trigger: "DOCUMENT_UPLOADED", documentId }
                                       { trigger: "APPLICATION_SENT",  applicationId }
                                       { trigger: "OFFER_ACCEPTED",    threadId }
-POST /api/chat/reset                  -> start over (wipes conversation, profile,
+POST /api/chat/reset                  -> start over (wipes ALL conversations, profile,
                                          property, documents, applications, emails;
                                          keeps the account) and returns the new
                                          history: just the greeting
@@ -422,7 +436,7 @@ com.seb.mortgage
 ├── auth          users, Spring Security, session login
 ├── advisor       AdvisorOrchestrator, AdvisorAgent + tools, phases, number check,
 │                 DocumentReaderAgent, chat controller, stream events
-├── conversation  Conversation, Message
+├── conversation  Conversation, ActiveConversation, Message
 ├── profile       ProfileField, LoanProfile + assembler, ProfileFacts
 ├── property      Property, kv.ee listing reader
 ├── documents     Document, upload controller

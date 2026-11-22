@@ -27,7 +27,8 @@ onMounted(() => advisor.load())
       <ProfilePanel v-if="mobilePanel === 'profile'" class="min-h-0" />
     </div>
 
-    <div class="hidden h-full min-h-0 grid-cols-[minmax(230px,1fr)_minmax(420px,2.15fr)_minmax(280px,1.15fr)] gap-4 lg:grid">
+    <div class="hidden h-full min-h-0 grid-cols-[minmax(210px,1fr)_minmax(360px,2.15fr)_minmax(240px,1.15fr)] gap-3 lg:grid xl:grid-cols-[minmax(185px,0.8fr)_minmax(210px,1fr)_minmax(400px,2.15fr)_minmax(240px,1.15fr)]">
+      <ChatHistorySidebar class="hidden xl:flex" />
       <DocumentsPanel />
       <ChatPanel />
       <ProfilePanel />

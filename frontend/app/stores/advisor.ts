@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import type { ChatInput } from '~/composables/useApi'
-import type { BankOption, ChartType, ChatMessage, DocumentType, DocumentView, Profile, ProfileField, StreamEvent } from '~/types/api'
+import type { BankOption, ChartType, ChatMessage, ConversationSummary, DocumentType, DocumentView, Profile, ProfileField, StreamEvent } from '~/types/api'
 import { useAuthStore } from '~/stores/auth'
 import { useInboxStore } from '~/stores/inbox'
 import { consumeStream } from '~/utils/stream'
@@ -17,6 +17,9 @@ type DocumentStatusEvent = Extract<StreamEvent, { type: 'document_status' }>['da
 export const useAdvisorStore = defineStore('advisor', {
   state: () => ({
     messages: [] as ChatMessage[],
+    conversations: [] as ConversationSummary[],
+    activeConversationId: null as string | null,
+    switchingConversation: false,
     profile: { fields: [], property: null } as Profile,
     documents: [] as DocumentView[],
     bankOptions: [] as BankOption[], // #53 will render these as an interactive picker.
@@ -26,6 +29,7 @@ export const useAdvisorStore = defineStore('advisor', {
     loaded: false,
     loading: false,
     sending: false,
+    applying: false,
     uploading: null as DocumentType | null,
     documentError: '',
     error: '',
@@ -37,7 +41,12 @@ export const useAdvisorStore = defineStore('advisor', {
       this.error = ''
       try {
         const api = useApi()
+        // Initialize the active chat first. Concurrent requests on a new account
+        // could otherwise both try to create the initial greeting/conversation.
+        const conversations = await api.getConversations()
         const [messages, profile, documents] = await Promise.all([api.getChat(), api.getProfile(), api.getDocuments()])
+        this.conversations = conversations
+        this.activeConversationId = conversations.find(chat => chat.active)?.id ?? null
         this.messages = messages
         this.profile = profile
         this.documents = documents
@@ -47,6 +56,49 @@ export const useAdvisorStore = defineStore('advisor', {
         if (errorStatus(error) === 401) return void useAuthStore().expire()
         this.error = copy.loadError
       } finally { this.loading = false }
+    },
+    async refreshConversations() {
+      try {
+        const conversations = await useApi().getConversations()
+        this.conversations = conversations
+        this.activeConversationId = conversations.find(chat => chat.active)?.id ?? null
+      } catch (error) {
+        if (errorStatus(error) === 401) void useAuthStore().expire()
+      }
+    },
+    /** Changing the selected chat is blocked while any advisor/inbox operation is active. */
+    async changeConversation(change: () => Promise<unknown>): Promise<boolean> {
+      const inbox = useInboxStore()
+      if (!this.loaded || this.loading || this.switchingConversation || this.sending || this.applying || this.uploading ||
+          this.showingChart || inbox.assistingThreadId || inbox.replyingThreadId || inbox.accepting) return false
+      this.switchingConversation = true
+      try {
+        await change()
+        this.$reset()
+        this.switchingConversation = true
+        await this.load()
+        if (!this.loaded) return false
+        inbox.$reset()
+        void inbox.load(true)
+        return true
+      } catch (error) {
+        if (errorStatus(error) === 401) void useAuthStore().expire()
+        else {
+          this.$reset()
+          void this.load()
+          this.error = copy.conversationSwitchError
+        }
+        return false
+      } finally {
+        this.switchingConversation = false
+      }
+    },
+    async newConversation(): Promise<boolean> {
+      return this.changeConversation(() => useApi().newConversation())
+    },
+    async selectConversation(id: string): Promise<boolean> {
+      if (id === this.activeConversationId) return true
+      return this.changeConversation(() => useApi().selectConversation(id))
     },
     async refreshChartTypes() {
       try {
@@ -58,11 +110,12 @@ export const useAdvisorStore = defineStore('advisor', {
     },
     /** A chart button (#160): instant and computed in code, no advisor turn. */
     async showChart(chartType: ChartType): Promise<boolean> {
-      if (!this.loaded || this.sending || this.showingChart || useInboxStore().assistingThreadId) return false
+      if (!this.loaded || this.sending || this.showingChart || this.switchingConversation || useInboxStore().assistingThreadId) return false
       this.showingChart = chartType
       this.error = ''
       try {
         this.messages.push(await useApi().showChart(chartType))
+        void this.refreshConversations()
         return true
       } catch (error) {
         if (errorStatus(error) === 401) void useAuthStore().expire()
@@ -125,10 +178,12 @@ export const useAdvisorStore = defineStore('advisor', {
       try {
         const api = useApi()
         const messages = await api.resetChat()
-        const documents = await api.getDocuments()
+        const [documents, conversations] = await Promise.all([api.getDocuments(), api.getConversations()])
         this.$reset()
         this.messages = messages
         this.documents = documents
+        this.conversations = conversations
+        this.activeConversationId = conversations.find(chat => chat.active)?.id ?? null
         this.loaded = true
       } catch (error) {
         if (errorStatus(error) === 401) {
@@ -151,7 +206,7 @@ export const useAdvisorStore = defineStore('advisor', {
     },
     async send(input: ChatInput): Promise<boolean> {
       const text = typeof input === 'string' ? input.trim() : null
-      if ((text !== null && !text) || this.sending || useInboxStore().assistingThreadId || !this.loaded || (text !== null && this.uploading)) return false
+      if ((text !== null && !text) || this.switchingConversation || this.sending || useInboxStore().assistingThreadId || !this.loaded || (text !== null && this.uploading)) return false
       const controller = new AbortController()
       activeSend = controller
       const { signal } = controller
@@ -244,7 +299,7 @@ export const useAdvisorStore = defineStore('advisor', {
       } catch (error) {
         if (errorStatus(error) === 401 && !signal.aborted) void useAuthStore().expire()
       }
-      if (!signal.aborted) await Promise.all([this.refreshDocuments(), this.refreshChartTypes()])
+      if (!signal.aborted) await Promise.all([this.refreshDocuments(), this.refreshChartTypes(), this.refreshConversations()])
       return true
     },
   },

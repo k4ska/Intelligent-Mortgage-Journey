@@ -9,6 +9,16 @@ export interface AgentStatus {
   mode: AgentMode
 }
 
+// ---- Saved advisor chats (GET/POST /api/chat/conversations) ----
+
+export interface ConversationSummary {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  active: boolean
+}
+
 // ---- Chat (GET /api/chat, POST /api/chat/messages) ----
 
 export interface ChatMessage {
