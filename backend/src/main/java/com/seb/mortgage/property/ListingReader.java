@@ -28,7 +28,8 @@ import java.util.regex.Pattern;
  * fair: one request per link with our own user agent, a 5-second limit, only kv.ee listing
  * pages that robots.txt allows, and the result cached so the same link is never fetched
  * twice. When kv.ee's bot check stops us, we say so and the advisor asks the user
- * instead. We never try to get around it.
+ * instead. We never try to get around it. For the demo, links to pages saved with the
+ * app ({@link SavedListings}) are read from the saved copy without contacting kv.ee.
  */
 @Component
 public class ListingReader {
@@ -95,8 +96,8 @@ public class ListingReader {
 	};
 
 	@Autowired
-	public ListingReader() {
-		this(httpFetcher());
+	public ListingReader(SavedListings saved) {
+		this(savedFirst(saved, httpFetcher()));
 	}
 
 	/** For tests: reads pages from {@code fetcher} instead of kv.ee. */
@@ -186,6 +187,18 @@ public class ListingReader {
 	/** Returns the canonical URL when the input is a valid kv.ee listing link. */
 	public static Optional<String> canonicalListingUrl(String link) {
 		return Optional.ofNullable(listingUri(link)).map(URI::toString);
+	}
+
+	/** A saved page answers for its listing; anything else goes to kv.ee. */
+	static PageFetcher savedFirst(SavedListings saved, PageFetcher network) {
+		return uri -> {
+			Optional<String> page = saved.page(uri);
+			if (page.isPresent()) {
+				log.info("Listing {} read from the saved copy, kv.ee not contacted", uri);
+				return new Page(200, page.get());
+			}
+			return network.fetch(uri);
+		};
 	}
 
 	private static PageFetcher httpFetcher() {

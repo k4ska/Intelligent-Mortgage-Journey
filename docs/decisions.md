@@ -3,6 +3,20 @@
 Short, dated entries. Newest first. One entry per decision that would otherwise get
 re-litigated.
 
+## 2026-11-23 - A saved kv.ee listing for the demo (#160)
+
+- kv.ee's bot check answers every request we make with 403, so a pasted link never
+  showed the house. Listing pages saved from a browser now ship in
+  `backend/src/main/resources/saved-listings/`; when the user pastes one of those links
+  (any slug, language, www or not, tracking parameters: matched by listing number), the
+  advisor reads the saved copy and kv.ee is not contacted. Other links work as before
+  and still end in "the bot check stopped us, tell me the details".
+- The one saved now is the real listing from the parser fixture: Kaare tn 3, Rae vald,
+  new build, €478 000 (https://www.kv.ee/hei-valmimas-on-rahulikus-peresobralikus-rajoonis-3533251).
+  To use another, save its page from the browser into that folder; the canonical link
+  and the schema.org block are all the parser needs. This is a demo stand-in, not a way
+  around the bot check: nothing is fetched from kv.ee on the user's behalf.
+
 ## 2026-11-22 - Saved chat history with one selected conversation per user (#160)
 
 - Each account can keep multiple advisor message transcripts. A new chat stores its own
