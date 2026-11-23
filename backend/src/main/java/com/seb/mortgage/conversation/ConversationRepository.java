@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public interface ConversationRepository extends JpaRepository<Conversation, UUID> {
 
-    Optional<Conversation> findByIdAndUserId(UUID id, UUID userId);
+	Optional<Conversation> findByIdAndUserId(UUID id, UUID userId);
 
-    List<Conversation> findByUserIdOrderByUpdatedAtDescCreatedAtDesc(UUID userId);
+	List<Conversation> findByUserIdOrderByUpdatedAtDescCreatedAtDesc(UUID userId);
 }

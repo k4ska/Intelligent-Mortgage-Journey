@@ -49,6 +49,9 @@ export function mockListConversations(): ConversationSummary[] {
 }
 export function mockNewConversation(): ConversationSummary {
   const history = snapshot()
+  // Like the backend: a chat that is still just the greeting is reused, not duplicated.
+  const current = history.chats.find(chat => chat.id === history.activeId)
+  if (current && current.messages.length <= 1) return summary(current, history.activeId)
   const now = new Date().toISOString()
   const chat: SavedChat = {
     id: crypto.randomUUID(), createdAt: now, updatedAt: now, nextId: 2,

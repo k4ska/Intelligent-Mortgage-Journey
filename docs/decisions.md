@@ -14,6 +14,11 @@ re-litigated.
   property, documents, applications and bank email threads stay scoped to the account.
   The sidebar explains this. Making those records per-journey would require its own
   coordinated schema, API and agent-tool changes; don't silently treat them as isolated.
+- Messages asked next to a bank thread are saved in the chat that was open, but they stay
+  with the thread: `GET /api/chat` also returns other chats' thread messages, flagged
+  `otherChat`, so the inbox shows them under the thread and the advisor still reads them,
+  while the chat panel hides them. "New conversation" reuses the open chat while it is
+  still just the greeting, so repeated clicks don't pile up empty chats.
 
 ## 2026-11-02 - Faster advisor turns: the first act round streams, no empty last round (#138)
 

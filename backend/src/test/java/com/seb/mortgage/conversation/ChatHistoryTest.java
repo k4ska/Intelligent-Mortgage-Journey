@@ -24,83 +24,126 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 class ChatHistoryTest {
 
-    @Autowired MockMvc mvc;
-    @Autowired ObjectMapper mapper;
-    @Autowired ConversationService conversations;
+	@Autowired MockMvc mvc;
+	@Autowired ObjectMapper mapper;
+	@Autowired ConversationService conversations;
 
-    private record LoggedIn(UUID userId, MockHttpSession session) {}
+	private record LoggedIn(UUID userId, MockHttpSession session) {}
 
-    @Test
-    void savesOlderChatsAndSelectsTheirMessages() throws Exception {
-        LoggedIn user = login();
-        String originalId = mapper.readTree(mvc.perform(get("/api/chat/conversations").session(user.session()))
-                .andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(1)))
-                .andReturn().getResponse().getContentAsString()).get(0).path("id").asString();
-        conversations.append(user.userId(), Message.Role.USER, "First mortgage");
+	@Test
+	void savesOlderChatsAndSelectsTheirMessages() throws Exception {
+		LoggedIn user = login();
+		String originalId = mapper.readTree(mvc.perform(get("/api/chat/conversations").session(user.session()))
+				.andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(1)))
+				.andReturn().getResponse().getContentAsString()).get(0).path("id").asString();
+		conversations.append(user.userId(), Message.Role.USER, "First mortgage");
 
-        String newId = mapper.readTree(mvc.perform(post("/api/chat/conversations").session(user.session()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.active").value(true))
-                .andReturn().getResponse().getContentAsString()).path("id").asString();
-        assertThat(newId).isNotEqualTo(originalId);
-        mvc.perform(get("/api/chat").session(user.session()))
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].text").value(ConversationService.GREETING));
-        conversations.append(user.userId(), Message.Role.USER, "Second mortgage");
-        mvc.perform(get("/api/chat/conversations").session(user.session()))
-                .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[0].title").value("Second mortgage"));
+		String newId = mapper.readTree(mvc.perform(post("/api/chat/conversations").session(user.session()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.active").value(true))
+				.andReturn().getResponse().getContentAsString()).path("id").asString();
+		assertThat(newId).isNotEqualTo(originalId);
+		mvc.perform(get("/api/chat").session(user.session()))
+				.andExpect(jsonPath("$", hasSize(1)))
+				.andExpect(jsonPath("$[0].text").value(ConversationService.GREETING));
+		conversations.append(user.userId(), Message.Role.USER, "Second mortgage");
+		mvc.perform(get("/api/chat/conversations").session(user.session()))
+				.andExpect(jsonPath("$", hasSize(2)))
+				.andExpect(jsonPath("$[0].title").value("Second mortgage"));
 
-        mvc.perform(post("/api/chat/conversations/{id}/select", originalId).session(user.session()))
-                .andExpect(status().isOk());
-        mvc.perform(get("/api/chat").session(user.session()))
-                .andExpect(jsonPath("$", hasSize(2)))
-                .andExpect(jsonPath("$[1].text").value("First mortgage"));
-        conversations.append(user.userId(), Message.Role.ADVISOR, "Saved reply");
-        mvc.perform(post("/api/chat/conversations/{id}/select", newId).session(user.session()))
-                .andExpect(status().isOk());
-        mvc.perform(get("/api/chat").session(user.session()))
-                .andExpect(jsonPath("$[1].text").value("Second mortgage"));
-        mvc.perform(post("/api/chat/conversations/{id}/select", originalId).session(user.session()))
-                .andExpect(status().isOk());
-        mvc.perform(get("/api/chat").session(user.session()))
-                .andExpect(jsonPath("$[2].text").value("Saved reply"));
-    }
+		mvc.perform(post("/api/chat/conversations/{id}/select", originalId).session(user.session()))
+				.andExpect(status().isOk());
+		mvc.perform(get("/api/chat").session(user.session()))
+				.andExpect(jsonPath("$", hasSize(2)))
+				.andExpect(jsonPath("$[1].text").value("First mortgage"));
+		conversations.append(user.userId(), Message.Role.ADVISOR, "Saved reply");
+		mvc.perform(post("/api/chat/conversations/{id}/select", newId).session(user.session()))
+				.andExpect(status().isOk());
+		mvc.perform(get("/api/chat").session(user.session()))
+				.andExpect(jsonPath("$[1].text").value("Second mortgage"));
+		mvc.perform(post("/api/chat/conversations/{id}/select", originalId).session(user.session()))
+				.andExpect(status().isOk());
+		mvc.perform(get("/api/chat").session(user.session()))
+				.andExpect(jsonPath("$[2].text").value("Saved reply"));
+	}
 
-    @Test
-    void deniesOtherUsersChatsAndResetRemovesAllSavedHistory() throws Exception {
-        LoggedIn first = login();
-        LoggedIn second = login();
-        String originalId = mapper.readTree(mvc.perform(get("/api/chat/conversations").session(first.session()))
-                .andReturn().getResponse().getContentAsString()).get(0).path("id").asString();
-        mvc.perform(post("/api/chat/conversations").session(first.session())).andExpect(status().isOk());
+	@Test
+	void deniesOtherUsersChatsAndResetRemovesAllSavedHistory() throws Exception {
+		LoggedIn first = login();
+		LoggedIn second = login();
+		String originalId = mapper.readTree(mvc.perform(get("/api/chat/conversations").session(first.session()))
+				.andReturn().getResponse().getContentAsString()).get(0).path("id").asString();
+		mvc.perform(post("/api/chat/conversations").session(first.session())).andExpect(status().isOk());
 
-        mvc.perform(post("/api/chat/conversations/{id}/select", originalId).session(second.session()))
-                .andExpect(status().isNotFound());
-        mvc.perform(get("/api/chat/conversations").session(second.session()))
-                .andExpect(jsonPath("$", hasSize(1)));
-        mvc.perform(post("/api/chat/reset").session(first.session())).andExpect(status().isOk());
-        mvc.perform(get("/api/chat/conversations").session(first.session()))
-                .andExpect(jsonPath("$", hasSize(1)));
-        mvc.perform(post("/api/chat/conversations/{id}/select", originalId).session(first.session()))
-                .andExpect(status().isNotFound());
-    }
+		mvc.perform(post("/api/chat/conversations/{id}/select", originalId).session(second.session()))
+				.andExpect(status().isNotFound());
+		mvc.perform(get("/api/chat/conversations").session(second.session()))
+				.andExpect(jsonPath("$", hasSize(1)));
+		mvc.perform(post("/api/chat/reset").session(first.session())).andExpect(status().isOk());
+		mvc.perform(get("/api/chat/conversations").session(first.session()))
+				.andExpect(jsonPath("$", hasSize(1)));
+		mvc.perform(post("/api/chat/conversations/{id}/select", originalId).session(first.session()))
+				.andExpect(status().isNotFound());
+	}
 
-    @Test
-    void requiresAuthentication() throws Exception {
-        mvc.perform(get("/api/chat/conversations")).andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/chat/conversations")).andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/chat/conversations/{id}/select", UUID.randomUUID()))
-                .andExpect(status().isUnauthorized());
-    }
+	@Test
+	void bankThreadMessagesStayWithTheThreadInEveryChat() throws Exception {
+		LoggedIn user = login();
+		UUID threadId = UUID.randomUUID();
+		conversations.append(user.userId(), Message.Role.USER, "Plan the first home");
+		conversations.append(user.userId(), Message.Role.USER, "Is this a good offer?", threadId);
+		String firstId = mapper.readTree(mvc.perform(get("/api/chat/conversations").session(user.session()))
+				.andReturn().getResponse().getContentAsString()).get(0).path("id").asString();
 
-    private LoggedIn login() throws Exception {
-        String credentials = "{\"email\":\"history-" + UUID.randomUUID() + "@example.com\",\"password\":\"password123\"}";
-        mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(credentials))
-                .andExpect(status().isCreated());
-        var login = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(credentials))
-                .andExpect(status().isOk()).andReturn();
-        UUID id = UUID.fromString(mapper.readTree(login.getResponse().getContentAsString()).path("id").asString());
-        return new LoggedIn(id, (MockHttpSession) login.getRequest().getSession(false));
-    }
+		mvc.perform(post("/api/chat/conversations").session(user.session())).andExpect(status().isOk());
+		mvc.perform(get("/api/chat").session(user.session()))
+				.andExpect(jsonPath("$", hasSize(2)))
+				.andExpect(jsonPath("$[0].text").value("Is this a good offer?"))
+				.andExpect(jsonPath("$[0].threadId").value(threadId.toString()))
+				.andExpect(jsonPath("$[0].otherChat").value(true))
+				.andExpect(jsonPath("$[1].text").value(ConversationService.GREETING))
+				.andExpect(jsonPath("$[1].otherChat").value(false));
+
+		conversations.append(user.userId(), Message.Role.USER, "Second chat", null);
+		conversations.append(user.userId(), Message.Role.ADVISOR, "Ask them for a lower margin.", threadId);
+		mvc.perform(post("/api/chat/conversations/{id}/select", firstId).session(user.session()))
+				.andExpect(status().isOk());
+		mvc.perform(get("/api/chat").session(user.session()))
+				.andExpect(jsonPath("$", hasSize(4)))
+				.andExpect(jsonPath("$[3].text").value("Ask them for a lower margin."))
+				.andExpect(jsonPath("$[3].otherChat").value(true))
+				.andExpect(jsonPath("$[2].otherChat").value(false));
+	}
+
+	@Test
+	void aNewChatThatIsStillJustTheGreetingIsReused() throws Exception {
+		LoggedIn user = login();
+		conversations.append(user.userId(), Message.Role.USER, "First mortgage");
+		String newId = mapper.readTree(mvc.perform(post("/api/chat/conversations").session(user.session()))
+				.andReturn().getResponse().getContentAsString()).path("id").asString();
+
+		mvc.perform(post("/api/chat/conversations").session(user.session()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(newId));
+		mvc.perform(get("/api/chat/conversations").session(user.session()))
+				.andExpect(jsonPath("$", hasSize(2)));
+	}
+
+	@Test
+	void requiresAuthentication() throws Exception {
+		mvc.perform(get("/api/chat/conversations")).andExpect(status().isUnauthorized());
+		mvc.perform(post("/api/chat/conversations")).andExpect(status().isUnauthorized());
+		mvc.perform(post("/api/chat/conversations/{id}/select", UUID.randomUUID()))
+				.andExpect(status().isUnauthorized());
+	}
+
+	private LoggedIn login() throws Exception {
+		String credentials = "{\"email\":\"history-" + UUID.randomUUID() + "@example.com\",\"password\":\"password123\"}";
+		mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(credentials))
+				.andExpect(status().isCreated());
+		var login = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(credentials))
+				.andExpect(status().isOk()).andReturn();
+		UUID id = UUID.fromString(mapper.readTree(login.getResponse().getContentAsString()).path("id").asString());
+		return new LoggedIn(id, (MockHttpSession) login.getRequest().getSession(false));
+	}
 }

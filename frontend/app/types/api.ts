@@ -34,6 +34,8 @@ export interface ChatMessage {
   threadId?: string | null
   /** A chart the advisor showed with this reply (#130). */
   chart?: ChatChart | null
+  /** Asked next to a bank thread in another saved chat (#160): shown in the inbox, not in this chat. */
+  otherChat?: boolean
 }
 
 /** The payment at one Euribor level (backend: RateChart.Point). */

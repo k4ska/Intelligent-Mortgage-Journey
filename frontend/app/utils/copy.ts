@@ -131,7 +131,7 @@ export const copy = {
   bankPickerOne: 'bank selected',
   bankPickerMany: 'banks selected',
   sendApplication: 'Send application',
-  sendingApplication: 'Sending…',
+  sendingApplication: 'Sending application…',
   applicationError: 'Could not send your application. Please try again.',
   applicationSentNotice: 'Application sent. You can check the Inbox for any answers.',
   inboxEmpty: 'No bank conversations yet.',
