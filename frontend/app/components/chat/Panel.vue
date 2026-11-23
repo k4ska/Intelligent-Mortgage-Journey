@@ -54,7 +54,6 @@ async function submitApplication() {
   }
 }
 
-const historyOpen = ref(false)
 const draft = ref('')
 const list = ref<HTMLElement | null>(null)
 const input = ref<HTMLTextAreaElement | null>(null)
@@ -91,15 +90,8 @@ function onKeydown(event: KeyboardEvent) {
   <section class="app-panel flex min-h-0 flex-col" :aria-label="copy.chatTitle">
     <div class="app-panel-header">
       <UIcon name="i-lucide-messages-square" class="text-lg" />
-      <h2 class="min-w-0 flex-1">{{ copy.chatTitle }}</h2>
-      <UButton class="xl:hidden" icon="i-lucide-panel-left" variant="ghost" color="neutral" size="sm" :aria-label="copy.chatHistory" @click="historyOpen = true" />
+      <h2>{{ copy.chatTitle }}</h2>
     </div>
-
-    <UModal v-model:open="historyOpen" :title="copy.chatHistory">
-      <template #content>
-        <ChatHistorySidebar class="h-[min(75vh,650px)]" @navigate="historyOpen = false" />
-      </template>
-    </UModal>
 
     <div ref="list" class="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5" role="log" aria-live="polite" aria-relevant="additions text">
       <p v-if="advisor.loading" class="text-center text-sm text-[var(--ui-text-muted)]">{{ copy.loading }}</p>

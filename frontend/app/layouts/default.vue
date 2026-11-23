@@ -50,6 +50,7 @@ watch(() => auth.isAuthenticated, (authenticated) => {
         </nav>
 
         <div class="flex items-center gap-2">
+          <ChatHistoryMenu v-if="auth.isAuthenticated" />
           <UColorModeButton :aria-label="copy.theme" />
           <UDropdownMenu
             v-if="auth.isAuthenticated"

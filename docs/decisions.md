@@ -7,12 +7,14 @@ re-litigated.
 
 - Each account can keep multiple advisor message transcripts. A new chat stores its own
   greeting and messages; selecting a past chat changes which transcript the existing
-  chat and inbox advisor endpoints use. The sidebar lists chats by recent activity,
-  named from their first message. V8 migrates the existing chat and keeps its UUID and
+  chat and inbox advisor endpoints use. A history button in the header, next to the
+  theme toggle, opens a popover listing chats by recent activity, named from their first
+  message, with a "+" for a new chat; it isn't a permanent panel, so the three journey
+  panels keep their width. V8 migrates the existing chat and keeps its UUID and
   messages. `Start over` remains destructive and removes every saved chat.
 - This implements chat **history**, not multiple isolated mortgage journeys: profile,
   property, documents, applications and bank email threads stay scoped to the account.
-  The sidebar explains this. Making those records per-journey would require its own
+  The history popover says so. Making those records per-journey would require its own
   coordinated schema, API and agent-tool changes; don't silently treat them as isolated.
 - Messages asked next to a bank thread are saved in the chat that was open, but they stay
   with the thread: `GET /api/chat` also returns other chats' thread messages, flagged
