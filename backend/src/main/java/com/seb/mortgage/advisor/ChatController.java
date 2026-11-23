@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,10 +30,12 @@ public class ChatController {
 
 	/**
 	 * @param threadId the bank thread the message was written next to in the inbox (#80), or null
-	 * @param chart    a chart the advisor showed with this reply (#130), or null
+	 * @param chart     a chart the advisor showed with this reply (#130), or null
+	 * @param otherChat asked next to a bank thread in another saved chat (#160): the inbox shows
+	 *                  it with its thread, the chat doesn't
 	 */
 	public record MessageView(Long id, String role, String text, Instant createdAt, boolean corrected,
-			UUID threadId, ChartView chart) {}
+			UUID threadId, ChartView chart, boolean otherChat) {}
 
 	/** A chart button was pressed (#160): which chart to show. */
 	public record ChartRequest(String chartType) {}
@@ -63,12 +66,36 @@ public class ChatController {
 	/** The conversation so far; a new user's starts with the advisor's greeting. */
 	@GetMapping
 	public List<MessageView> history() {
-		return conversations.history(currentUser.id()).stream().map(this::view).toList();
+		List<Message> messages = conversations.history(currentUser.id());
+		UUID open = conversations.activeId(currentUser.id());
+		return messages.stream().map(m -> view(m, open)).toList();
 	}
 
-	private MessageView view(Message m) {
+	/** Saved chats for the current account (#160). */
+	@GetMapping("/conversations")
+	public List<ConversationService.Summary> conversations() {
+		return conversations.list(currentUser.id());
+	}
+
+	/** A fresh chat keeps previous chat transcripts; mortgage details remain user-scoped. */
+	@PostMapping("/conversations")
+	public ConversationService.Summary newConversation() {
+		return conversations.create(currentUser.id());
+	}
+
+	/** Existing chat endpoints act on the selected conversation afterwards. */
+	@PostMapping("/conversations/{id}/select")
+	public void selectConversation(@PathVariable UUID id) {
+		try {
+			conversations.select(currentUser.id(), id);
+		} catch (NoSuchElementException e) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Conversation not found");
+		}
+	}
+
+	private MessageView view(Message m, UUID openChat) {
 		return new MessageView(m.getId(), m.getRole().name().toLowerCase(Locale.ROOT), m.getText(), m.getCreatedAt(),
-				m.isCorrected(), m.getThreadId(), chart(m));
+				m.isCorrected(), m.getThreadId(), chart(m), !m.getConversationId().equals(openChat));
 	}
 
 	/** A saved chart; one saved before there were several kinds (#130) is the rate chart's figures alone. */
@@ -103,7 +130,7 @@ public class ChatController {
 		Message message = conversations.append(userId, Message.Role.ADVISOR, CHART_INTROS.get(chart.chartType()));
 		conversations.attachChart(message.getId(), objectMapper.writeValueAsString(chart));
 		message.attachChart(objectMapper.writeValueAsString(chart));
-		return view(message);
+		return view(message, message.getConversationId());
 	}
 
 	/** What the advisor says with a chart shown by a button; the figures are in the chart. */
@@ -112,7 +139,7 @@ public class ChatController {
 			CostBreakdown.TYPE, "Here is what the home costs in all: your down payment, the loan, and the interest over the whole term.");
 
 	/**
-	 * Start over (#70): wipes everything the user has told us and sent, keeps the account,
+	 * Start over (#70): wipes all saved conversations and user journey data, keeps the account,
 	 * and returns the new conversation, which is just the greeting.
 	 */
 	@PostMapping("/reset")

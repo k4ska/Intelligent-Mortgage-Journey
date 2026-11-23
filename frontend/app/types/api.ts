@@ -9,6 +9,16 @@ export interface AgentStatus {
   mode: AgentMode
 }
 
+// ---- Saved advisor chats (GET/POST /api/chat/conversations) ----
+
+export interface ConversationSummary {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+  active: boolean
+}
+
 // ---- Chat (GET /api/chat, POST /api/chat/messages) ----
 
 export interface ChatMessage {
@@ -24,6 +34,8 @@ export interface ChatMessage {
   threadId?: string | null
   /** A chart the advisor showed with this reply (#130). */
   chart?: ChatChart | null
+  /** Asked next to a bank thread in another saved chat (#160): shown in the inbox, not in this chat. */
+  otherChat?: boolean
 }
 
 /** The payment at one Euribor level (backend: RateChart.Point). */

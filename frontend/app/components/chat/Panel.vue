@@ -12,7 +12,9 @@ const selectedBankIds = ref<string[]>([])
 const submittingApplication = ref(false)
 const applicationError = ref('')
 const applicationSent = ref(false)
-const hasStartedChat = computed(() => advisor.messages.some(message => message.role === 'user' && !message.threadId))
+// Bank-thread messages from other saved chats belong in the inbox only (#160).
+const chatMessages = computed(() => advisor.messages.filter(message => !message.otherChat))
+const hasStartedChat = computed(() => chatMessages.value.some(message => message.role === 'user' && !message.threadId))
 // Buttons for the charts the user might want but not think to ask for (#160, point 3).
 // They call our code directly, so they're instant and never wait for the model.
 const hasOffers = computed(() => inbox.threads.some(thread => ['OFFER', 'NEGOTIATING', 'ACCEPTED'].includes(thread.status)))
@@ -30,6 +32,7 @@ async function submitApplication() {
     .map(bank => bank.id)
   if (!bankIds.length || submittingApplication.value) return
   submittingApplication.value = true
+  advisor.applying = true
   applicationError.value = ''
   applicationSent.value = false
   try {
@@ -47,6 +50,7 @@ async function submitApplication() {
     applicationError.value = copy.applicationError
   } finally {
     submittingApplication.value = false
+    advisor.applying = false
   }
 }
 
@@ -55,8 +59,8 @@ const list = ref<HTMLElement | null>(null)
 const input = ref<HTMLTextAreaElement | null>(null)
 // Only the newest message changes while streaming, so the count and its text are enough.
 const scrollKey = computed(() => {
-  const last = advisor.messages.at(-1)
-  return `${advisor.messages.length}:${last?.id}:${last?.text.length}`
+  const last = chatMessages.value.at(-1)
+  return `${chatMessages.value.length}:${last?.id}:${last?.text.length}`
 })
 
 watch(scrollKey, async () => {
@@ -91,7 +95,7 @@ function onKeydown(event: KeyboardEvent) {
 
     <div ref="list" class="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5" role="log" aria-live="polite" aria-relevant="additions text">
       <p v-if="advisor.loading" class="text-center text-sm text-[var(--ui-text-muted)]">{{ copy.loading }}</p>
-      <ChatMessageBubble v-for="message in advisor.messages" :key="message.id" :message="message" :streaming="advisor.sending" />
+      <ChatMessageBubble v-for="message in chatMessages" :key="message.id" :message="message" :streaming="advisor.sending" />
     </div>
 
     <div v-if="advisor.bankOptions.length" class="shrink-0 border-t border-[var(--ui-border)] p-4">
