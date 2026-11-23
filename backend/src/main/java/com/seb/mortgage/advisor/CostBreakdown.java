@@ -1,5 +1,6 @@
 package com.seb.mortgage.advisor;
 
+import com.seb.mortgage.bank.OfferCalculator;
 import com.seb.mortgage.mockdata.AffordabilityCalculator;
 import com.seb.mortgage.profile.LoanProfile;
 import com.seb.mortgage.profile.LoanProfileAssembler;
@@ -26,8 +27,24 @@ public record CostBreakdown(double price, double downPayment, double loanAmount,
 				round2(loan), termYears, round2(rate), monthly, round2(monthly * termYears * 12 - loan));
 	}
 
+	/**
+	 * What the home costs with a bank's offer (#160): its loan, term, rate and payment. The down
+	 * payment is the rest of the price, as the bank lends the price less the savings.
+	 */
+	static CostBreakdown of(OfferCalculator.Offer offer, double price) {
+		double loan = offer.amount();
+		return new CostBreakdown(round2(price), round2(Math.max(0, price - loan)), round2(loan), offer.termYears(),
+				round2(offer.ratePct()), round2(offer.monthlyPayment()),
+				round2(offer.monthlyPayment() * offer.termYears() * 12 - loan));
+	}
+
 	ChartView view() {
 		return new ChartView(TYPE, "What the home costs over the whole loan", this);
+	}
+
+	/** The view of the breakdown for the offer the user accepted from this bank. */
+	ChartView view(String bank) {
+		return new ChartView(TYPE, "What the home costs with " + bank + "'s offer", this);
 	}
 
 	private static double round2(double value) {

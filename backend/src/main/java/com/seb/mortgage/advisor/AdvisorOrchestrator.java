@@ -260,7 +260,7 @@ public class AdvisorOrchestrator {
 		Sinks.Many<StreamEvent> toolEvents = Sinks.many().unicast().onBackpressureBuffer();
 		AdvisorTools tools = new AdvisorTools(userId, profile, property, listings, banks, loans, documents, phases,
 				stated, event -> toolEvents.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(1))),
-				inbox);
+				inbox).acceptedOffer(() -> bankThreads.accepted(userId));
 		UUID threadId = inbox == null ? null : inbox.thread().threadId();
 
 		StringBuilder reply = new StringBuilder();
@@ -302,7 +302,7 @@ public class AdvisorOrchestrator {
 		RateChart automatic = threadId == null && earlier.stream().noneMatch(m -> m.getChartJson() != null)
 				? tools.chartWithAffordability() : null;
 		if (tools.chart() != null) {
-			conversations.attachChart(messageId, objectMapper.writeValueAsString(tools.chart().view()));
+			conversations.attachChart(messageId, objectMapper.writeValueAsString(tools.chartView()));
 		}
 		Flux<StreamEvent> chartEvent = automatic == null ? Flux.empty() : Flux.just(StreamEvent.chart(automatic.view()));
 		return chartEvent.concatWith(Flux.defer(() -> verify(userId, messageId, reply, userText, earlier, tools)));
